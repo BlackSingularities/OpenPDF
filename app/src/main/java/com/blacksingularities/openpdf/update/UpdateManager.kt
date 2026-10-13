@@ -1,5 +1,6 @@
 package com.blacksingularities.openpdf.update
 
+import com.blacksingularities.openpdf.i18n.tr
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -72,7 +73,7 @@ object UpdateManager {
         }
         val nm = context.getSystemService(android.app.NotificationManager::class.java) ?: return
         nm.createNotificationChannel(
-            android.app.NotificationChannel(CHANNEL, "Aktualizacje", android.app.NotificationManager.IMPORTANCE_HIGH),
+            android.app.NotificationChannel(CHANNEL, tr("Aktualizacje"), android.app.NotificationManager.IMPORTANCE_HIGH),
         )
         val pending = PendingIntent.getActivity(
             context,
@@ -82,8 +83,8 @@ object UpdateManager {
         )
         val notification = android.app.Notification.Builder(context, CHANNEL)
             .setSmallIcon(android.R.drawable.stat_sys_download_done)
-            .setContentTitle("OpenPDF zaktualizowany do ${BuildConfig.VERSION_NAME}")
-            .setContentText("Dotknij, aby otworzyć aplikację")
+            .setContentTitle(tr("OpenPDF zaktualizowany do {0}", BuildConfig.VERSION_NAME))
+            .setContentText(tr("Dotknij, aby otworzyć aplikację"))
             .setContentIntent(pending)
             .setAutoCancel(true)
             .build()
@@ -104,7 +105,7 @@ object UpdateManager {
             setRequestProperty("User-Agent", "OpenPDF/" + BuildConfig.VERSION_NAME)
         }
         try {
-            if (conn.responseCode != 200) error("Serwer odpowiedział kodem ${conn.responseCode}")
+            if (conn.responseCode != 200) error(tr("Serwer odpowiedział kodem {0}", conn.responseCode))
             val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
             val assets = json.getJSONArray("assets")
             var url = ""
@@ -117,7 +118,7 @@ object UpdateManager {
                     break
                 }
             }
-            if (url.isEmpty()) error("Wydanie nie zawiera pliku APK")
+            if (url.isEmpty()) error(tr("Wydanie nie zawiera pliku APK"))
             ReleaseInfo(
                 version = json.getString("tag_name").removePrefix("v"),
                 notes = json.optString("body").substringBefore("\n---").trim(),
@@ -155,7 +156,7 @@ object UpdateManager {
             setRequestProperty("User-Agent", "OpenPDF/" + BuildConfig.VERSION_NAME)
         }
         try {
-            if (conn.responseCode !in 200..299) error("Pobieranie nie powiodło się (${conn.responseCode})")
+            if (conn.responseCode !in 200..299) error(tr("Pobieranie nie powiodło się ({0})", conn.responseCode))
             val total = conn.contentLengthLong.takeIf { it > 0 } ?: info.sizeBytes
             conn.inputStream.use { input ->
                 part.outputStream().use { out ->
@@ -175,7 +176,7 @@ object UpdateManager {
                     }
                 }
             }
-            if (!part.renameTo(target)) error("Nie można zapisać pliku aktualizacji")
+            if (!part.renameTo(target)) error(tr("Nie można zapisać pliku aktualizacji"))
             onProgress(1f)
             target
         } finally {
@@ -246,9 +247,9 @@ class UpdateReceiver : BroadcastReceiver() {
             }
             PackageInstaller.STATUS_SUCCESS -> UpdateManager.relaunchAfterUpdate(context)
             else -> {
-                val msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: "kod $status"
+                val msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: tr("kod {0}", status)
                 if (status != PackageInstaller.STATUS_FAILURE_ABORTED) {
-                    Toast.makeText(context, "Aktualizacja nieudana: $msg", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, tr("Aktualizacja nieudana: {0}", msg), Toast.LENGTH_LONG).show()
                 }
             }
         }

@@ -1,5 +1,6 @@
 package com.blacksingularities.openpdf.ui
 
+import com.blacksingularities.openpdf.i18n.tr
 import android.app.Application
 import android.content.ContentValues
 import android.content.Intent
@@ -79,6 +80,12 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
     fun updateSettings(t: (AppSettings) -> AppSettings) {
         settings = t(settings)
         store.save(settings)
+        applyLanguage()
+    }
+
+    /** Język interfejsu: z ustawień albo systemowy (polski → polski, inne → angielski). */
+    fun applyLanguage() {
+        com.blacksingularities.openpdf.i18n.I18n.apply(settings.language, ctx)
     }
 
     // ------------------------------------------------------------------ stan dokumentu
@@ -179,7 +186,7 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
             is Change.FileState -> {
                 val d = doc ?: return
                 viewModelScope.launch {
-                    busy = Busy(if (from === undoStack) "Cofanie: ${c.label}" else "Ponawianie: ${c.label}")
+                    busy = Busy(if (from === undoStack) tr("Cofanie: {0}", c.label) else tr("Ponawianie: {0}", c.label))
                     try {
                         val snap = snapshot(d)
                         to += Change.FileState(snap, marks, c.label)
@@ -189,7 +196,7 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
                         dirty = true
                         reload(d)
                     } catch (e: Exception) {
-                        toast("Nie udało się: ${e.message}")
+                        toast(tr("Nie udało się: {0}", e.message))
                     } finally {
                         busy = null
                         refreshHistoryFlags()
@@ -219,7 +226,7 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
             snapshot(d)
         } catch (e: Exception) {
             busy = null
-            toast("Brak miejsca na kopię roboczą")
+            toast(tr("Brak miejsca na kopię roboczą"))
             return false
         }
         val before = marks
@@ -238,7 +245,7 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
             // Plik roboczy wraca do stanu sprzed operacji.
             runCatching { withContext(Dispatchers.IO) { snap.copyTo(d.source, overwrite = true) } }
             snap.delete()
-            toast("$label: nie udało się (${e.message ?: e.javaClass.simpleName})")
+            toast(tr("{0}: nie udało się ({1})", label, e.message ?: e.javaClass.simpleName))
             false
         } finally {
             busy = null
@@ -268,7 +275,7 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
         }
-        val fallback = uri.lastPathSegment?.substringAfterLast('/')?.takeIf { it.isNotBlank() } ?: "Dokument.pdf"
+        val fallback = uri.lastPathSegment?.substringAfterLast('/')?.takeIf { it.isNotBlank() } ?: tr("Dokument.pdf")
         return Meta(name ?: fallback, size)
     }
 
@@ -287,15 +294,15 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
     fun open(uri: Uri, password: String? = null) {
         viewModelScope.launch {
             if (!confirmDiscardIfNeeded { open(uri, password) }) return@launch
-            busy = Busy("Otwieranie…")
+            busy = Busy(tr("Otwieranie…"))
             val dir = newSessionDir()
-            var name = "Dokument.pdf"
+            var name = tr("Dokument.pdf")
             try {
                 val meta = withContext(Dispatchers.IO) { queryMeta(uri) }
                 name = meta.name
                 val original = File(dir, "original.pdf")
                 withContext(Dispatchers.IO) {
-                    val input = resolver.openInputStream(uri) ?: error("Brak dostępu do pliku")
+                    val input = resolver.openInputStream(uri) ?: error(tr("Brak dostępu do pliku"))
                     input.use { i -> original.outputStream().use { o -> i.copyTo(o, 256 * 1024) } }
                 }
                 val writable = withContext(Dispatchers.IO) { checkWritable(uri) }
@@ -305,7 +312,7 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
                 passwordRequest = PasswordRequest(uri, null, name, password != null, PasswordPurpose.OPEN)
             } catch (e: Throwable) {
                 dir.deleteRecursively()
-                toast("Nie udało się otworzyć pliku: ${e.message ?: e.javaClass.simpleName}")
+                toast(tr("Nie udało się otworzyć pliku: {0}", e.message ?: e.javaClass.simpleName))
             } finally {
                 busy = null
             }
@@ -485,16 +492,16 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
     fun createBlank(pages: Int, landscape: Boolean) {
         viewModelScope.launch {
             if (!confirmDiscardIfNeeded { createBlank(pages, landscape) }) return@launch
-            busy = Busy("Tworzenie dokumentu…")
+            busy = Busy(tr("Tworzenie dokumentu…"))
             try {
                 val dir = newSessionDir()
                 val f = File(dir, "new.pdf")
                 val a4 = PDRectangle.A4
                 val size = if (landscape) PDRectangle(a4.height, a4.width) else a4
                 withContext(Dispatchers.IO) { PdfOps.createBlank(f, pages, size) }
-                openLocal(f, "Nowy dokument.pdf")
+                openLocal(f, tr("Nowy dokument.pdf"))
             } catch (e: Throwable) {
-                toast("Nie udało się utworzyć dokumentu: ${e.message}")
+                toast(tr("Nie udało się utworzyć dokumentu: {0}", e.message))
             } finally {
                 busy = null
             }
@@ -505,16 +512,16 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
         if (uris.isEmpty()) return
         viewModelScope.launch {
             if (!confirmDiscardIfNeeded { createFromImages(uris) }) return@launch
-            busy = Busy("Tworzenie PDF z ${uris.size} obrazów…")
+            busy = Busy(tr("Tworzenie PDF z {0} obrazów…", uris.size))
             try {
                 val dir = newSessionDir()
                 val files = withContext(Dispatchers.IO) { copyImages(uris, dir) }
                 val f = File(dir, "images.pdf")
                 withContext(Dispatchers.IO) { PdfOps.createFromImages(files, f) }
                 files.forEach { it.delete() }
-                openLocal(f, "Obrazy.pdf")
+                openLocal(f, tr("Obrazy.pdf"))
             } catch (e: Throwable) {
-                toast("Nie udało się utworzyć PDF: ${e.message}")
+                toast(tr("Nie udało się utworzyć PDF: {0}", e.message))
             } finally {
                 busy = null
             }
@@ -529,13 +536,13 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
         }
         viewModelScope.launch {
             if (!confirmDiscardIfNeeded { mergeFiles(uris) }) return@launch
-            busy = Busy("Scalanie ${uris.size} plików…")
+            busy = Busy(tr("Scalanie {0} plików…", uris.size))
             try {
                 val dir = newSessionDir()
                 val first = File(dir, "merge-0.pdf")
                 withContext(Dispatchers.IO) { copyUri(uris[0], first) }
                 for ((i, u) in uris.drop(1).withIndex()) {
-                    busy = Busy("Scalanie ${i + 2} z ${uris.size}…", (i + 1f) / uris.size)
+                    busy = Busy(tr("Scalanie {0} z {1}…", i + 2, uris.size), (i + 1f) / uris.size)
                     val f = File(dir, "merge-${i + 1}.pdf")
                     withContext(Dispatchers.IO) {
                         copyUri(u, f)
@@ -543,11 +550,11 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
                         f.delete()
                     }
                 }
-                openLocal(first, "Scalony dokument.pdf")
+                openLocal(first, tr("Scalony dokument.pdf"))
             } catch (e: InvalidPasswordException) {
-                toast("Jeden z plików jest chroniony hasłem – otwórz go i zapisz bez hasła przed scaleniem")
+                toast(tr("Jeden z plików jest chroniony hasłem – otwórz go i zapisz bez hasła przed scaleniem"))
             } catch (e: Throwable) {
-                toast("Scalanie nie powiodło się: ${e.message}")
+                toast(tr("Scalanie nie powiodło się: {0}", e.message))
             } finally {
                 busy = null
             }
@@ -555,7 +562,7 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun copyUri(uri: Uri, out: File) {
-        val input = resolver.openInputStream(uri) ?: error("Brak dostępu do pliku")
+        val input = resolver.openInputStream(uri) ?: error(tr("Brak dostępu do pliku"))
         input.use { i -> out.outputStream().use { o -> i.copyTo(o, 256 * 1024) } }
     }
 
@@ -593,14 +600,14 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
 
     fun toggleBookmark() {
         val uri = doc?.uri?.toString() ?: run {
-            toast("Zakładki działają dla zapisanych plików")
+            toast(tr("Zakładki działają dla zapisanych plików"))
             return
         }
         val p = currentPage
-        val list = if (bookmarks.any { it.page == p }) bookmarks.filter { it.page != p } else bookmarks + UserBookmark(p, "Strona ${p + 1}")
+        val list = if (bookmarks.any { it.page == p }) bookmarks.filter { it.page != p } else bookmarks + UserBookmark(p, tr("Strona {0}", p + 1))
         library.setBookmarks(uri, list)
         bookmarks = library.bookmarks(uri)
-        toast(if (list.any { it.page == p }) "Dodano zakładkę: strona ${p + 1}" else "Usunięto zakładkę")
+        toast(if (list.any { it.page == p }) tr("Dodano zakładkę: strona {0}", p + 1) else tr("Usunięto zakładkę"))
     }
 
     fun removeBookmark(b: UserBookmark) {
@@ -796,7 +803,7 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
         erasedCommitted.clear()
         if (committed.isNotEmpty()) {
             viewModelScope.launch {
-                mutate("Usuwanie adnotacji", commit = false) { f -> PdfOps.deleteAnnotations(f, committed) }
+                mutate(tr("Usuwanie adnotacji"), commit = false) { f -> PdfOps.deleteAnnotations(f, committed) }
                 erasedPreview = emptySet()
             }
         } else {
@@ -816,7 +823,7 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
         selectionJob = viewModelScope.launch {
             val t = textIndex?.page(page)
             if (t == null || t.length == 0) {
-                if (word) toast("Na tej stronie nie ma tekstu do zaznaczenia (skan?)")
+                if (word) toast(tr("Na tej stronie nie ma tekstu do zaznaczenia (skan?)"))
                 return@launch
             }
             selectionText = t
@@ -857,7 +864,7 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
         val cm = ctx.getSystemService(android.content.ClipboardManager::class.java)
         cm?.setPrimaryClip(android.content.ClipData.newPlainText("OpenPDF", s.text))
         selection = null
-        toast("Skopiowano tekst")
+        toast(tr("Skopiowano tekst"))
     }
 
     fun markupSelection(kind: MarkupKind) {
@@ -890,7 +897,7 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
         val tol = 0.01f
         index.fields.firstOrNull { f -> f.widgets.any { it.page == page && it.rect.contains(p, tol) } }?.let { f ->
             if (f.kind != FieldKind.BUTTON && f.kind != FieldKind.SIGNATURE) {
-                if (f.readOnly) toast("Pole „${f.label.ifBlank { f.name }}” jest tylko do odczytu") else openField(f)
+                if (f.readOnly) toast(tr("Pole „{0}” jest tylko do odczytu", f.label.ifBlank { f.name })) else openField(f)
                 return true
             }
         }
@@ -899,7 +906,7 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
             return true
         }
         marks.lastOrNull { it.page == page && it is NoteMark && it.hit(p, tol) }?.let { m ->
-            noteView = NoteView("Notatka", (m as NoteMark).text)
+            noteView = NoteView(tr("Notatka"), (m as NoteMark).text)
             return true
         }
         index.annots.getOrNull(page)?.lastOrNull { it.rect.contains(p, tol) && it.contents.isNotBlank() && it.subtype in NOTE_TYPES }?.let { a ->
@@ -1069,7 +1076,7 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
                 val f = withContext(Dispatchers.IO) {
                     val raw = File(d.dir, "img-raw-${newId()}")
                     copyUri(uri, raw)
-                    val bmp = PdfOps.decodeScaled(raw, 2000) ?: error("Nie można odczytać obrazu")
+                    val bmp = PdfOps.decodeScaled(raw, 2000) ?: error(tr("Nie można odczytać obrazu"))
                     raw.delete()
                     val out = File(d.dir, "img-${newId()}.png")
                     out.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
@@ -1085,7 +1092,7 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
                 tool = Tool.SELECT
                 selectedId = mark.id
             } catch (e: Throwable) {
-                toast("Nie udało się wstawić obrazu: ${e.message}")
+                toast(tr("Nie udało się wstawić obrazu: {0}", e.message))
             }
         }
     }
@@ -1100,7 +1107,7 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
         val at = pendingSignatureAt
         pendingSignatureAt = null
         if (at != null) placeSignature(sig, at.first, at.second)
-        else toast("Podpis zapisany – dotknij strony, aby go wstawić")
+        else toast(tr("Podpis zapisany – dotknij strony, aby go wstawić"))
     }
 
     fun deleteSignature(id: String) {
@@ -1165,7 +1172,7 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
                     searchIndex = 0
                     jumpTo(searchHits[0].page, searchHits[0].rects.first())
                 }
-                if (searchHits.isEmpty()) toast("Nie znaleziono „$query”")
+                if (searchHits.isEmpty()) toast(tr("Nie znaleziono „{0}”", query))
             } finally {
                 searching = false
             }
@@ -1195,22 +1202,22 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
 
     // ------------------------------------------------------------------ strony
 
-    fun rotatePages(pages: Collection<Int>, degrees: Int) = launchMutate(if (degrees > 0) "Obracanie w prawo" else "Obracanie w lewo") { PdfOps.rotatePages(it, pages, degrees) }
+    fun rotatePages(pages: Collection<Int>, degrees: Int) = launchMutate(if (degrees > 0) tr("Obracanie w prawo") else tr("Obracanie w lewo")) { PdfOps.rotatePages(it, pages, degrees) }
 
     fun deletePages(pages: Collection<Int>) {
         if (pages.size >= index.pageCount) {
-            toast("Nie można usunąć wszystkich stron")
+            toast(tr("Nie można usunąć wszystkich stron"))
             return
         }
         // Elementy oczekujące na usuwanych stronach – usuwane razem z nimi, pozostałe przesuwane.
-        launchMutate("Usuwanie stron") { PdfOps.deletePages(it, pages) }
+        launchMutate(tr("Usuwanie stron")) { PdfOps.deletePages(it, pages) }
     }
 
-    fun duplicatePages(pages: Collection<Int>) = launchMutate("Powielanie stron") { PdfOps.duplicatePages(it, pages) }
+    fun duplicatePages(pages: Collection<Int>) = launchMutate(tr("Powielanie stron")) { PdfOps.duplicatePages(it, pages) }
 
-    fun movePages(pages: List<Int>, target: Int) = launchMutate("Przenoszenie stron") { PdfOps.movePages(it, pages, target) }
+    fun movePages(pages: List<Int>, target: Int) = launchMutate(tr("Przenoszenie stron")) { PdfOps.movePages(it, pages, target) }
 
-    fun insertBlank(at: Int) = launchMutate("Wstawianie pustej strony") { PdfOps.insertBlank(it, at) }
+    fun insertBlank(at: Int) = launchMutate(tr("Wstawianie pustej strony")) { PdfOps.insertBlank(it, at) }
 
     private var pendingInsertAt: Int? = null
 
@@ -1221,12 +1228,12 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
             val f = File(d.dir, "insert-${newId()}.pdf")
             try {
                 withContext(Dispatchers.IO) { copyUri(uri, f) }
-                val ok = mutate("Wstawianie stron z pliku") { PdfOps.insertPdf(it, f, password, at) }
+                val ok = mutate(tr("Wstawianie stron z pliku")) { PdfOps.insertPdf(it, f, password, at) }
                 if (!ok && withContext(Dispatchers.IO) { runCatching { PdfOps.needsPassword(f) }.getOrDefault(false) }) {
                     passwordRequest = PasswordRequest(uri, null, queryMeta(uri).name, password != null, PasswordPurpose.INSERT)
                 }
             } catch (e: Throwable) {
-                toast("Nie udało się wstawić pliku: ${e.message}")
+                toast(tr("Nie udało się wstawić pliku: {0}", e.message))
             } finally {
                 f.delete()
             }
@@ -1237,7 +1244,7 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
         val d = doc ?: return
         viewModelScope.launch {
             val files = withContext(Dispatchers.IO) { copyImages(uris, d.dir) }
-            mutate("Wstawianie obrazów") { PdfOps.insertImages(it, files, at) }
+            mutate(tr("Wstawianie obrazów")) { PdfOps.insertImages(it, files, at) }
             files.forEach { it.delete() }
         }
     }
@@ -1245,7 +1252,7 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
     fun extractPages(pages: Collection<Int>) {
         val d = doc ?: return
         viewModelScope.launch {
-            busy = Busy("Wyodrębnianie stron…")
+            busy = Busy(tr("Wyodrębnianie stron…"))
             try {
                 val out = File(d.dir, "extract-${newId()}.pdf")
                 withContext(Dispatchers.IO) {
@@ -1261,10 +1268,10 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 val base = d.name.removeSuffix(".pdf").removeSuffix(".PDF")
                 val sorted = pages.sorted()
-                val label = if (sorted.size == 1) "strona ${sorted[0] + 1}" else "strony ${sorted.first() + 1}-${sorted.last() + 1}"
+                val label = if (sorted.size == 1) tr("strona {0}", sorted[0] + 1) else tr("strony {0}-{1}", sorted.first() + 1, sorted.last() + 1)
                 requestSave(SaveTarget.FileCopy(out, "application/pdf"), "$base ($label).pdf", "application/pdf")
             } catch (e: Throwable) {
-                toast("Nie udało się wyodrębnić stron: ${e.message}")
+                toast(tr("Nie udało się wyodrębnić stron: {0}", e.message))
             } finally {
                 busy = null
             }
@@ -1282,25 +1289,25 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
         if (edits.isEmpty()) return
         viewModelScope.launch {
             var failed: List<String> = emptyList()
-            mutate("Wypełnianie formularza") { failed = PdfOps.fillFields(it, edits) }
-            if (failed.isNotEmpty()) toast("Nie udało się ustawić: ${failed.joinToString()}")
+            mutate(tr("Wypełnianie formularza")) { failed = PdfOps.fillFields(it, edits) }
+            if (failed.isNotEmpty()) toast(tr("Nie udało się ustawić: {0}", failed.joinToString()))
         }
     }
 
-    fun flattenForm() = launchMutate("Spłaszczanie formularza") { PdfOps.flattenForm(it) }
+    fun flattenForm() = launchMutate(tr("Spłaszczanie formularza")) { PdfOps.flattenForm(it) }
 
-    fun deleteAnnotation(a: AnnotInfo) = launchMutate("Usuwanie adnotacji", commit = false) { PdfOps.deleteAnnotations(it, listOf(a)) }
+    fun deleteAnnotation(a: AnnotInfo) = launchMutate(tr("Usuwanie adnotacji"), commit = false) { PdfOps.deleteAnnotations(it, listOf(a)) }
 
-    fun deleteAllAnnotations() = launchMutate("Usuwanie wszystkich adnotacji", commit = false) { PdfOps.deleteAllAnnotations(it) }
+    fun deleteAllAnnotations() = launchMutate(tr("Usuwanie wszystkich adnotacji"), commit = false) { PdfOps.deleteAllAnnotations(it) }
 
     fun removePendingMark(id: Long) = setMarks(marks.filter { it.id != id })
 
-    fun setInfo(e: InfoEdit) = launchMutate("Zapisywanie właściwości") { PdfOps.setInfo(it, e) }
+    fun setInfo(e: InfoEdit) = launchMutate(tr("Zapisywanie właściwości")) { PdfOps.setInfo(it, e) }
 
     /** Zapisuje elementy oczekujące w pliku roboczym (bez zapisu na dysk użytkownika). */
     fun commitPending() {
         if (marks.isEmpty()) return
-        launchMutate("Zapisywanie adnotacji") { }
+        launchMutate(tr("Zapisywanie adnotacji")) { }
     }
 
     // ------------------------------------------------------------------ kompresja
@@ -1313,11 +1320,11 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
             val before = d.source.length()
             var count = 0
             val out = File(d.dir, "compressed.pdf")
-            val ok = mutate("Kompresja") { f ->
-                count = PdfOps.compress(f, out, maxSide, quality) { p -> busy = Busy("Kompresja…", p) }
+            val ok = mutate(tr("Kompresja")) { f ->
+                count = PdfOps.compress(f, out, maxSide, quality) { p -> busy = Busy(tr("Kompresja…"), p) }
                 if (out.length() in 1 until f.length()) {
                     f.delete()
-                    if (!out.renameTo(f)) error("Nie można zapisać pliku")
+                    if (!out.renameTo(f)) error(tr("Nie można zapisać pliku"))
                 } else {
                     out.delete()
                 }
@@ -1325,9 +1332,9 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
             if (ok) {
                 val after = d.source.length()
                 compressResult = if (after < before) {
-                    "Zmniejszono z ${formatSize(before)} do ${formatSize(after)} (${100 - after * 100 / max(1, before)}% mniej, obrazy: $count)"
+                    tr("Zmniejszono z {0} do {1} ({2}% mniej, obrazy: {3})", formatSize(before), formatSize(after), 100 - after * 100 / max(1, before), count)
                 } else {
-                    "Plik nie zawiera obrazów, które da się zmniejszyć"
+                    tr("Plik nie zawiera obrazów, które da się zmniejszyć")
                 }
             }
         }
@@ -1365,13 +1372,13 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             when (target) {
                 SaveTarget.Document -> saveTo(uri, rebind = true)
-                is SaveTarget.FileCopy -> writeToUri(target.file, uri, "Zapisano plik")
+                is SaveTarget.FileCopy -> writeToUri(target.file, uri, tr("Zapisano plik"))
                 is SaveTarget.Text -> {
                     try {
                         withContext(Dispatchers.IO) { openOut(uri).use { it.write(target.text.toByteArray()) } }
-                        toast("Zapisano tekst")
+                        toast(tr("Zapisano tekst"))
                     } catch (e: Throwable) {
-                        toast("Zapis nie powiódł się: ${e.message}")
+                        toast(tr("Zapis nie powiódł się: {0}", e.message))
                     }
                 }
             }
@@ -1379,15 +1386,15 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun openOut(uri: Uri) = runCatching { resolver.openOutputStream(uri, "wt") }.getOrNull()
-        ?: resolver.openOutputStream(uri, "w") ?: error("Brak dostępu do zapisu")
+        ?: resolver.openOutputStream(uri, "w") ?: error(tr("Brak dostępu do zapisu"))
 
     private suspend fun writeToUri(file: File, uri: Uri, done: String) {
-        busy = Busy("Zapisywanie…")
+        busy = Busy(tr("Zapisywanie…"))
         try {
             withContext(Dispatchers.IO) { openOut(uri).use { o -> file.inputStream().use { it.copyTo(o, 256 * 1024) } } }
             toast(done)
         } catch (e: Throwable) {
-            toast("Zapis nie powiódł się: ${e.message}")
+            toast(tr("Zapis nie powiódł się: {0}", e.message))
         } finally {
             busy = null
         }
@@ -1395,8 +1402,8 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
 
     private suspend fun saveTo(uri: Uri, rebind: Boolean) {
         val d = doc ?: return
-        if (marks.isNotEmpty() && !mutate("Zapisywanie adnotacji") { }) return
-        busy = Busy("Zapisywanie…")
+        if (marks.isNotEmpty() && !mutate(tr("Zapisywanie adnotacji")) { }) return
+        busy = Busy(tr("Zapisywanie…"))
         try {
             val out = File(d.dir, "export.pdf")
             withContext(Dispatchers.IO) {
@@ -1413,9 +1420,9 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
                 recents = library.recents()
                 saveThumbnail(uri.toString())
             }
-            toast("Zapisano")
+            toast(tr("Zapisano"))
         } catch (e: Throwable) {
-            toast("Zapis nie powiódł się: ${e.message}")
+            toast(tr("Zapis nie powiódł się: {0}", e.message))
         } finally {
             busy = null
         }
@@ -1424,17 +1431,17 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
     /** Kopia dokumentu ze wszystkimi zmianami (do udostępnienia i druku). */
     private suspend fun exportCopy(): File? {
         val d = doc ?: return null
-        if (marks.isNotEmpty() && !mutate("Zapisywanie adnotacji") { }) return null
+        if (marks.isNotEmpty() && !mutate(tr("Zapisywanie adnotacji")) { }) return null
         val dir = File(ctx.cacheDir, "share").apply { mkdirs() }
         dir.listFiles()?.forEach { it.delete() }
         val name = d.name.let { if (it.endsWith(".pdf", true)) it else "$it.pdf" }
         val out = File(dir, name)
-        busy = Busy("Przygotowywanie…")
+        busy = Busy(tr("Przygotowywanie…"))
         return try {
             withContext(Dispatchers.IO) { PdfOps.export(d.source, out, protection?.user, protection?.owner) }
             out
         } catch (e: Throwable) {
-            toast("Nie udało się przygotować pliku: ${e.message}")
+            toast(tr("Nie udało się przygotować pliku: {0}", e.message))
             null
         } finally {
             busy = null
@@ -1449,7 +1456,7 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             // Do druku bez hasła – systemowa usługa druku nie otworzy zaszyfrowanego pliku.
             val d = doc ?: return@launch
-            if (marks.isNotEmpty() && !mutate("Zapisywanie adnotacji") { }) return@launch
+            if (marks.isNotEmpty() && !mutate(tr("Zapisywanie adnotacji")) { }) return@launch
             events.send(UiEvent.Print(d.source, d.name))
         }
     }
@@ -1463,7 +1470,7 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
             var saved = 0
             try {
                 for ((i, p) in pages.withIndex()) {
-                    busy = Busy("Eksport strony ${p + 1} (${i + 1} z ${pages.size})", i.toFloat() / pages.size)
+                    busy = Busy(tr("Eksport strony {0} ({1} z {2})", p + 1, i + 1, pages.size), i.toFloat() / pages.size)
                     val bmp = s.renderAtDpi(p, dpi) ?: continue
                     withContext(Dispatchers.IO) {
                         val values = ContentValues().apply {
@@ -1471,15 +1478,15 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
                             put(MediaStore.Images.Media.MIME_TYPE, if (png) "image/png" else "image/jpeg")
                             put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/OpenPDF")
                         }
-                        val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: error("Brak dostępu do galerii")
+                        val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: error(tr("Brak dostępu do galerii"))
                         resolver.openOutputStream(uri)?.use { bmp.compress(if (png) Bitmap.CompressFormat.PNG else Bitmap.CompressFormat.JPEG, 92, it) }
                     }
                     bmp.recycle()
                     saved++
                 }
-                toast("Zapisano $saved obrazów w Obrazy/OpenPDF")
+                toast(tr("Zapisano {0} obrazów w Obrazy/OpenPDF", saved))
             } catch (e: Throwable) {
-                toast("Eksport przerwany: ${e.message}")
+                toast(tr("Eksport przerwany: {0}", e.message))
             } finally {
                 busy = null
             }
@@ -1491,12 +1498,12 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
     fun extractText() {
         val ti = textIndex ?: return
         viewModelScope.launch {
-            busy = Busy("Odczytywanie tekstu…", 0f)
+            busy = Busy(tr("Odczytywanie tekstu…"), 0f)
             try {
-                val text = ti.allText { busy = Busy("Odczytywanie tekstu…", it) }
+                val text = ti.allText { busy = Busy(tr("Odczytywanie tekstu…"), it) }
                 extractedText = text
                 sheet = Sheet.TEXT
-                if (text.isBlank()) toast("Dokument nie zawiera tekstu (to prawdopodobnie skan)")
+                if (text.isBlank()) toast(tr("Dokument nie zawiera tekstu (to prawdopodobnie skan)"))
             } finally {
                 busy = null
             }
@@ -1505,7 +1512,7 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
 
     fun saveExtractedText() {
         val t = extractedText ?: return
-        val name = (doc?.name?.removeSuffix(".pdf")?.removeSuffix(".PDF") ?: "tekst") + ".txt"
+        val name = (doc?.name?.removeSuffix(".pdf")?.removeSuffix(".PDF") ?: tr("tekst")) + ".txt"
         requestSave(SaveTarget.Text(t), name, "text/plain")
     }
 
@@ -1523,7 +1530,7 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
                 val info = UpdateManager.fetchLatest()
                 if (UpdateManager.isNewer(info.version)) UpdateState.Available(info) else UpdateState.UpToDate
             } catch (e: Throwable) {
-                if (silent) UpdateState.Idle else UpdateState.Failed(e.message ?: "Brak połączenia")
+                if (silent) UpdateState.Idle else UpdateState.Failed(e.message ?: tr("Brak połączenia"))
             }
         }
     }
@@ -1538,7 +1545,7 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 UpdateState.Ready(info, file)
             } catch (e: Throwable) {
-                UpdateState.Failed(e.message ?: "Pobieranie nie powiodło się")
+                UpdateState.Failed(e.message ?: tr("Pobieranie nie powiodło się"))
             }
             if (installAfter && update is UpdateState.Ready) installUpdate()
         }
@@ -1580,13 +1587,14 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 UpdateManager.install(ctx, ready.file)
             } catch (e: Throwable) {
-                update = UpdateState.Failed(e.message ?: "Instalacja nie powiodła się")
+                update = UpdateState.Failed(e.message ?: tr("Instalacja nie powiodła się"))
             }
         }
     }
 
     // Na końcu klasy – wszystkie pola stanu są już utworzone.
     init {
+        applyLanguage()
         // Pozostałości poprzednich uruchomień.
         runCatching { sessionsRoot.listFiles()?.forEach { it.deleteRecursively() } }
         checkUpdateIfDue()
@@ -1607,22 +1615,22 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
         }
 
         fun annotTypeLabel(subtype: String): String = when (subtype) {
-            "Text" -> "Notatka"
-            "FreeText" -> "Tekst"
-            "Highlight" -> "Zakreślenie"
-            "Underline" -> "Podkreślenie"
-            "StrikeOut" -> "Przekreślenie"
-            "Squiggly" -> "Falista linia"
-            "Ink" -> "Rysunek"
-            "Square" -> "Prostokąt"
-            "Circle" -> "Elipsa"
-            "Line" -> "Linia"
-            "Polygon" -> "Wielokąt"
-            "PolyLine" -> "Łamana"
-            "Stamp" -> "Pieczątka / obraz"
-            "Caret" -> "Wstawienie"
-            "FileAttachment" -> "Załącznik"
-            "Sound" -> "Dźwięk"
+            "Text" -> tr("Notatka")
+            "FreeText" -> tr("Tekst")
+            "Highlight" -> tr("Zakreślenie")
+            "Underline" -> tr("Podkreślenie")
+            "StrikeOut" -> tr("Przekreślenie")
+            "Squiggly" -> tr("Falista linia")
+            "Ink" -> tr("Rysunek")
+            "Square" -> tr("Prostokąt")
+            "Circle" -> tr("Elipsa")
+            "Line" -> tr("Linia")
+            "Polygon" -> tr("Wielokąt")
+            "PolyLine" -> tr("Łamana")
+            "Stamp" -> tr("Pieczątka / obraz")
+            "Caret" -> tr("Wstawienie")
+            "FileAttachment" -> tr("Załącznik")
+            "Sound" -> tr("Dźwięk")
             else -> subtype
         }
 

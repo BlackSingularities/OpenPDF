@@ -32,6 +32,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = false
         UpdateManager.clearUpdatedNotification(this)
+        vm.applyLanguage()
 
         // Rozłożony fold (pionowy zawias) albo pozycja „książki” – sygnał dla automatycznego trybu książki.
         lifecycleScope.launch {
@@ -55,6 +56,12 @@ class MainActivity : ComponentActivity() {
                 AppRoot(vm)
             }
         }
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // Zmiana języka systemu bez restartu ekranu.
+        vm.applyLanguage()
     }
 
     override fun onResume() {

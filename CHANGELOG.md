@@ -1,5 +1,9 @@
 # Zmiany
 
+## 1.1.0
+- Pełna angielska wersja interfejsu: język automatycznie według systemu (polski albo angielski) lub wybrany w Ustawienia → Ogólne → Język.
+- Aktualizacje jednym dotknięciem: baner nowej wersji, pobieranie i instalacja bez przeglądarki.
+
 ## 1.0.0
 - Pierwsze wydanie OpenPDF.
 - Tryb książki: dwie strony obok siebie (automatycznie w poziomie i na rozłożonym foldzie), okładka osobno albo rozkładówki od pierwszej strony, kolejność od prawej do lewej, cień grzbietu.

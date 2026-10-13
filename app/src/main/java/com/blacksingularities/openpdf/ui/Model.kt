@@ -1,5 +1,6 @@
 package com.blacksingularities.openpdf.ui
 
+import com.blacksingularities.openpdf.i18n.tr
 import android.net.Uri
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import com.blacksingularities.openpdf.pdf.FieldInfo
@@ -13,7 +14,7 @@ import java.io.File
 
 enum class Screen { HOME, VIEWER, PAGES }
 
-enum class Tool(val label: String) {
+enum class Tool(private val pl: String) {
     VIEW("Przeglądanie"),
     SELECT("Zaznaczanie i przesuwanie"),
     PEN("Pióro"),
@@ -26,6 +27,8 @@ enum class Tool(val label: String) {
     SIGNATURE("Podpis"),
     IMAGE("Obraz"),
     ;
+
+    val label: String get() = tr(pl)
 
     /** Narzędzia rysujące jednym palcem (przewijanie – dwoma). */
     val drags: Boolean get() = this == PEN || this == HIGHLIGHTER || this == ERASER || this == SHAPE || this == MARKUP
@@ -99,15 +102,15 @@ fun makeShape(id: Long, page: Int, kind: ShapeKind, a: PointN, b: PointN, style:
 
 val MarkupKind.label: String
     get() = when (this) {
-        MarkupKind.HIGHLIGHT -> "Zakreślenie"
-        MarkupKind.UNDERLINE -> "Podkreślenie"
-        MarkupKind.STRIKEOUT -> "Przekreślenie"
+        MarkupKind.HIGHLIGHT -> tr("Zakreślenie")
+        MarkupKind.UNDERLINE -> tr("Podkreślenie")
+        MarkupKind.STRIKEOUT -> tr("Przekreślenie")
     }
 
 val ShapeKind.label: String
     get() = when (this) {
-        ShapeKind.RECT -> "Prostokąt"
-        ShapeKind.ELLIPSE -> "Elipsa"
-        ShapeKind.LINE -> "Linia"
-        ShapeKind.ARROW -> "Strzałka"
+        ShapeKind.RECT -> tr("Prostokąt")
+        ShapeKind.ELLIPSE -> tr("Elipsa")
+        ShapeKind.LINE -> tr("Linia")
+        ShapeKind.ARROW -> tr("Strzałka")
     }

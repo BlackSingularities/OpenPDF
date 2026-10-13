@@ -1,19 +1,27 @@
 package com.blacksingularities.openpdf.data
 
 import android.content.Context
+import com.blacksingularities.openpdf.i18n.AppLanguage
+import com.blacksingularities.openpdf.i18n.tr
 import com.blacksingularities.openpdf.ui.FitMode
 import com.blacksingularities.openpdf.ui.ScrollMode
 
-enum class BookMode(val label: String) {
+enum class BookMode(private val pl: String) {
     AUTO("Automatycznie"),
     ALWAYS("Zawsze"),
     NEVER("Nigdy"),
+    ;
+
+    val label: String get() = tr(pl)
 }
 
-enum class PaperTheme(val label: String) {
+enum class PaperTheme(private val pl: String) {
     NORMAL("Zwykły"),
     NIGHT("Nocny"),
     SEPIA("Sepia"),
+    ;
+
+    val label: String get() = tr(pl)
 }
 
 /** Ustawienia aplikacji (SharedPreferences). */
@@ -34,6 +42,7 @@ data class AppSettings(
     val stylusOnly: Boolean = false,
     val author: String = "OpenPDF",
     val autoUpdate: Boolean = true,
+    val language: AppLanguage = AppLanguage.SYSTEM,
 )
 
 class SettingsStore(context: Context) {
@@ -58,6 +67,7 @@ class SettingsStore(context: Context) {
             stylusOnly = prefs.getBoolean("stylusOnly", d.stylusOnly),
             author = prefs.getString("author", null) ?: d.author,
             autoUpdate = prefs.getBoolean("autoUpdate", d.autoUpdate),
+            language = enumOr(prefs.getString("language", null), d.language),
         )
     }
 
@@ -79,6 +89,7 @@ class SettingsStore(context: Context) {
             .putBoolean("stylusOnly", s.stylusOnly)
             .putString("author", s.author)
             .putBoolean("autoUpdate", s.autoUpdate)
+            .putString("language", s.language.name)
             .apply()
     }
 

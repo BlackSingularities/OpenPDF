@@ -2,6 +2,7 @@
 
 package com.blacksingularities.openpdf.ui
 
+import com.blacksingularities.openpdf.i18n.tr
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -93,9 +94,9 @@ fun HomeScreen(vm: PdfViewModel) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("OpenPDF", fontSize = 30.sp, fontWeight = FontWeight.Black, color = Color.White)
-                        Text("Czytaj, adnotuj, podpisuj i układaj PDF-y", fontSize = 13.sp, color = Palette.TextDim)
+                        Text(tr("Czytaj, adnotuj, podpisuj i układaj PDF-y"), fontSize = 13.sp, color = Palette.TextDim)
                     }
-                    RoundIcon(Icons.Rounded.Settings, "Ustawienia", badge = if (vm.updatePending) "1" else null, onClick = { vm.sheet = Sheet.SETTINGS })
+                    RoundIcon(Icons.Rounded.Settings, tr("Ustawienia"), badge = if (vm.updatePending) "1" else null, onClick = { vm.sheet = Sheet.SETTINGS })
                 }
             }
             item(span = { GridItemSpan(maxLineSpan) }) {
@@ -108,27 +109,27 @@ fun HomeScreen(vm: PdfViewModel) {
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(22.dp))
                             .background(Color.White)
-                            .reactive("Otwórz plik PDF") { openPicker.launch(arrayOf("application/pdf")) }
+                            .reactive(tr("Otwórz plik PDF")) { openPicker.launch(arrayOf("application/pdf")) }
                             .padding(horizontal = 20.dp, vertical = 18.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(Icons.Rounded.FolderOpen, null, tint = Palette.Ink, modifier = Modifier.size(28.dp))
                         Spacer(Modifier.width(14.dp))
                         Column {
-                            Text("Otwórz PDF", color = Palette.Ink, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                            Text("Z telefonu, karty lub chmury", color = Palette.Ink.copy(alpha = 0.6f), fontSize = 12.sp)
+                            Text(tr("Otwórz PDF"), color = Palette.Ink, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                            Text(tr("Z telefonu, karty lub chmury"), color = Palette.Ink.copy(alpha = 0.6f), fontSize = 12.sp)
                         }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        HomeAction(Icons.Rounded.NoteAdd, "Nowy pusty", Modifier.weight(1f)) { blank = true }
-                        HomeAction(Icons.Rounded.PhotoLibrary, "Z obrazów", Modifier.weight(1f)) { imagesPicker.launch("image/*") }
-                        HomeAction(Icons.Rounded.MergeType, "Scal pliki", Modifier.weight(1f)) { mergePicker.launch(arrayOf("application/pdf")) }
+                        HomeAction(Icons.Rounded.NoteAdd, tr("Nowy pusty"), Modifier.weight(1f)) { blank = true }
+                        HomeAction(Icons.Rounded.PhotoLibrary, tr("Z obrazów"), Modifier.weight(1f)) { imagesPicker.launch("image/*") }
+                        HomeAction(Icons.Rounded.MergeType, tr("Scal pliki"), Modifier.weight(1f)) { mergePicker.launch(arrayOf("application/pdf")) }
                     }
                 }
             }
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Text(
-                    if (recents.isEmpty()) "Otwarte pliki pojawią się tutaj." else "OSTATNIE",
+                    if (recents.isEmpty()) tr("Otwarte pliki pojawią się tutaj.") else tr("OSTATNIE"),
                     color = if (recents.isEmpty()) Palette.TextDim else Palette.Amber,
                     fontSize = if (recents.isEmpty()) 13.sp else 11.sp,
                     fontWeight = FontWeight.Bold,
@@ -150,14 +151,14 @@ fun HomeScreen(vm: PdfViewModel) {
             r.name,
             onDismiss = { removeRecent = null },
             buttons = {
-                PillButton("Anuluj", primary = false) { removeRecent = null }
-                PillButton("Usuń z listy", danger = true) {
+                PillButton(tr("Anuluj"), primary = false) { removeRecent = null }
+                PillButton(tr("Usuń z listy"), danger = true) {
                     vm.forgetRecent(r.uri)
                     removeRecent = null
                 }
             },
         ) {
-            Text("Plik pozostanie na urządzeniu – zniknie tylko z listy ostatnich.", color = Palette.TextDim, fontSize = 13.sp)
+            Text(tr("Plik pozostanie na urządzeniu – zniknie tylko z listy ostatnich."), color = Palette.TextDim, fontSize = 13.sp)
         }
     }
 }
@@ -203,7 +204,7 @@ private fun RecentCard(vm: PdfViewModel, r: RecentDoc, fmt: DateFormat, onOpen: 
             }
             if (r.pages > 0) {
                 Text(
-                    if (r.lastPage > 0) "${r.lastPage + 1}/${r.pages}" else "${r.pages} str.",
+                    if (r.lastPage > 0) "${r.lastPage + 1}/${r.pages}" else tr("{0} str.", r.pages),
                     color = Color.White,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,

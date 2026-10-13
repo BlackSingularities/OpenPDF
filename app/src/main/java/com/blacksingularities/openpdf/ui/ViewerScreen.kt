@@ -2,6 +2,7 @@
 
 package com.blacksingularities.openpdf.ui
 
+import com.blacksingularities.openpdf.i18n.tr
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -211,22 +212,22 @@ fun ViewerScreen(vm: PdfViewModel) {
 private fun MainBar(vm: PdfViewModel, book: Boolean, vertical: Boolean) {
     val s = vm.settings
     val items: @Composable () -> Unit = {
-        RoundIcon(Icons.AutoMirrored.Rounded.ArrowBack, "Zamknij dokument", onClick = { vm.exitToHome() })
-        RoundIcon(Icons.Rounded.GridView, "Strony: układanie, obracanie, usuwanie", onClick = { vm.screen = Screen.PAGES })
+        RoundIcon(Icons.AutoMirrored.Rounded.ArrowBack, tr("Zamknij dokument"), onClick = { vm.exitToHome() })
+        RoundIcon(Icons.Rounded.GridView, tr("Strony: układanie, obracanie, usuwanie"), onClick = { vm.screen = Screen.PAGES })
         val modes = listOf(BookMode.NEVER, BookMode.ALWAYS, BookMode.AUTO)
         RoundIcon(
             if (book) Icons.AutoMirrored.Rounded.MenuBook else Icons.Rounded.Description,
             when (s.bookMode) {
-                BookMode.AUTO -> if (book) "Tryb książki (automatycznie)" else "Pojedyncze strony (automatycznie)"
-                BookMode.ALWAYS -> "Tryb książki: dwie strony obok siebie"
-                BookMode.NEVER -> "Pojedyncze strony"
+                BookMode.AUTO -> if (book) tr("Tryb książki (automatycznie)") else tr("Pojedyncze strony (automatycznie)")
+                BookMode.ALWAYS -> tr("Tryb książki: dwie strony obok siebie")
+                BookMode.NEVER -> tr("Pojedyncze strony")
             },
             active = book,
             badge = if (s.bookMode == BookMode.AUTO) "A" else null,
             options = listOf(
-                PickerOption("Pojedyncze strony", Icons.Rounded.Description, caption = "Jedna"),
-                PickerOption("Tryb książki", Icons.AutoMirrored.Rounded.MenuBook, caption = "Książka"),
-                PickerOption("Automatycznie: poziomo i na rozłożonym foldzie", Icons.Rounded.AutoStories, caption = "Auto"),
+                PickerOption(tr("Pojedyncze strony"), Icons.Rounded.Description, caption = tr("Jedna")),
+                PickerOption(tr("Tryb książki"), Icons.AutoMirrored.Rounded.MenuBook, caption = tr("Książka")),
+                PickerOption(tr("Automatycznie: poziomo i na rozłożonym foldzie"), Icons.Rounded.AutoStories, caption = "Auto"),
             ),
             selected = modes.indexOf(s.bookMode),
             onPick = { i -> vm.updateSettings { it.copy(bookMode = modes[i]) } },
@@ -235,13 +236,13 @@ private fun MainBar(vm: PdfViewModel, book: Boolean, vertical: Boolean) {
         if (book) {
             GlassValueButton(
                 if (s.coverAlone) "1|23" else "12|34",
-                "strony",
-                if (s.coverAlone) "Okładka osobno – rozkładówki 2–3, 4–5…" else "Rozkładówki od pierwszej strony: 1–2, 3–4…",
+                tr("strony"),
+                if (s.coverAlone) tr("Okładka osobno – rozkładówki 2–3, 4–5…") else tr("Rozkładówki od pierwszej strony: 1–2, 3–4…"),
                 0f,
                 active = s.coverAlone,
                 options = listOf(
-                    PickerOption("Okładka osobno", value = "1|23", caption = "okładka"),
-                    PickerOption("Od pierwszej strony", value = "12|34", caption = "parami"),
+                    PickerOption(tr("Okładka osobno"), value = "1|23", caption = tr("okładka")),
+                    PickerOption(tr("Od pierwszej strony"), value = "12|34", caption = tr("parami")),
                 ),
                 selected = if (s.coverAlone) 0 else 1,
                 onPick = { i -> vm.updateSettings { it.copy(coverAlone = i == 0) } },
@@ -251,30 +252,30 @@ private fun MainBar(vm: PdfViewModel, book: Boolean, vertical: Boolean) {
         val scrolls = listOf(ScrollMode.VERTICAL, ScrollMode.PAGED)
         RoundIcon(
             if (s.scroll == ScrollMode.VERTICAL) Icons.Rounded.SwapVert else Icons.Rounded.ViewCarousel,
-            if (s.scroll == ScrollMode.VERTICAL) "Przewijanie ciągłe w pionie" else "Przewracanie stron w poziomie",
+            if (s.scroll == ScrollMode.VERTICAL) tr("Przewijanie ciągłe w pionie") else tr("Przewracanie stron w poziomie"),
             options = listOf(
-                PickerOption("Przewijanie ciągłe", Icons.Rounded.SwapVert, caption = "Ciągłe"),
-                PickerOption("Przewracanie stron", Icons.Rounded.ViewCarousel, caption = "Strony"),
+                PickerOption(tr("Przewijanie ciągłe"), Icons.Rounded.SwapVert, caption = tr("Ciągłe")),
+                PickerOption(tr("Przewracanie stron"), Icons.Rounded.ViewCarousel, caption = tr("Strony")),
             ),
             selected = scrolls.indexOf(s.scroll),
             onPick = { i -> vm.updateSettings { it.copy(scroll = scrolls[i]) } },
             onClick = { vm.updateSettings { it.copy(scroll = if (it.scroll == ScrollMode.VERTICAL) ScrollMode.PAGED else ScrollMode.VERTICAL) } },
         )
-        RoundIcon(Icons.Rounded.Search, "Szukaj w dokumencie", active = vm.searchActive, onClick = { vm.searchActive = !vm.searchActive; if (!vm.searchActive) vm.closeSearch() })
-        RoundIcon(Icons.Rounded.Toc, "Spis treści i zakładki", onClick = { vm.sheet = Sheet.OUTLINE })
-        RoundIcon(Icons.Rounded.Edit, if (vm.editing) "Zakończ edycję" else "Edycja: rysowanie, tekst, podpis", active = vm.editing, onClick = { vm.changeEditing(!vm.editing) })
+        RoundIcon(Icons.Rounded.Search, tr("Szukaj w dokumencie"), active = vm.searchActive, onClick = { vm.searchActive = !vm.searchActive; if (!vm.searchActive) vm.closeSearch() })
+        RoundIcon(Icons.Rounded.Toc, tr("Spis treści i zakładki"), onClick = { vm.sheet = Sheet.OUTLINE })
+        RoundIcon(Icons.Rounded.Edit, if (vm.editing) tr("Zakończ edycję") else tr("Edycja: rysowanie, tekst, podpis"), active = vm.editing, onClick = { vm.changeEditing(!vm.editing) })
         RoundIcon(
             Icons.Rounded.Save,
-            if (vm.dirty || vm.marks.isNotEmpty()) "Zapisz zmiany" else "Zapisz",
+            if (vm.dirty || vm.marks.isNotEmpty()) tr("Zapisz zmiany") else tr("Zapisz"),
             badge = if (vm.dirty || vm.marks.isNotEmpty()) "•" else null,
             onLongPress = { vm.saveAs() },
             onClick = { vm.save() },
         )
-        RoundIcon(Icons.Rounded.Share, "Udostępnij", onClick = { vm.share() })
-        RoundIcon(Icons.Rounded.MoreVert, "Więcej: formularz, eksport, hasło, kompresja…", onClick = { vm.sheet = Sheet.MORE })
+        RoundIcon(Icons.Rounded.Share, tr("Udostępnij"), onClick = { vm.share() })
+        RoundIcon(Icons.Rounded.MoreVert, tr("Więcej: formularz, eksport, hasło, kompresja…"), onClick = { vm.sheet = Sheet.MORE })
     }
     val settings: @Composable () -> Unit = {
-        RoundIcon(Icons.Rounded.Settings, if (vm.updatePending) "Ustawienia – dostępna aktualizacja" else "Ustawienia", badge = if (vm.updatePending) "1" else null, onClick = { vm.sheet = Sheet.SETTINGS })
+        RoundIcon(Icons.Rounded.Settings, if (vm.updatePending) tr("Ustawienia – dostępna aktualizacja") else tr("Ustawienia"), badge = if (vm.updatePending) "1" else null, onClick = { vm.sheet = Sheet.SETTINGS })
     }
     if (vertical) {
         Column(
@@ -337,7 +338,7 @@ private fun PageIndicator(vm: PdfViewModel, state: ViewerState) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             RoundIcon(
                 if (bookmarked) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
-                if (bookmarked) "Usuń zakładkę" else "Dodaj zakładkę na tej stronie",
+                if (bookmarked) tr("Usuń zakładkę") else tr("Dodaj zakładkę na tej stronie"),
                 size = 40.dp,
                 active = bookmarked,
                 onClick = { vm.toggleBookmark() },
@@ -348,12 +349,12 @@ private fun PageIndicator(vm: PdfViewModel, state: ViewerState) {
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier
-                    .reactive("Przejdź do strony", onLongPress = { goTo = true }) { scrubbing = !scrubbing }
+                    .reactive(tr("Przejdź do strony"), onLongPress = { goTo = true }) { scrubbing = !scrubbing }
                     .glass(RoundedCornerShape(50), GlassLevel.Regular)
                     .padding(horizontal = 16.dp, vertical = 10.dp),
             )
-            RoundIcon(Icons.Rounded.KeyboardArrowUp, "Poprzednia strona", size = 40.dp, onClick = { vm.pageStep(-1) })
-            RoundIcon(Icons.Rounded.KeyboardArrowDown, "Następna strona", size = 40.dp, onClick = { vm.pageStep(1) })
+            RoundIcon(Icons.Rounded.KeyboardArrowUp, tr("Poprzednia strona"), size = 40.dp, onClick = { vm.pageStep(-1) })
+            RoundIcon(Icons.Rounded.KeyboardArrowDown, tr("Następna strona"), size = 40.dp, onClick = { vm.pageStep(1) })
         }
     }
     if (goTo) GoToPageDialog(n, vm.currentPage, onDismiss = { goTo = false }) { p ->
@@ -380,7 +381,7 @@ private fun SearchBar(vm: PdfViewModel) {
             Icon(Icons.Rounded.Search, null, tint = Palette.TextDim, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(10.dp))
             Box(Modifier.weight(1f)) {
-                if (text.isEmpty()) Text("Szukaj w dokumencie", color = Palette.TextFaint, fontSize = 15.sp)
+                if (text.isEmpty()) Text(tr("Szukaj w dokumencie"), color = Palette.TextFaint, fontSize = 15.sp)
                 BasicTextField(
                     value = text,
                     onValueChange = { text = it },
@@ -395,11 +396,11 @@ private fun SearchBar(vm: PdfViewModel) {
             if (vm.searchHits.isNotEmpty()) {
                 Text("${vm.searchIndex + 1}/${vm.searchHits.size}", color = Palette.TextDim, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 6.dp))
             }
-            RoundIcon(Icons.Rounded.KeyboardArrowUp, "Poprzednie trafienie", size = 38.dp, enabled = vm.searchHits.isNotEmpty(), onClick = { vm.searchStep(-1) })
-            RoundIcon(Icons.Rounded.KeyboardArrowDown, "Następne trafienie", size = 38.dp, enabled = vm.searchHits.isNotEmpty() || text.isNotBlank(), onClick = {
+            RoundIcon(Icons.Rounded.KeyboardArrowUp, tr("Poprzednie trafienie"), size = 38.dp, enabled = vm.searchHits.isNotEmpty(), onClick = { vm.searchStep(-1) })
+            RoundIcon(Icons.Rounded.KeyboardArrowDown, tr("Następne trafienie"), size = 38.dp, enabled = vm.searchHits.isNotEmpty() || text.isNotBlank(), onClick = {
                 if (vm.searchHits.isEmpty() || text != vm.searchQuery) vm.search(text) else vm.searchStep(1)
             })
-            RoundIcon(Icons.Rounded.Close, "Zamknij wyszukiwanie", size = 38.dp, onClick = { vm.closeSearch() })
+            RoundIcon(Icons.Rounded.Close, tr("Zamknij wyszukiwanie"), size = 38.dp, onClick = { vm.closeSearch() })
         }
         if (vm.searching) {
             LinearProgressIndicator(
@@ -433,7 +434,7 @@ private fun SearchResultsButton(vm: PdfViewModel) {
                         .clickable { vm.openHit(i) }
                         .padding(horizontal = 10.dp, vertical = 7.dp),
                 ) {
-                    Text("Strona ${h.page + 1}", color = Palette.TextDim, fontSize = 11.sp)
+                    Text(tr("Strona {0}", h.page + 1), color = Palette.TextDim, fontSize = 11.sp)
                     Text(h.snippet, color = Color.White, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
             }
@@ -441,12 +442,12 @@ private fun SearchResultsButton(vm: PdfViewModel) {
         Spacer(Modifier.height(6.dp))
     }
     Text(
-        if (open) "Ukryj wyniki" else "Wyniki: ${vm.searchHits.size}",
+        if (open) tr("Ukryj wyniki") else tr("Wyniki: {0}", vm.searchHits.size),
         color = Color.White,
         fontSize = 13.sp,
         fontWeight = FontWeight.Bold,
         modifier = Modifier
-            .reactive("Lista wyników") { open = !open }
+            .reactive(tr("Lista wyników")) { open = !open }
             .glass(RoundedCornerShape(50), GlassLevel.Regular)
             .padding(horizontal = 14.dp, vertical = 9.dp),
     )
@@ -457,17 +458,17 @@ private fun SearchResultsButton(vm: PdfViewModel) {
 @Composable
 private fun SelectionBar(vm: PdfViewModel) {
     GlassToolbar(vertical = false) {
-        RoundIcon(Icons.Rounded.ContentCopy, "Kopiuj tekst", onClick = { vm.copySelection() })
-        RoundIcon(Icons.Rounded.Highlight, "Zakreśl", onClick = { vm.markupSelection(MarkupKind.HIGHLIGHT) })
-        RoundIcon(Icons.Rounded.FormatUnderlined, "Podkreśl", onClick = { vm.markupSelection(MarkupKind.UNDERLINE) })
-        RoundIcon(Icons.Rounded.FormatStrikethrough, "Przekreśl", onClick = { vm.markupSelection(MarkupKind.STRIKEOUT) })
-        RoundIcon(Icons.Rounded.Search, "Szukaj zaznaczonego", onClick = {
+        RoundIcon(Icons.Rounded.ContentCopy, tr("Kopiuj tekst"), onClick = { vm.copySelection() })
+        RoundIcon(Icons.Rounded.Highlight, tr("Zakreśl"), onClick = { vm.markupSelection(MarkupKind.HIGHLIGHT) })
+        RoundIcon(Icons.Rounded.FormatUnderlined, tr("Podkreśl"), onClick = { vm.markupSelection(MarkupKind.UNDERLINE) })
+        RoundIcon(Icons.Rounded.FormatStrikethrough, tr("Przekreśl"), onClick = { vm.markupSelection(MarkupKind.STRIKEOUT) })
+        RoundIcon(Icons.Rounded.Search, tr("Szukaj zaznaczonego"), onClick = {
             val t = vm.selection?.text ?: ""
             vm.clearSelection()
             vm.searchActive = true
             vm.search(t)
         })
-        RoundIcon(Icons.Rounded.Close, "Anuluj zaznaczenie", onClick = { vm.clearSelection() })
+        RoundIcon(Icons.Rounded.Close, tr("Anuluj zaznaczenie"), onClick = { vm.clearSelection() })
     }
 }
 
@@ -513,7 +514,7 @@ private fun EditBar(vm: PdfViewModel, vertical: Boolean) {
                     val kinds = ShapeKind.entries
                     RoundIcon(
                         toolIcon(t, vm),
-                        "Kształt: ${vm.shapeKind.label}",
+                        tr("Kształt: {0}", vm.shapeKind.label),
                         active = vm.tool == t,
                         options = kinds.map { PickerOption(it.label, shapeIcon(it), caption = it.label) },
                         selected = kinds.indexOf(vm.shapeKind),
@@ -525,7 +526,7 @@ private fun EditBar(vm: PdfViewModel, vertical: Boolean) {
                     val kinds = MarkupKind.entries
                     RoundIcon(
                         toolIcon(t, vm),
-                        "Tekst: ${vm.markupKind.label} (przeciągnij po tekście)",
+                        tr("Tekst: {0} (przeciągnij po tekście)", vm.markupKind.label),
                         active = vm.tool == t,
                         options = kinds.map { PickerOption(it.label, markupIcon(it), caption = it.label) },
                         selected = kinds.indexOf(vm.markupKind),
@@ -535,7 +536,7 @@ private fun EditBar(vm: PdfViewModel, vertical: Boolean) {
                 }
                 Tool.SIGNATURE -> RoundIcon(
                     toolIcon(t, vm),
-                    "Podpis – dotknij strony, przytrzymaj: lista podpisów",
+                    tr("Podpis – dotknij strony, przytrzymaj: lista podpisów"),
                     active = vm.tool == t,
                     onLongPress = { vm.sheet = Sheet.SIGNATURES },
                     onClick = { vm.selectTool(t) },
@@ -548,7 +549,7 @@ private fun EditBar(vm: PdfViewModel, vertical: Boolean) {
             Box(
                 Modifier
                     .size(44.dp)
-                    .reactive("Kolor i grubość") { styleOpen = !styleOpen },
+                    .reactive(tr("Kolor i grubość")) { styleOpen = !styleOpen },
                 contentAlignment = Alignment.Center,
             ) {
                 Box(
@@ -562,9 +563,9 @@ private fun EditBar(vm: PdfViewModel, vertical: Boolean) {
                 )
             }
         }
-        RoundIcon(Icons.AutoMirrored.Rounded.Undo, "Cofnij", enabled = vm.canUndo, onClick = { vm.undo() })
-        RoundIcon(Icons.AutoMirrored.Rounded.Redo, "Ponów", enabled = vm.canRedo, onClick = { vm.redo() })
-        RoundIcon(Icons.Rounded.Check, "Zakończ edycję", onClick = { vm.changeEditing(false) })
+        RoundIcon(Icons.AutoMirrored.Rounded.Undo, tr("Cofnij"), enabled = vm.canUndo, onClick = { vm.undo() })
+        RoundIcon(Icons.AutoMirrored.Rounded.Redo, tr("Ponów"), enabled = vm.canRedo, onClick = { vm.redo() })
+        RoundIcon(Icons.Rounded.Check, tr("Zakończ edycję"), onClick = { vm.changeEditing(false) })
     }
     val direction = if (vertical) PickerDirection.LEFT else PickerDirection.UP
     if (vertical) {
@@ -622,14 +623,14 @@ private fun StylePanel(vm: PdfViewModel, tool: Tool, onClose: () -> Unit) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(tool.label, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.weight(1f))
-            Icon(Icons.Rounded.Close, "Zamknij", tint = Palette.TextDim, modifier = Modifier.size(20.dp).clickable(onClick = onClose))
+            Icon(Icons.Rounded.Close, tr("Zamknij"), tint = Palette.TextDim, modifier = Modifier.size(20.dp).clickable(onClick = onClose))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             colors.forEach { c -> ColorDot(c, c == st.color) { vm.setStyle(tool, st.copy(color = c)) } }
         }
         if (widthRange != null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(if (tool == Tool.TEXT) "Rozmiar" else "Grubość", color = Palette.TextDim, fontSize = 12.sp, modifier = Modifier.width(64.dp))
+                Text(if (tool == Tool.TEXT) tr("Rozmiar") else tr("Grubość"), color = Palette.TextDim, fontSize = 12.sp, modifier = Modifier.width(64.dp))
                 Slider(
                     value = st.width.coerceIn(widthRange),
                     onValueChange = { vm.setStyle(tool, st.copy(width = it)) },
@@ -653,12 +654,12 @@ private fun StylePanel(vm: PdfViewModel, tool: Tool, onClose: () -> Unit) {
                     .clickable { vm.setStyle(tool, st.copy(fill = !st.fill)) }
                     .padding(horizontal = 14.dp, vertical = 7.dp),
             ) {
-                Text("Wypełnienie", color = if (st.fill) Palette.Ink else Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text(tr("Wypełnienie"), color = if (st.fill) Palette.Ink else Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
         }
         if (tool == Tool.PEN || tool == Tool.HIGHLIGHTER || tool == Tool.SIGNATURE) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Rysuj tylko rysikiem", color = Palette.TextDim, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                Text(tr("Rysuj tylko rysikiem"), color = Palette.TextDim, fontSize = 12.sp, modifier = Modifier.weight(1f))
                 androidx.compose.material3.Switch(
                     checked = vm.settings.stylusOnly,
                     onCheckedChange = { v -> vm.updateSettings { it.copy(stylusOnly = v) } },
@@ -673,11 +674,11 @@ private fun StylePanel(vm: PdfViewModel, tool: Tool, onClose: () -> Unit) {
 private fun MarkActions(vm: PdfViewModel, m: com.blacksingularities.openpdf.pdf.Mark) {
     GlassToolbar(vertical = false) {
         if (m is com.blacksingularities.openpdf.pdf.TextMark || m is com.blacksingularities.openpdf.pdf.NoteMark) {
-            RoundIcon(Icons.Rounded.Edit, "Edytuj treść", onClick = { vm.editSelectedText() })
+            RoundIcon(Icons.Rounded.Edit, tr("Edytuj treść"), onClick = { vm.editSelectedText() })
         }
-        RoundIcon(Icons.Rounded.ContentCopy, "Powiel", onClick = { vm.duplicateSelected() })
-        RoundIcon(Icons.Rounded.Delete, "Usuń", onClick = { vm.deleteSelected() })
-        RoundIcon(Icons.Rounded.Close, "Odznacz", onClick = { vm.selectedId = null })
+        RoundIcon(Icons.Rounded.ContentCopy, tr("Powiel"), onClick = { vm.duplicateSelected() })
+        RoundIcon(Icons.Rounded.Delete, tr("Usuń"), onClick = { vm.deleteSelected() })
+        RoundIcon(Icons.Rounded.Close, tr("Odznacz"), onClick = { vm.selectedId = null })
     }
 }
 

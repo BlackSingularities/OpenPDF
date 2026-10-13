@@ -2,6 +2,8 @@
 
 package com.blacksingularities.openpdf.ui
 
+import com.blacksingularities.openpdf.i18n.pagesWord
+import com.blacksingularities.openpdf.i18n.tr
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -111,24 +113,24 @@ fun PagesScreen(vm: PdfViewModel) {
     Box(Modifier.fillMaxSize().background(Palette.Desk)) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
             Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                RoundIcon(Icons.AutoMirrored.Rounded.ArrowBack, "Wróć do dokumentu", onClick = { vm.screen = Screen.VIEWER })
+                RoundIcon(Icons.AutoMirrored.Rounded.ArrowBack, tr("Wróć do dokumentu"), onClick = { vm.screen = Screen.VIEWER })
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(if (selected.isEmpty()) "Strony" else "Zaznaczono: ${selected.size}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(if (selected.isEmpty()) tr("Strony") else tr("Zaznaczono: {0}", selected.size), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
                     Text(
-                        if (selected.isEmpty()) "$n stron · przytrzymaj, aby zaznaczyć" else "Dotknij stron, aby zmienić zaznaczenie",
+                        if (selected.isEmpty()) tr("{0} stron · przytrzymaj, aby zaznaczyć", n) else tr("Dotknij stron, aby zmienić zaznaczenie"),
                         fontSize = 12.sp,
                         color = Palette.TextDim,
                     )
                 }
-                RoundIcon(Icons.AutoMirrored.Rounded.Undo, "Cofnij", enabled = vm.canUndo, onClick = { vm.undo() })
+                RoundIcon(Icons.AutoMirrored.Rounded.Undo, tr("Cofnij"), enabled = vm.canUndo, onClick = { vm.undo() })
                 Spacer(Modifier.width(6.dp))
-                RoundIcon(Icons.AutoMirrored.Rounded.Redo, "Ponów", enabled = vm.canRedo, onClick = { vm.redo() })
+                RoundIcon(Icons.AutoMirrored.Rounded.Redo, tr("Ponów"), enabled = vm.canRedo, onClick = { vm.redo() })
                 Spacer(Modifier.width(6.dp))
                 if (selected.size == n) {
-                    RoundIcon(Icons.Rounded.Deselect, "Odznacz wszystkie", onClick = { selected = emptySet() })
+                    RoundIcon(Icons.Rounded.Deselect, tr("Odznacz wszystkie"), onClick = { selected = emptySet() })
                 } else {
-                    RoundIcon(Icons.Rounded.SelectAll, "Zaznacz wszystkie", onClick = { selected = (0 until n).toSet() })
+                    RoundIcon(Icons.Rounded.SelectAll, tr("Zaznacz wszystkie"), onClick = { selected = (0 until n).toSet() })
                 }
             }
             vm.images.thumbVersion.intValue
@@ -172,7 +174,7 @@ fun PagesScreen(vm: PdfViewModel) {
                                 vm.images.thumbVersion.intValue
                                 val bmp = vm.images.thumb(page)
                                 if (bmp != null) {
-                                    Image(bmp.asImageBitmap(), "Strona ${page + 1}", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
+                                    Image(bmp.asImageBitmap(), tr("Strona {0}", page + 1), contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
                                 }
                                 if (sel) {
                                     Box(
@@ -209,52 +211,52 @@ fun PagesScreen(vm: PdfViewModel) {
             GlassToolbar(vertical = false, modifier = Modifier.horizontalScroll(rememberScrollState())) {
                 androidx.compose.runtime.CompositionLocalProvider(LocalPickerDirection provides PickerDirection.UP) {
                     val any = selected.isNotEmpty()
-                    RoundIcon(Icons.Rounded.RotateLeft, "Obróć w lewo", enabled = any, onClick = { vm.rotatePages(selected, -90) })
-                    RoundIcon(Icons.Rounded.RotateRight, "Obróć w prawo", enabled = any, onClick = { vm.rotatePages(selected, 90) })
-                    RoundIcon(Icons.Rounded.KeyboardArrowLeft, "Przesuń wcześniej", enabled = any && (selected.minOrNull() ?: 0) > 0, onClick = {
+                    RoundIcon(Icons.Rounded.RotateLeft, tr("Obróć w lewo"), enabled = any, onClick = { vm.rotatePages(selected, -90) })
+                    RoundIcon(Icons.Rounded.RotateRight, tr("Obróć w prawo"), enabled = any, onClick = { vm.rotatePages(selected, 90) })
+                    RoundIcon(Icons.Rounded.KeyboardArrowLeft, tr("Przesuń wcześniej"), enabled = any && (selected.minOrNull() ?: 0) > 0, onClick = {
                         val sorted = selected.sorted()
                         val target = sorted.first() - 1
                         vm.movePages(sorted, target)
                         selected = sorted.indices.map { target + it }.toSet()
                     })
-                    RoundIcon(Icons.Rounded.KeyboardArrowRight, "Przesuń później", enabled = any && (selected.maxOrNull() ?: n) < n - 1, onClick = {
+                    RoundIcon(Icons.Rounded.KeyboardArrowRight, tr("Przesuń później"), enabled = any && (selected.maxOrNull() ?: n) < n - 1, onClick = {
                         val sorted = selected.sorted()
                         val target = sorted.first() + 1
                         vm.movePages(sorted, target)
                         selected = sorted.indices.map { target + it }.toSet()
                     })
-                    RoundIcon(Icons.Rounded.DriveFileMove, "Przenieś na pozycję…", enabled = any, onClick = { moveDialog = true })
-                    RoundIcon(Icons.Rounded.ContentCopy, "Powiel", enabled = any, onClick = {
+                    RoundIcon(Icons.Rounded.DriveFileMove, tr("Przenieś na pozycję…"), enabled = any, onClick = { moveDialog = true })
+                    RoundIcon(Icons.Rounded.ContentCopy, tr("Powiel"), enabled = any, onClick = {
                         vm.duplicatePages(selected)
                         selected = emptySet()
                     })
-                    RoundIcon(Icons.Rounded.CallSplit, "Wyodrębnij do nowego pliku", enabled = any, onClick = { vm.extractPages(selected) })
-                    RoundIcon(Icons.Rounded.Delete, "Usuń", enabled = any && selected.size < n, onClick = { confirmDelete = true })
-                    RoundIcon(Icons.Rounded.PostAdd, if (any) "Wstaw pustą stronę za zaznaczonymi" else "Dodaj pustą stronę na końcu", onClick = {
+                    RoundIcon(Icons.Rounded.CallSplit, tr("Wyodrębnij do nowego pliku"), enabled = any, onClick = { vm.extractPages(selected) })
+                    RoundIcon(Icons.Rounded.Delete, tr("Usuń"), enabled = any && selected.size < n, onClick = { confirmDelete = true })
+                    RoundIcon(Icons.Rounded.PostAdd, if (any) tr("Wstaw pustą stronę za zaznaczonymi") else tr("Dodaj pustą stronę na końcu"), onClick = {
                         vm.insertBlank(insertAt)
                         selected = emptySet()
                     })
-                    RoundIcon(Icons.Rounded.MergeType, if (any) "Wstaw PDF za zaznaczonymi" else "Dołącz PDF na końcu", onClick = { pdfPicker.launch(arrayOf("application/pdf")) })
-                    RoundIcon(Icons.Rounded.AddPhotoAlternate, if (any) "Wstaw obrazy za zaznaczonymi" else "Dołącz obrazy na końcu", onClick = { imagePicker.launch("image/*") })
-                    if (any) RoundIcon(Icons.Rounded.Close, "Odznacz", onClick = { selected = emptySet() })
+                    RoundIcon(Icons.Rounded.MergeType, if (any) tr("Wstaw PDF za zaznaczonymi") else tr("Dołącz PDF na końcu"), onClick = { pdfPicker.launch(arrayOf("application/pdf")) })
+                    RoundIcon(Icons.Rounded.AddPhotoAlternate, if (any) tr("Wstaw obrazy za zaznaczonymi") else tr("Dołącz obrazy na końcu"), onClick = { imagePicker.launch("image/*") })
+                    if (any) RoundIcon(Icons.Rounded.Close, tr("Odznacz"), onClick = { selected = emptySet() })
                 }
             }
         }
     }
     if (confirmDelete) {
         DarkDialog(
-            "Usunąć ${selected.size} ${if (selected.size == 1) "stronę" else "stron(y)"}?",
+            tr("Usunąć {0}?", pagesWord(selected.size)),
             onDismiss = { confirmDelete = false },
             buttons = {
-                PillButton("Anuluj", primary = false) { confirmDelete = false }
-                PillButton("Usuń", danger = true) {
+                PillButton(tr("Anuluj"), primary = false) { confirmDelete = false }
+                PillButton(tr("Usuń"), danger = true) {
                     confirmDelete = false
                     vm.deletePages(selected)
                     selected = emptySet()
                 }
             },
         ) {
-            Text("Usunięcie można cofnąć przyciskiem Cofnij.", color = Palette.TextDim, fontSize = 13.sp)
+            Text(tr("Usunięcie można cofnąć przyciskiem Cofnij."), color = Palette.TextDim, fontSize = 13.sp)
         }
     }
     if (moveDialog) {
@@ -262,11 +264,11 @@ fun PagesScreen(vm: PdfViewModel) {
         val sorted = selected.sorted()
         val max = n - sorted.size + 1
         DarkDialog(
-            "Przenieś ${sorted.size} ${if (sorted.size == 1) "stronę" else "stron(y)"}",
+            tr("Przenieś {0}", pagesWord(sorted.size)),
             onDismiss = { moveDialog = false },
             buttons = {
-                PillButton("Anuluj", primary = false) { moveDialog = false }
-                PillButton("Przenieś", enabled = (pos.toIntOrNull() ?: 0) in 1..max) {
+                PillButton(tr("Anuluj"), primary = false) { moveDialog = false }
+                PillButton(tr("Przenieś"), enabled = (pos.toIntOrNull() ?: 0) in 1..max) {
                     moveDialog = false
                     val target = pos.toInt() - 1
                     vm.movePages(sorted, target)
@@ -274,7 +276,7 @@ fun PagesScreen(vm: PdfViewModel) {
                 }
             },
         ) {
-            DarkField(pos, { pos = it.filter(Char::isDigit).take(5) }, "Nowa pozycja pierwszej strony (1–$max)", number = true)
+            DarkField(pos, { pos = it.filter(Char::isDigit).take(5) }, tr("Nowa pozycja pierwszej strony (1–{0})", max), number = true)
         }
     }
 }

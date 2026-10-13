@@ -1,5 +1,6 @@
 package com.blacksingularities.openpdf.ui.components
 
+import com.blacksingularities.openpdf.i18n.tr
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -137,7 +138,7 @@ fun Panel(
                 Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 actions()
                 Spacer(Modifier.width(6.dp))
-                GlassIconButton(Icons.Rounded.Close, "Zamknij", 0f, size = 38.dp, onClick = onClose)
+                GlassIconButton(Icons.Rounded.Close, tr("Zamknij"), 0f, size = 38.dp, onClick = onClose)
             }
             Column(
                 Modifier
@@ -179,7 +180,7 @@ fun Group(
             if (collapsible) {
                 Icon(
                     Icons.Rounded.ExpandMore,
-                    if (expanded) "Zwiń sekcję $title" else "Rozwiń sekcję $title",
+                    if (expanded) tr("Zwiń sekcję {0}", title) else tr("Rozwiń sekcję {0}", title),
                     tint = Palette.Amber,
                     modifier = Modifier.size(18.dp).rotate(if (expanded) 0f else -90f),
                 )
