@@ -254,7 +254,7 @@ class ViewerState(private val scope: CoroutineScope) {
             val cy = slot.rect.top + region.centerY * slot.rect.height
             Offset(viewport.width / 2f - cx * scale, viewport.height / 2f - cy * scale)
         } else {
-            Offset(offset.x, -(row.rect.top - l.spec.margin) * scale)
+            Offset(offset.x, -(row.rect.top - l.spec.margin - l.spec.topInset) * scale)
         }
         val distance = abs(clamped(scale, target).y - offset.y)
         if (animate && distance < viewport.height * 4f) animateTo(scale, target, 280) else {
@@ -286,7 +286,7 @@ class ViewerState(private val scope: CoroutineScope) {
                 offset.y - vh * 0.9f
             } else {
                 val next = l.rows.getOrNull(first.index + 1) ?: return
-                -(next.rect.top - l.spec.margin) * scale
+                -(next.rect.top - l.spec.margin - l.spec.topInset) * scale
             }
             animateTo(scale, Offset(offset.x, target), 240)
         } else {
@@ -296,7 +296,7 @@ class ViewerState(private val scope: CoroutineScope) {
                 offset.y + min(vh * 0.9f, -top + l.spec.margin * scale)
             } else {
                 val prev = l.rows.getOrNull(first.index - 1) ?: return
-                -(prev.rect.top - l.spec.margin) * scale
+                -(prev.rect.top - l.spec.margin - l.spec.topInset) * scale
             }
             animateTo(scale, Offset(offset.x, target), 240)
         }
