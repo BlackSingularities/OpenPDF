@@ -152,16 +152,10 @@ fun ViewerScreen(vm: PdfViewModel) {
     var barSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
     val density = androidx.compose.ui.platform.LocalDensity.current
     Box(Modifier.fillMaxSize().background(Palette.Desk)) {
-        // Przypięty pasek: dokument zaczyna się pod nim (w poziomie – obok niego); dotknięcie strony go chowa.
-        val chromeShown = vm.chrome || vm.editing || vm.searchActive
-        val viewerPad = if (pinned && chromeShown) {
-            with(density) {
-                if (landscape) Modifier.padding(start = barSize.width.toDp()) else Modifier.padding(top = barSize.height.toDp())
-            }
-        } else {
-            Modifier
-        }
-        PdfViewer(vm, state, book, viewerPad)
+        // Przypięty pasek: pierwsza strona zaczyna się pod paskiem, ale płótno dokumentu się nie
+        // przesuwa – chowanie i pokazywanie paska nie zmienia położenia stron.
+        val topInset = if (pinned && !landscape) barSize.height.toFloat() else 0f
+        PdfViewer(vm, state, book, topInset = topInset)
         val showChrome = vm.chrome || vm.editing || vm.searchActive
         // Pasek główny: u góry (pionowo – z lewej, jak w OpenShot).
         AnimatedVisibility(

@@ -102,7 +102,7 @@ private enum class GestureMode { PENDING, PAN, DRAW, MOVE, RESIZE, SELECT_TEXT, 
  * przewijanie z bezwładnością, rysowanie i zaznaczanie. [book] – czy pokazywać rozkładówki.
  */
 @Composable
-fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Modifier = Modifier) {
+fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Modifier = Modifier, topInset: Float = 0f) {
     val session = vm.render ?: return
     val settings = vm.settings
     val density = LocalDensity.current
@@ -118,6 +118,7 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Mod
         scroll = settings.scroll,
         margin = margin,
         gap = if (book) gap else gap,
+        topInset = topInset,
     )
     val aspects = remember(session) { session.sizes.map { it.aspect } }
     val vp = state.viewport

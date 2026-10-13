@@ -34,6 +34,8 @@ data class LayoutSpec(
     val scroll: ScrollMode,
     val margin: Float,
     val gap: Float,
+    /** Miejsce pod przypiętym paskiem u góry (początek treści, nie przesuwa widoku). */
+    val topInset: Float = 0f,
 )
 
 /** Kompletny układ dokumentu w pikselach treści. */
@@ -97,9 +99,9 @@ class DocLayout(
             val rows = ArrayList<Row>(groups.size)
             val pageRow = IntArray(aspects.size)
             val availW = max(1f, viewportW - 2 * spec.margin)
-            val availH = max(1f, viewportH - 2 * spec.margin)
+            val availH = max(1f, viewportH - 2 * spec.margin - spec.topInset)
             val vertical = spec.scroll == ScrollMode.VERTICAL
-            var cursor = if (vertical) spec.margin else 0f
+            var cursor = if (vertical) spec.margin + spec.topInset else 0f
             for ((ri, g) in groups.withIndex()) {
                 // Puste miejsce ma proporcje sąsiedniej strony – grzbiet zostaje na środku.
                 val real = g.filterNotNull()
@@ -117,7 +119,7 @@ class DocLayout(
                     cursor += rowH + spec.gap
                 } else {
                     left = ri * viewportW + (viewportW - rowW) / 2f
-                    top = (viewportH - rowH) / 2f
+                    top = spec.topInset + (viewportH - spec.topInset - rowH) / 2f
                 }
                 var x = left
                 val slots = ArrayList<Slot>(2)
