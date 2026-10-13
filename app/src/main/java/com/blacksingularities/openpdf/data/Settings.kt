@@ -18,6 +18,7 @@ enum class BookMode(private val pl: String) {
 enum class PaperTheme(private val pl: String) {
     NORMAL("Zwykły"),
     NIGHT("Nocny"),
+    DARK("Ciemny"),
     SEPIA("Sepia"),
     ;
 
@@ -35,6 +36,9 @@ data class AppSettings(
     val fitSingle: FitMode = FitMode.WIDTH,
     val fitBook: FitMode = FitMode.PAGE,
     val pageGap: Boolean = true,
+    val edgeToEdge: Boolean = true,
+    val pinToolbar: Boolean = true,
+    val hideStatusBar: Boolean = false,
     val paper: PaperTheme = PaperTheme.NORMAL,
     val keepScreenOn: Boolean = true,
     val volumeKeys: Boolean = true,
@@ -61,6 +65,9 @@ class SettingsStore(context: Context) {
             fitSingle = enumOr(prefs.getString("fitSingle", null), d.fitSingle),
             fitBook = enumOr(prefs.getString("fitBook", null), d.fitBook),
             pageGap = prefs.getBoolean("pageGap", d.pageGap),
+            edgeToEdge = prefs.getBoolean("edgeToEdge", d.edgeToEdge),
+            pinToolbar = prefs.getBoolean("pinToolbar", d.pinToolbar),
+            hideStatusBar = prefs.getBoolean("hideStatusBar", d.hideStatusBar),
             paper = enumOr(prefs.getString("paper", null), d.paper),
             keepScreenOn = prefs.getBoolean("keepScreenOn", d.keepScreenOn),
             volumeKeys = prefs.getBoolean("volumeKeys", d.volumeKeys),
@@ -84,6 +91,9 @@ class SettingsStore(context: Context) {
             .putString("fitSingle", s.fitSingle.name)
             .putString("fitBook", s.fitBook.name)
             .putBoolean("pageGap", s.pageGap)
+            .putBoolean("edgeToEdge", s.edgeToEdge)
+            .putBoolean("pinToolbar", s.pinToolbar)
+            .putBoolean("hideStatusBar", s.hideStatusBar)
             .putString("paper", s.paper.name)
             .putBoolean("keepScreenOn", s.keepScreenOn)
             .putBoolean("volumeKeys", s.volumeKeys)

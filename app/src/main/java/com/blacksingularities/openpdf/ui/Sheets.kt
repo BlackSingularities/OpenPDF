@@ -9,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -96,7 +97,7 @@ fun ViewerSheets(vm: PdfViewModel) {
         Sheet.SECURITY -> SecuritySheet(vm)
         Sheet.COMPRESS -> CompressSheet(vm)
         Sheet.EXPORT -> ExportSheet(vm)
-        Sheet.MORE -> MoreSheet(vm)
+        Sheet.MORE -> SettingsPanel(vm, startOnDocument = true)
         Sheet.TEXT -> TextSheet(vm)
         Sheet.SIGNATURES -> SignaturesSheet(vm)
         Sheet.SETTINGS -> SettingsPanel(vm)
@@ -109,9 +110,9 @@ private fun close(vm: PdfViewModel) {
 }
 
 @Composable
-private fun MoreSheet(vm: PdfViewModel) {
+fun ColumnScope.DocumentMenu(vm: PdfViewModel) {
     val idx = vm.index
-    Panel(tr("Dokument"), onClose = { close(vm) }) {
+    run {
         Text(vm.doc?.name ?: "", color = Palette.TextDim, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 6.dp))
         Group(tr("Plik")) {
             ActionRow(Icons.Rounded.Save, tr("Zapisz"), if (vm.doc?.writable == true && vm.doc?.uri != null) tr("W miejscu oryginału") else tr("Wybierz miejsce zapisu")) { close(vm); vm.save() }

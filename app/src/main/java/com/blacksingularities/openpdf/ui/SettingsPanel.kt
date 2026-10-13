@@ -22,6 +22,9 @@ import androidx.compose.material.icons.rounded.FitScreen
 import androidx.compose.material.icons.rounded.FormatTextdirectionRToL
 import androidx.compose.material.icons.rounded.Gesture
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.Fullscreen
+import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.Language
 import com.blacksingularities.openpdf.i18n.AppLanguage
 import androidx.compose.material.icons.rounded.LightMode
@@ -67,18 +70,21 @@ import com.blacksingularities.openpdf.update.UpdateState
 import kotlin.math.roundToInt
 
 @Composable
-fun SettingsPanel(vm: PdfViewModel) {
-    var tab by remember { mutableIntStateOf(if (vm.updatePending) 3 else 0) }
+fun SettingsPanel(vm: PdfViewModel, startOnDocument: Boolean = false) {
+    val hasDoc = vm.doc != null
+    var tab by remember { mutableIntStateOf(if (startOnDocument && hasDoc) 4 else if (vm.updatePending) 3 else 0) }
     val s = vm.settings
     fun set(t: (com.blacksingularities.openpdf.data.AppSettings) -> com.blacksingularities.openpdf.data.AppSettings) = vm.updateSettings(t)
-    Panel(tr("Ustawienia"), onClose = { vm.sheet = null }) {
+    Panel(if (hasDoc) tr("Menu") else tr("Ustawienia"), onClose = { vm.sheet = null }) {
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (hasDoc) TabChip(Icons.Rounded.Description, tr("Dokument"), tab == 4) { tab = 4 }
             TabChip(Icons.AutoMirrored.Rounded.MenuBook, tr("Książka"), tab == 0) { tab = 0 }
             TabChip(Icons.Rounded.LightMode, tr("Wyświetlanie"), tab == 1) { tab = 1 }
             TabChip(Icons.Rounded.Edit, tr("Edycja"), tab == 2) { tab = 2 }
             TabChip(Icons.Rounded.Settings, tr("Ogólne"), tab == 3) { tab = 3 }
         }
         when (tab) {
+            4 -> DocumentMenu(vm)
             0 -> {
                 Group(tr("Tryb książki")) {
                     CompactChoice(
@@ -147,6 +153,11 @@ fun SettingsPanel(vm: PdfViewModel) {
                         hint = tr("Nocny odwraca jasność stron"),
                     ) { v -> set { it.copy(paper = v) } }
                     SwitchRow(Icons.Rounded.ViewAgenda, tr("Odstęp między stronami"), null, s.pageGap) { v -> set { it.copy(pageGap = v) } }
+                    SwitchRow(Icons.Rounded.FitScreen, tr("Strony od krawędzi do krawędzi"), tr("Bez marginesów – strona dotyka boków ekranu"), s.edgeToEdge) { v -> set { it.copy(edgeToEdge = v) } }
+                }
+                Group(tr("Ekran")) {
+                    SwitchRow(Icons.Rounded.PushPin, tr("Przypięty pasek narzędzi"), tr("Dokument pod paskiem, nie pod nim zakryty; dotknięcie strony chowa pasek"), s.pinToolbar) { v -> set { it.copy(pinToolbar = v) } }
+                    SwitchRow(Icons.Rounded.Fullscreen, tr("Ukryj pasek stanu"), tr("Więcej miejsca na czytanie – pasek pojawia się po przesunięciu od góry"), s.hideStatusBar) { v -> set { it.copy(hideStatusBar = v) } }
                 }
                 Group(tr("Sterowanie")) {
                     SwitchRow(Icons.Rounded.VolumeUp, tr("Klawisze głośności przewracają strony"), null, s.volumeKeys) { v -> set { it.copy(volumeKeys = v) } }

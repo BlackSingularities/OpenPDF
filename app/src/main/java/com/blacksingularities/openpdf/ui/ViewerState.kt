@@ -53,6 +53,19 @@ class ViewerState(private val scope: CoroutineScope) {
 
     fun setLayout(l: DocLayout, anchorPage: Int?) {
         stop()
+        val old = layout
+        // Tylko zmiana rozmiaru widoku (np. pasek narzędzi schowany/pokazany) – zachowujemy
+        // powiększenie i punkt na środku ekranu.
+        if (old != null && old.rows.size == l.rows.size && old.spec.copy(margin = 0f, gap = 0f) == l.spec.copy(margin = 0f, gap = 0f) &&
+            l.spec.scroll == ScrollMode.VERTICAL && old.rows.isNotEmpty() && old.rows[0].rect.height > 0f
+        ) {
+            val k = l.rows[0].rect.height / old.rows[0].rect.height
+            val cx = (old.viewportW / 2f - offset.x) / scale * k
+            val cy = (old.viewportH / 2f - offset.y) / scale * k
+            layout = l
+            offset = clamped(scale, Offset(l.viewportW / 2f - cx * scale, l.viewportH / 2f - cy * scale))
+            return
+        }
         layout = l
         scale = 1f
         offset = Offset.Zero

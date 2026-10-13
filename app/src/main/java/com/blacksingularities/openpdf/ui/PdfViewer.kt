@@ -108,7 +108,7 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Mod
     val density = LocalDensity.current
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
-    val margin = with(density) { 10.dp.toPx() }
+    val margin = if (settings.edgeToEdge) 0f else with(density) { 10.dp.toPx() }
     val gap = with(density) { if (settings.pageGap) 12.dp.toPx() else 2.dp.toPx() }
     val spec = LayoutSpec(
         book = book,
@@ -188,6 +188,7 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Mod
     val paperColor = when (settings.paper) {
         PaperTheme.NORMAL -> Color.White
         PaperTheme.NIGHT -> Color(0xFF1C1C1E)
+        PaperTheme.DARK -> Color.Black
         PaperTheme.SEPIA -> Color(0xFFF7EBD0)
     }
     val textPaint = remember { Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = Typeface.DEFAULT } }
@@ -733,6 +734,17 @@ private fun paperFilter(theme: PaperTheme): ColorFilter? = when (theme) {
                 -0.86f, 0f, 0f, 0f, 236f,
                 0f, -0.86f, 0f, 0f, 236f,
                 0f, 0f, -0.86f, 0f, 236f,
+                0f, 0f, 0f, 1f, 0f,
+            ),
+        ),
+    )
+    // Ciemny: pełne odwrócenie – biały tekst na czarnym tle.
+    PaperTheme.DARK -> ColorFilter.colorMatrix(
+        ColorMatrix(
+            floatArrayOf(
+                -1f, 0f, 0f, 0f, 255f,
+                0f, -1f, 0f, 0f, 255f,
+                0f, 0f, -1f, 0f, 255f,
                 0f, 0f, 0f, 1f, 0f,
             ),
         ),

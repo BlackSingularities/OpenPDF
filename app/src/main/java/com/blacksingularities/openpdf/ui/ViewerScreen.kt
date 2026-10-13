@@ -53,6 +53,7 @@ import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.CropSquare
+import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Draw
@@ -95,6 +96,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -146,8 +148,20 @@ fun ViewerScreen(vm: PdfViewModel) {
             else -> vm.exitToHome()
         }
     }
+    val pinned = vm.settings.pinToolbar
+    var barSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
+    val density = androidx.compose.ui.platform.LocalDensity.current
     Box(Modifier.fillMaxSize().background(Palette.Desk)) {
-        PdfViewer(vm, state, book)
+        // Przypięty pasek: dokument zaczyna się pod nim (w poziomie – obok niego); dotknięcie strony go chowa.
+        val chromeShown = vm.chrome || vm.editing || vm.searchActive
+        val viewerPad = if (pinned && chromeShown) {
+            with(density) {
+                if (landscape) Modifier.padding(start = barSize.width.toDp()) else Modifier.padding(top = barSize.height.toDp())
+            }
+        } else {
+            Modifier
+        }
+        PdfViewer(vm, state, book, viewerPad)
         val showChrome = vm.chrome || vm.editing || vm.searchActive
         // Pasek główny: u góry (pionowo – z lewej, jak w OpenShot).
         AnimatedVisibility(
@@ -156,7 +170,7 @@ fun ViewerScreen(vm: PdfViewModel) {
             exit = fadeOut() + if (landscape) slideOutHorizontally { -it } else slideOutVertically { -it },
             modifier = if (landscape) Modifier.align(Alignment.CenterStart) else Modifier.align(Alignment.TopCenter),
         ) {
-            Box(Modifier.windowInsetsPadding(WindowInsets.safeDrawing).padding(10.dp)) {
+            Box(Modifier.onSizeChanged { barSize = it }.windowInsetsPadding(WindowInsets.safeDrawing).padding(10.dp)) {
                 if (vm.searchActive && !landscape) SearchBar(vm) else MainBar(vm, book, vertical = landscape)
             }
         }
@@ -272,10 +286,23 @@ private fun MainBar(vm: PdfViewModel, book: Boolean, vertical: Boolean) {
             onClick = { vm.save() },
         )
         RoundIcon(Icons.Rounded.Share, tr("Udostępnij"), onClick = { vm.share() })
-        RoundIcon(Icons.Rounded.MoreVert, tr("Więcej: formularz, eksport, hasło, kompresja…"), onClick = { vm.sheet = Sheet.MORE })
+        val papers = com.blacksingularities.openpdf.data.PaperTheme.entries
+        RoundIcon(
+            Icons.Rounded.DarkMode,
+            tr("Papier: {0}", s.paper.label),
+            active = s.paper == com.blacksingularities.openpdf.data.PaperTheme.DARK || s.paper == com.blacksingularities.openpdf.data.PaperTheme.NIGHT,
+            options = papers.map { PickerOption(it.label, Icons.Rounded.DarkMode, caption = it.label) },
+            selected = papers.indexOf(s.paper),
+            onPick = { i -> vm.updateSettings { it.copy(paper = papers[i]) } },
+            onClick = {
+                vm.updateSettings {
+                    it.copy(paper = if (it.paper == com.blacksingularities.openpdf.data.PaperTheme.NORMAL) com.blacksingularities.openpdf.data.PaperTheme.DARK else com.blacksingularities.openpdf.data.PaperTheme.NORMAL)
+                }
+            },
+        )
     }
     val settings: @Composable () -> Unit = {
-        RoundIcon(Icons.Rounded.Settings, if (vm.updatePending) tr("Ustawienia – dostępna aktualizacja") else tr("Ustawienia"), badge = if (vm.updatePending) "1" else null, onClick = { vm.sheet = Sheet.SETTINGS })
+        RoundIcon(Icons.Rounded.MoreVert, tr("Menu: dokument i ustawienia"), badge = if (vm.updatePending) "1" else null, onClick = { vm.sheet = Sheet.MORE })
     }
     if (vertical) {
         Column(
