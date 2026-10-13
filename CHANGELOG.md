@@ -1,5 +1,8 @@
 # Zmiany
 
+## 1.2.0
+- Ustawienie OpenPDF jako domyślnej aplikacji do plików PDF (Menu → Ogólne → Aplikacja domyślna).
+
 ## 1.1.0
 - Jedno menu: dokument i ustawienia w jednym panelu (na tablecie – boczna kolumna obok dokumentu).
 - Tryb ciemny: biały tekst na czarnym tle (pełna inwersja), szybki przełącznik papieru na pasku.
