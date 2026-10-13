@@ -2,6 +2,7 @@
 
 ## 1.1.0
 - Pełna angielska wersja interfejsu: język automatycznie według systemu (polski albo angielski) lub wybrany w Ustawienia → Ogólne → Język.
+- Tryb książki: przewracanie kartek z animacją – kartka obraca się wokół grzbietu i podąża za palcem (tryb „Przewracanie stron”).
 - Aktualizacje jednym dotknięciem: baner nowej wersji, pobieranie i instalacja bez przeglądarki.
 
 ## 1.0.0
