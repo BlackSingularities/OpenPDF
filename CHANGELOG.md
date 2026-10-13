@@ -1,5 +1,11 @@
 # Zmiany
 
+## 1.4.0
+- Górny pasek przytwierdzony do krawędzi ekranu (w poziomie – kolumna przy lewej krawędzi), bez zaokrąglonej kapsuły.
+- Przyciski paska: dotknięcie pokazuje wszystkie opcje, przytrzymanie – szybka akcja.
+- Przycinanie marginesów stron osobno z lewej, góry, prawej i dołu – w trybie jedno- i dwustronnym.
+- Kompaktowe ustawienia: kafelki zamiast długich wierszy, zakładka „Ogólne” na początku.
+
 ## 1.3.0
 - Automatyczny układ (domyślnie): telefon w pionie – jedna strona i przewijanie w dół; poziomo, na tablecie i rozłożonym foldzie – dwie strony jak w książce z przewracaniem kartek. Można go wyłączyć w ustawieniach.
 - Czarne tło pod AMOLED, czarne paski tylko w swoim obrębie, pasek edycji przy dolnej krawędzi.

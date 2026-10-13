@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -115,7 +117,9 @@ import com.blacksingularities.openpdf.pdf.MarkupKind
 import com.blacksingularities.openpdf.pdf.ShapeKind
 import com.blacksingularities.openpdf.ui.components.ColorDot
 import com.blacksingularities.openpdf.ui.components.RoundIcon
+import com.blacksingularities.openpdf.ui.theme.DockBar
 import com.blacksingularities.openpdf.ui.theme.GlassLevel
+import com.blacksingularities.openpdf.ui.theme.LocalTapOpensPicker
 import com.blacksingularities.openpdf.ui.theme.GlassToolbar
 import com.blacksingularities.openpdf.ui.theme.GlassValueButton
 import com.blacksingularities.openpdf.ui.theme.LocalHintOnTap
@@ -162,7 +166,18 @@ fun ViewerScreen(vm: PdfViewModel) {
             exit = fadeOut() + if (landscape) slideOutHorizontally { -it } else slideOutVertically { -it },
             modifier = if (landscape) Modifier.align(Alignment.CenterStart) else Modifier.align(Alignment.TopCenter),
         ) {
-            Box(Modifier.windowInsetsPadding(WindowInsets.safeDrawing).padding(10.dp)) {
+            // Pionowo: czarny pas przytwierdzony do górnej krawędzi (także pod paskiem stanu);
+            // poziomo: kolumna przy lewej krawędzi z małym marginesem.
+            Box(
+                if (landscape) {
+                    Modifier.windowInsetsPadding(WindowInsets.safeDrawing).padding(start = 4.dp, top = 4.dp, bottom = 4.dp)
+                } else {
+                    Modifier
+                        .fillMaxWidth()
+                        .background(Color.Black)
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+                },
+            ) {
                 if (vm.searchActive && !landscape) SearchBar(vm) else MainBar(vm, book, vertical = landscape)
             }
         }
@@ -304,30 +319,29 @@ private fun MainBar(vm: PdfViewModel, book: Boolean, vertical: Boolean) {
     val settings: @Composable () -> Unit = {
         RoundIcon(Icons.Rounded.MoreVert, tr("Menu: dokument i ustawienia"), badge = if (vm.updatePending) "1" else null, onClick = { vm.sheet = Sheet.MORE })
     }
-    if (vertical) {
-        Column(
-            Modifier.fillMaxHeight(),
-            verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Box(Modifier.weight(1f, fill = false)) {
-                GlassToolbar(vertical = true, modifier = Modifier.verticalScroll(rememberScrollState())) {
-                    CompositionLocalProvider(LocalHintOnTap provides false, LocalPickerDirection provides PickerDirection.RIGHT) { items() }
+    // Dotknięcie przycisku pokazuje wszystkie opcje, przytrzymanie – szybka akcja.
+    CompositionLocalProvider(LocalTapOpensPicker provides true) {
+        if (vertical) {
+            Box(Modifier.fillMaxHeight(), contentAlignment = Alignment.Center) {
+                DockBar(vertical = true, modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    CompositionLocalProvider(LocalPickerDirection provides PickerDirection.RIGHT) {
+                        items()
+                        settings()
+                    }
                 }
             }
-            settings()
-        }
-    } else {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            BoxWithConstraints(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                GlassToolbar(
+        } else {
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                DockBar(
                     vertical = false,
                     modifier = Modifier
                         .horizontalScroll(rememberScrollState())
                         .widthIn(min = maxWidth),
-                ) { items() }
+                ) {
+                    items()
+                    settings()
+                }
             }
-            settings()
         }
     }
 }
@@ -394,6 +408,11 @@ private fun PageIndicator(vm: PdfViewModel, state: ViewerState) {
 
 @Composable
 private fun SearchBar(vm: PdfViewModel) {
+    Box(Modifier.padding(6.dp)) { SearchBarContent(vm) }
+}
+
+@Composable
+private fun SearchBarContent(vm: PdfViewModel) {
     var text by remember { mutableStateOf(vm.searchQuery) }
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }

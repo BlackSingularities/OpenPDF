@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.blacksingularities.openpdf.data.PaperTheme
+import com.blacksingularities.openpdf.data.crop
 import com.blacksingularities.openpdf.data.effectiveScroll
 import com.blacksingularities.openpdf.pdf.AnnotationWriter
 import com.blacksingularities.openpdf.pdf.ImageMark
@@ -121,7 +122,12 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Mod
         gap = if (book) gap else gap,
         topInset = topInset,
     )
-    val aspects = remember(session) { session.sizes.map { it.aspect } }
+    val crop = settings.crop
+    state.crop = crop
+    // Proporcje stron po przycięciu marginesów – układ liczy tylko widoczną część.
+    val aspects = remember(session, crop.toList()) {
+        session.sizes.map { it.aspect * (1f - crop[0] - crop[2]) / (1f - crop[1] - crop[3]) }
+    }
     val vp = state.viewport
 
     // Nowy układ po zmianie rozmiaru okna, trybu książki lub dokumentu – z zachowaniem bieżącej strony.
@@ -157,22 +163,23 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Mod
                 val base = ArrayList<Pair<Int, Int>>()
                 val zoomBase = scale.coerceIn(0.35f, 1f)
                 for (row in visible) for (slot in row.slots) {
-                    val w = vm.images.bucket(slot.rect.width * zoomBase)
+                    val w = vm.images.bucket(state.full(slot.rect).width * zoomBase)
                     if (base.none { it.first == slot.page }) base += slot.page to w
                 }
                 val visibleCount = base.size
                 for (row in around) for (slot in row.slots) {
-                    val w = vm.images.bucket(slot.rect.width * zoomBase)
+                    val w = vm.images.bucket(state.full(slot.rect).width * zoomBase)
                     if (base.none { it.first == slot.page }) base += slot.page to w
                 }
                 val tiles = ArrayList<TileRequest>()
                 if (!interacting && scale > 1.15f) {
                     for (row in visible) for (slot in row.slots) {
-                        val sr = state.toScreen(slot.rect)
-                        val l = max(0f, sr.left)
-                        val t2 = max(0f, sr.top)
-                        val r = min(vp.width, sr.right)
-                        val b = min(vp.height, sr.bottom)
+                        val cr = state.toScreen(slot.rect)
+                        val sr = state.pageScreen(slot)
+                        val l = max(0f, cr.left)
+                        val t2 = max(0f, cr.top)
+                        val r = min(vp.width, cr.right)
+                        val b = min(vp.height, cr.bottom)
                         if (r <= l || b <= t2) continue
                         val ex = (r - l) * 0.15f
                         val ey = (b - t2) * 0.15f
@@ -229,7 +236,7 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Mod
                     var mode = GestureMode.PENDING
                     val sel = vm.selection
                     if (sel != null && slot != null && slot.page == sel.page && sel.rects.isNotEmpty()) {
-                        val sr = state.toScreen(slot.rect)
+                        val sr = state.pageScreen(slot)
                         val a = sel.rects.first()
                         val b = sel.rects.last()
                         val hs = Offset(sr.left + a.left * sr.width, sr.top + a.bottom * sr.height)
@@ -244,7 +251,7 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Mod
                             vm.dragStart(slot.page, p)
                         } else if (tool == Tool.SELECT) {
                             val selected = vm.marks.firstOrNull { it.id == vm.selectedId && it.page == slot.page }
-                            val sr = state.toScreen(slot.rect)
+                            val sr = state.pageScreen(slot)
                             val handle = selected?.takeIf { it.resizable }?.bounds()?.let { b ->
                                 Offset(sr.left + b.right * sr.width, sr.top + b.bottom * sr.height)
                             }
@@ -344,7 +351,7 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Mod
                             GestureMode.DRAW -> slot?.let { vm.dragMove(it.page, state.pointIn(it, ch.position)) }
                             GestureMode.MOVE -> if (moved && slot != null) {
                                 val d = ch.positionChange()
-                                val sr = state.toScreen(slot.rect)
+                                val sr = state.pageScreen(slot)
                                 vm.moveSelected(d.x / sr.width, d.y / sr.height)
                             }
                             GestureMode.RESIZE -> slot?.let { vm.resizeSelected(state.pointIn(it, ch.position)) }
@@ -392,10 +399,13 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Mod
             for (row in state.visibleRows()) {
                 val rowRect = state.toScreen(row.rect)
                 for (slot in row.slots) {
-                    val r = state.toScreen(slot.rect)
-                    drawRect(Color.Black.copy(alpha = 0.35f), Offset(r.left, r.top + shadowOffset), r.size)
-                    drawRect(paperColor, r.topLeft, r.size)
+                    // c – widoczny (przycięty) fragment strony, r – cała strona.
+                    val c = state.toScreen(slot.rect)
+                    val r = state.pageScreen(slot)
+                    drawRect(Color.Black.copy(alpha = 0.35f), Offset(c.left, c.top + shadowOffset), c.size)
+                    drawRect(paperColor, c.topLeft, c.size)
                     val bmp = vm.images.base(slot.page) ?: vm.images.thumb(slot.page)
+                    clipRect(c.left, c.top, c.right, c.bottom) {
                     if (bmp != null) {
                         drawImage(
                             bmp.asImageBitmap(),
@@ -416,8 +426,9 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Mod
                             colorFilter = paperFilter,
                         )
                     }
+                    }
                     val pageWidthPt = geos.getOrNull(slot.page)?.displayWidth ?: 595f
-                    clipRect(r.left, r.top, r.right, r.bottom) {
+                    clipRect(c.left, c.top, c.right, c.bottom) {
                         if (showFields) {
                             for (f in vm.index.fields) for (w in f.widgets) if (w.page == slot.page) {
                                 drawRect(Color(0x332196F3), rectOf(r, w.rect).topLeft, rectOf(r, w.rect).size)
@@ -490,17 +501,23 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Mod
 }
 
 /** Strona narysowana w dowolnym prostokącie (podstawowa bitmapa, bez kafelków). */
-private fun DrawScope.drawPageInto(vm: PdfViewModel, page: Int, r: Rect, paper: Color, filter: ColorFilter?) {
-    if (r.width < 0.5f) return
-    drawRect(paper, r.topLeft, r.size)
+private fun DrawScope.drawPageInto(vm: PdfViewModel, page: Int, box: Rect, paper: Color, filter: ColorFilter?, crop: FloatArray) {
+    if (box.width < 0.5f) return
+    drawRect(paper, box.topLeft, box.size)
     val bmp = vm.images.base(page) ?: vm.images.thumb(page) ?: return
-    drawImage(
-        bmp.asImageBitmap(),
-        dstOffset = IntOffset(r.left.roundToInt(), r.top.roundToInt()),
-        dstSize = IntSize(r.width.roundToInt().coerceAtLeast(1), r.height.roundToInt().coerceAtLeast(1)),
-        filterQuality = FilterQuality.Medium,
-        colorFilter = filter,
-    )
+    // Przycięte marginesy wychodzą poza widoczne pole i są obcinane.
+    val w = box.width / (1f - crop[0] - crop[2])
+    val h = box.height / (1f - crop[1] - crop[3])
+    val r = Rect(box.left - crop[0] * w, box.top - crop[1] * h, box.left - crop[0] * w + w, box.top - crop[1] * h + h)
+    clipRect(box.left, box.top, box.right, box.bottom) {
+        drawImage(
+            bmp.asImageBitmap(),
+            dstOffset = IntOffset(r.left.roundToInt(), r.top.roundToInt()),
+            dstSize = IntSize(r.width.roundToInt().coerceAtLeast(1), r.height.roundToInt().coerceAtLeast(1)),
+            filterQuality = FilterQuality.Medium,
+            colorFilter = filter,
+        )
+    }
 }
 
 /**
@@ -536,7 +553,7 @@ private fun DrawScope.drawFlip(
     val revealed = side(to, left = !fromRight)
     for ((page, r) in listOfNotNull(staticSide, revealed)) {
         drawRect(Color.Black.copy(alpha = 0.35f), Offset(r.left, r.top + shadow), r.size)
-        drawPageInto(vm, page, r, paper, filter)
+        drawPageInto(vm, page, r, paper, filter, state.crop)
     }
     revealed?.let { (_, r) ->
         drawRect(Color.Black.copy(alpha = 0.32f * (1f - kotlin.math.abs(c))), r.topLeft, r.size)
@@ -549,7 +566,7 @@ private fun DrawScope.drawFlip(
         // Kartka zawsze przylega do grzbietu: przed połową po stronie odejścia, potem po przeciwnej.
         val onRight = firstHalf == fromRight
         val box = if (onRight) Rect(spine, r.top, spine + w, r.bottom) else Rect(spine - w, r.top, spine, r.bottom)
-        drawPageInto(vm, leaf.first, box, paper, filter)
+        drawPageInto(vm, leaf.first, box, paper, filter, state.crop)
         val dark = Color.Black.copy(alpha = 0.28f * (1f - kotlin.math.abs(c)))
         val light = Color.Black.copy(alpha = 0.04f)
         drawRect(

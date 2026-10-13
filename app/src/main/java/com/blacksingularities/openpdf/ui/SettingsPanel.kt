@@ -2,6 +2,12 @@
 
 package com.blacksingularities.openpdf.ui
 
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.material3.Icon
+import com.blacksingularities.openpdf.data.effectiveBookMode
+import com.blacksingularities.openpdf.data.effectiveScroll
+import com.blacksingularities.openpdf.ui.theme.reactive
 import com.blacksingularities.openpdf.i18n.tr
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -72,56 +78,39 @@ import kotlin.math.roundToInt
 @Composable
 fun SettingsPanel(vm: PdfViewModel, startOnDocument: Boolean = false) {
     val hasDoc = vm.doc != null
-    var tab by remember { mutableIntStateOf(if (startOnDocument && hasDoc) 4 else if (vm.updatePending) 3 else 0) }
+    // Kolejność zakładek: Ogólne, Dokument, Książka, Wyświetlanie, Edycja.
+    var tab by remember { mutableIntStateOf(if (startOnDocument && hasDoc) 4 else 3) }
     val s = vm.settings
     fun set(t: (com.blacksingularities.openpdf.data.AppSettings) -> com.blacksingularities.openpdf.data.AppSettings) = vm.updateSettings(t)
     Panel(if (hasDoc) tr("Menu") else tr("Ustawienia"), onClose = { vm.sheet = null }) {
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            TabChip(Icons.Rounded.Settings, tr("Ogólne"), tab == 3) { tab = 3 }
             if (hasDoc) TabChip(Icons.Rounded.Description, tr("Dokument"), tab == 4) { tab = 4 }
             TabChip(Icons.AutoMirrored.Rounded.MenuBook, tr("Książka"), tab == 0) { tab = 0 }
             TabChip(Icons.Rounded.LightMode, tr("Wyświetlanie"), tab == 1) { tab = 1 }
             TabChip(Icons.Rounded.Edit, tr("Edycja"), tab == 2) { tab = 2 }
-            TabChip(Icons.Rounded.Settings, tr("Ogólne"), tab == 3) { tab = 3 }
         }
         when (tab) {
             4 -> DocumentMenu(vm)
             0 -> {
-                Group(tr("Układ")) {
-                    SwitchRow(
-                        Icons.Rounded.AutoStories,
-                        tr("Automatyczny układ"),
-                        tr("Telefon w pionie: jedna strona, przewijanie w dół. Poziomo, tablet i rozłożony fold: dwie strony jak w książce, z przewracaniem kartek."),
-                        s.autoLayout,
-                    ) { v -> set { it.copy(autoLayout = v) } }
-                }
-                Group(tr("Tryb książki")) {
+                TileGrid(
+                    listOf(
+                        Tile(Icons.Rounded.AutoStories, tr("Auto-układ"), tr("Telefon w pionie: jedna strona, przewijanie w dół. Poziomo, tablet i rozłożony fold: dwie strony jak w książce, z przewracaniem kartek."), s.autoLayout) { v -> set { it.copy(autoLayout = v) } },
+                        Tile(Icons.AutoMirrored.Rounded.MenuBook, tr("Okładka osobno"), if (s.coverAlone) tr("Pierwsza strona sama, dalej 2–3, 4–5… (jak w książce)") else tr("Rozkładówki od pierwszej strony: 1–2, 3–4…"), s.coverAlone) { v -> set { it.copy(coverAlone = v) } },
+                        Tile(Icons.Rounded.FormatTextdirectionRToL, tr("Od prawej"), tr("Kolejność stron w rozkładówce jak w mandze i językach RTL"), s.rtl) { v -> set { it.copy(rtl = v) } },
+                        Tile(Icons.Rounded.Flip, tr("Kartki"), tr("Animacja jak w książce przy przewracaniu stron w poziomie"), s.pageFlip) { v -> set { it.copy(pageFlip = v) } },
+                        Tile(Icons.Rounded.Gradient, tr("Cień"), tr("Delikatne przyciemnienie przy zgięciu stron"), s.spineShadow) { v -> set { it.copy(spineShadow = v) } },
+                    ),
+                )
+                Group(null) {
                     CompactChoice(
                         Icons.AutoMirrored.Rounded.MenuBook,
                         tr("Dwie strony obok siebie"),
                         BookMode.entries,
-                        s.bookMode,
+                        s.effectiveBookMode,
                         { it.label },
-                        hint = tr("Auto: w poziomie i na rozłożonym foldzie"),
-                    ) { v -> set { it.copy(bookMode = v, autoLayout = false) } }
-                    SwitchRow(
-                        Icons.Rounded.AutoStories,
-                        tr("Okładka osobno"),
-                        if (s.coverAlone) tr("Pierwsza strona sama, dalej 2–3, 4–5… (jak w książce)") else tr("Rozkładówki od pierwszej strony: 1–2, 3–4…"),
-                        s.coverAlone,
-                    ) { v -> set { it.copy(coverAlone = v) } }
-                    SwitchRow(
-                        Icons.Rounded.FormatTextdirectionRToL,
-                        tr("Od prawej do lewej"),
-                        tr("Kolejność stron w rozkładówce jak w mandze i językach RTL"),
-                        s.rtl,
-                    ) { v -> set { it.copy(rtl = v) } }
-                    SwitchRow(
-                        Icons.Rounded.AutoStories,
-                        tr("Przewracanie kartek"),
-                        tr("Animacja jak w książce przy przewracaniu stron w poziomie"),
-                        s.pageFlip,
-                    ) { v -> set { it.copy(pageFlip = v) } }
-                    SwitchRow(Icons.Rounded.Gradient, tr("Cień grzbietu"), tr("Delikatne przyciemnienie przy zgięciu stron"), s.spineShadow) { v -> set { it.copy(spineShadow = v) } }
+                        short = { when (it) { BookMode.AUTO -> "Auto"; BookMode.ALWAYS -> "2"; BookMode.NEVER -> "1" } },
+                    ) { v -> set { it.copy(bookMode = v, autoLayout = v == BookMode.AUTO && it.autoLayout) } }
                     CompactChoice(
                         Icons.Rounded.FitScreen,
                         tr("Dopasowanie rozkładówki"),
@@ -130,8 +119,6 @@ fun SettingsPanel(vm: PdfViewModel, startOnDocument: Boolean = false) {
                         { if (it == FitMode.PAGE) tr("Cała rozkładówka") else tr("Do szerokości") },
                         short = { if (it == FitMode.PAGE) tr("Całość") else tr("Szerokość") },
                     ) { v -> set { it.copy(fitBook = v) } }
-                }
-                Group(tr("Pojedyncze strony")) {
                     CompactChoice(
                         Icons.Rounded.FitScreen,
                         tr("Dopasowanie strony"),
@@ -143,57 +130,56 @@ fun SettingsPanel(vm: PdfViewModel, startOnDocument: Boolean = false) {
                 }
             }
             1 -> {
-                Group(tr("Strony")) {
-                    CompactChoice(
-                        Icons.Rounded.SwapVert,
-                        tr("Przewijanie"),
-                        ScrollMode.entries,
-                        s.scroll,
-                        { if (it == ScrollMode.VERTICAL) tr("Ciągłe w pionie") else tr("Przewracanie stron w poziomie") },
-                        short = { if (it == ScrollMode.VERTICAL) tr("Ciągłe") else tr("Strony") },
-                    ) { v -> set { it.copy(scroll = v, autoLayout = false) } }
+                TileGrid(
+                    listOf(
+                        Tile(Icons.Rounded.ViewAgenda, tr("Odstęp"), tr("Odstęp między stronami"), s.pageGap) { v -> set { it.copy(pageGap = v) } },
+                        Tile(Icons.Rounded.FitScreen, tr("Bez marginesów"), tr("Bez marginesów – strona dotyka boków ekranu"), s.edgeToEdge) { v -> set { it.copy(edgeToEdge = v) } },
+                        Tile(Icons.Rounded.Fullscreen, tr("Bez paska stanu"), tr("Więcej miejsca na czytanie – pasek pojawia się po przesunięciu od góry"), s.hideStatusBar) { v -> set { it.copy(hideStatusBar = v) } },
+                        Tile(Icons.Rounded.TouchApp, tr("Strefy dotyku"), tr("W trybie przewracania: dotknięcie lewej/prawej krawędzi zmienia stronę"), s.tapZones) { v -> set { it.copy(tapZones = v) } },
+                    ),
+                )
+                Group(null) {
                     CompactChoice(
                         Icons.Rounded.Contrast,
                         tr("Papier"),
                         PaperTheme.entries,
                         s.paper,
                         { it.label },
-                        hint = tr("Nocny odwraca jasność stron"),
                     ) { v -> set { it.copy(paper = v) } }
-                    SwitchRow(Icons.Rounded.ViewAgenda, tr("Odstęp między stronami"), null, s.pageGap) { v -> set { it.copy(pageGap = v) } }
-                    SwitchRow(Icons.Rounded.FitScreen, tr("Strony od krawędzi do krawędzi"), tr("Bez marginesów – strona dotyka boków ekranu"), s.edgeToEdge) { v -> set { it.copy(edgeToEdge = v) } }
+                    CompactChoice(
+                        Icons.Rounded.SwapVert,
+                        tr("Przewijanie"),
+                        ScrollMode.entries,
+                        s.effectiveScroll(false),
+                        { if (it == ScrollMode.VERTICAL) tr("Ciągłe w pionie") else tr("Przewracanie stron w poziomie") },
+                        short = { if (it == ScrollMode.VERTICAL) tr("Ciągłe") else tr("Strony") },
+                    ) { v -> set { it.copy(scroll = v, autoLayout = false) } }
                 }
-                Group(tr("Ekran")) {
-                    SwitchRow(Icons.Rounded.Fullscreen, tr("Ukryj pasek stanu"), tr("Więcej miejsca na czytanie – pasek pojawia się po przesunięciu od góry"), s.hideStatusBar) { v -> set { it.copy(hideStatusBar = v) } }
-                }
-                Group(tr("Sterowanie")) {
-                    SwitchRow(Icons.Rounded.VolumeUp, tr("Klawisze głośności przewracają strony"), null, s.volumeKeys) { v -> set { it.copy(volumeKeys = v) } }
-                    SwitchRow(Icons.Rounded.TouchApp, tr("Strefy dotyku przy krawędziach"), tr("W trybie przewracania: dotknięcie lewej/prawej krawędzi zmienia stronę"), s.tapZones) { v -> set { it.copy(tapZones = v) } }
-                    SwitchRow(Icons.Rounded.LightMode, tr("Nie wygaszaj ekranu"), tr("Podczas czytania"), s.keepScreenOn) { v -> set { it.copy(keepScreenOn = v) } }
-                    SwitchRow(Icons.Rounded.Vibration, tr("Wibracje"), null, s.haptics) { v -> set { it.copy(haptics = v) } }
-                }
+                CropControl(s) { l, t, r, b -> set { it.copy(cropLeft = l, cropTop = t, cropRight = r, cropBottom = b) } }
             }
             2 -> {
-                Group(tr("Adnotacje")) {
-                    Column(Modifier.padding(12.dp)) {
+                Group(null) {
+                    Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
                         DarkField(s.author, { v -> set { it.copy(author = v.take(60)) } }, tr("Autor adnotacji"))
                     }
-                    SwitchRow(Icons.Rounded.Gesture, tr("Rysuj tylko rysikiem"), tr("Palec przewija i powiększa, rysik rysuje"), s.stylusOnly) { v -> set { it.copy(stylusOnly = v) } }
                 }
-                Group(tr("Jak to działa")) {
-                    Text(
-                        tr("Rysunki, teksty, kształty, zakreślenia i podpisy są zapisywane jako standardowe adnotacje PDF – ") +
-                            tr("widoczne i edytowalne w Acrobacie, przeglądarkach i innych czytnikach. Do chwili zapisu możesz je ") +
-                            tr("przesuwać, zmieniać i cofać. Zmiany stron (obrót, kolejność, usuwanie) też da się cofnąć."),
-                        color = Palette.TextDim,
-                        fontSize = 12.sp,
-                        lineHeight = 17.sp,
-                        modifier = Modifier.padding(12.dp),
-                    )
-                }
+                TileGrid(
+                    listOf(
+                        Tile(Icons.Rounded.Gesture, tr("Tylko rysik"), tr("Palec przewija i powiększa, rysik rysuje"), s.stylusOnly) { v -> set { it.copy(stylusOnly = v) } },
+                    ),
+                )
+                Text(
+                    tr("Rysunki, teksty, kształty, zakreślenia i podpisy są zapisywane jako standardowe adnotacje PDF – ") +
+                        tr("widoczne i edytowalne w Acrobacie, przeglądarkach i innych czytnikach. Do chwili zapisu możesz je ") +
+                        tr("przesuwać, zmieniać i cofać. Zmiany stron (obrót, kolejność, usuwanie) też da się cofnąć."),
+                    color = Palette.TextDim,
+                    fontSize = 11.sp,
+                    lineHeight = 15.sp,
+                    modifier = Modifier.padding(horizontal = 6.dp),
+                )
             }
             else -> {
-                Group(tr("Język")) {
+                Group(null) {
                     CompactChoice(
                         Icons.Rounded.Language,
                         tr("Język aplikacji"),
@@ -203,21 +189,129 @@ fun SettingsPanel(vm: PdfViewModel, startOnDocument: Boolean = false) {
                         short = { when (it) { AppLanguage.SYSTEM -> "Auto"; AppLanguage.PL -> "PL"; AppLanguage.EN -> "EN" } },
                     ) { v -> set { it.copy(language = v) } }
                 }
-                Group(tr("Aplikacja domyślna")) {
+                TileGrid(
+                    listOf(
+                        Tile(Icons.Rounded.SystemUpdate, tr("Aktualizacje"), tr("Sprawdzaj przy uruchomieniu"), s.autoUpdate) { v -> set { it.copy(autoUpdate = v) } },
+                        Tile(Icons.Rounded.Vibration, tr("Wibracje"), tr("Wibracje"), s.haptics) { v -> set { it.copy(haptics = v) } },
+                        Tile(Icons.Rounded.LightMode, tr("Ekran włączony"), tr("Nie wygaszaj ekranu"), s.keepScreenOn) { v -> set { it.copy(keepScreenOn = v) } },
+                        Tile(Icons.Rounded.VolumeUp, tr("Głośność"), tr("Klawisze głośności przewracają strony"), s.volumeKeys) { v -> set { it.copy(volumeKeys = v) } },
+                    ),
+                )
+                Group(null) {
                     DefaultAppRow()
-                }
-                Group(tr("Aktualizacje")) {
                     UpdateRow(vm)
-                    SwitchRow(Icons.Rounded.SystemUpdate, tr("Sprawdzaj przy uruchomieniu"), null, s.autoUpdate) { v -> set { it.copy(autoUpdate = v) } }
-                }
-                Group(tr("Ostatnie pliki")) {
                     ActionRow(Icons.Rounded.Person, tr("Wyczyść listę ostatnich plików"), tr("{0} pozycji", vm.recents.size), danger = true) { vm.clearRecents() }
                 }
-                Group(tr("O aplikacji")) {
-                    About()
-                }
+                About()
             }
         }
+    }
+}
+
+/** Kafelek-przełącznik: ikona i krótki podpis; pełny opis po przytrzymaniu. */
+private class Tile(
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val short: String,
+    val full: String,
+    val value: Boolean,
+    val onChange: (Boolean) -> Unit,
+)
+
+@Composable
+private fun TileGrid(tiles: List<Tile>) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        tiles.chunked(4).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                row.forEach { t ->
+                    Column(
+                        Modifier
+                            .weight(1f)
+                            .reactive(t.full) { t.onChange(!t.value) }
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (t.value) Color.White else Color.White.copy(alpha = 0.06f))
+                            .padding(vertical = 9.dp, horizontal = 2.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Icon(t.icon, null, tint = if (t.value) Palette.Ink else Palette.TextDim, modifier = Modifier.size(20.dp))
+                        Text(
+                            t.short,
+                            fontSize = 10.sp,
+                            lineHeight = 12.sp,
+                            maxLines = 2,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            color = if (t.value) Palette.Ink else Palette.TextDim,
+                            fontWeight = if (t.value) FontWeight.SemiBold else FontWeight.Normal,
+                            modifier = Modifier.padding(top = 3.dp),
+                        )
+                    }
+                }
+                repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+}
+
+/** Przycinanie marginesów stron – osobno z każdej strony, z podglądem widocznej części. */
+@Composable
+private fun CropControl(s: com.blacksingularities.openpdf.data.AppSettings, onChange: (Float, Float, Float, Float) -> Unit) {
+    var l by remember(s.cropLeft) { mutableStateOf(s.cropLeft) }
+    var t by remember(s.cropTop) { mutableStateOf(s.cropTop) }
+    var r by remember(s.cropRight) { mutableStateOf(s.cropRight) }
+    var b by remember(s.cropBottom) { mutableStateOf(s.cropBottom) }
+    fun commit() = onChange(l, t, r, b)
+    Group(tr("Przycinanie marginesów")) {
+        Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            // Podgląd: szara strona, biały – to, co zostaje na ekranie.
+            Box(Modifier.size(width = 44.dp, height = 60.dp).clip(RoundedCornerShape(4.dp)).background(Color.White.copy(alpha = 0.18f))) {
+                androidx.compose.foundation.Canvas(Modifier.matchParentSize()) {
+                    drawRect(
+                        Color.White,
+                        androidx.compose.ui.geometry.Offset(size.width * l, size.height * t),
+                        androidx.compose.ui.geometry.Size(size.width * (1f - l - r), size.height * (1f - t - b)),
+                    )
+                }
+            }
+            Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                CropSlider(tr("Lewy"), l, { l = it }, ::commit)
+                CropSlider(tr("Górny"), t, { t = it }, ::commit)
+                CropSlider(tr("Prawy"), r, { r = it }, ::commit)
+                CropSlider(tr("Dolny"), b, { b = it }, ::commit)
+            }
+        }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End)) {
+            listOf(tr("Brak") to 0f, "4%" to 0.04f, "8%" to 0.08f).forEach { (label, v) ->
+                Text(
+                    label,
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(Color.White.copy(alpha = 0.08f))
+                        .clickable {
+                            l = v; t = v; r = v; b = v
+                            commit()
+                        }
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CropSlider(label: String, value: Float, onValue: (Float) -> Unit, onDone: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(label, fontSize = 11.sp, color = Palette.TextDim, modifier = Modifier.width(48.dp))
+        androidx.compose.material3.Slider(
+            value = value,
+            onValueChange = onValue,
+            onValueChangeFinished = onDone,
+            valueRange = 0f..0.3f,
+            modifier = Modifier.weight(1f).height(28.dp),
+            colors = androidx.compose.material3.SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = Color.White, inactiveTrackColor = Color.White.copy(alpha = 0.15f)),
+        )
+        Text("${(value * 100).roundToInt()}%", fontSize = 11.sp, color = Color.White, modifier = Modifier.width(34.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
     }
 }
 

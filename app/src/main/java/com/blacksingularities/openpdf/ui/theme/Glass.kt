@@ -238,6 +238,23 @@ class PickerState {
     var rotation by mutableStateOf(0f)
         private set
 
+    /** Lista otwarta zwykłym dotknięciem – zostaje na ekranie, opcję wybiera się dotknięciem. */
+    var tapMode by mutableStateOf(false)
+        private set
+    private var tapPick: ((Int) -> Unit)? = null
+
+    fun openTap(options: List<PickerOption>, selected: Int, anchor: Rect, direction: PickerDirection, onPick: (Int) -> Unit) {
+        open(options, selected, anchor, direction, 0f)
+        tapMode = true
+        tapPick = onPick
+    }
+
+    fun pickTap(i: Int) {
+        val f = tapPick
+        close()
+        f?.invoke(i)
+    }
+
     fun open(options: List<PickerOption>, selected: Int, anchor: Rect, direction: PickerDirection, rotation: Float) {
         this.options = options
         this.selected = selected
@@ -245,6 +262,7 @@ class PickerState {
         this.direction = direction
         this.rotation = rotation
         highlighted = -1
+        tapMode = false
         visible = true
     }
 
@@ -266,10 +284,18 @@ class PickerState {
 
     fun close() {
         visible = false
+        tapMode = false
+        tapPick = null
     }
 }
 
 val LocalPicker = staticCompositionLocalOf<PickerState?> { null }
+
+/**
+ * Przyciski z listą opcji: dotknięcie pokazuje wszystkie opcje, przytrzymanie wykonuje szybką
+ * akcję (np. przełącza tryb). Bez tego dotknięcie przełącza, a lista rozwija się po przeciągnięciu.
+ */
+val LocalTapOpensPicker = staticCompositionLocalOf { false }
 
 /** Kierunek, w którym rozwija się lista opcji (i w który trzeba przeciągnąć palec). */
 enum class PickerDirection { DOWN, UP, RIGHT, LEFT }
@@ -305,6 +331,14 @@ private fun PickerLayer(picker: PickerState) {
             .fillMaxSize()
             .onGloballyPositioned { root = it.boundsInRoot() },
     ) {
+        if (picker.visible && picker.tapMode) {
+            // Dotknięcie poza listą ją zamyka.
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) { detectTapGestures { picker.close() } },
+            )
+        }
         AnimatedVisibility(
             visible = picker.visible,
             enter = fadeIn(tween(120)) + scaleIn(initialScale = 0.9f),
@@ -326,7 +360,11 @@ private fun PickerLayer(picker: PickerState) {
             val reversed = picker.direction == PickerDirection.UP || picker.direction == PickerDirection.LEFT
             val items: @Composable () -> Unit = {
                 val indexed = picker.options.withIndex().toList().let { if (reversed) it.reversed() else it }
-                indexed.forEach { (i, o) -> PickerItem(o, i == picker.highlighted, i == picker.selected, picker.rotation) }
+                indexed.forEach { (i, o) ->
+                    Box(if (picker.tapMode) Modifier.pointerInput(i) { detectTapGestures { picker.pickTap(i) } } else Modifier) {
+                        PickerItem(o, i == picker.highlighted, i == picker.selected, picker.rotation)
+                    }
+                }
             }
             if (picker.horizontal) {
                 Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(PICKER_STEP - PICKER_ITEM)) { items() }
@@ -460,6 +498,7 @@ fun Modifier.reactive(
     val picker = LocalPicker.current
     val hintOnTap = LocalHintOnTap.current
     val pickerDirection = LocalPickerDirection.current
+    val tapOpens = LocalTapOpensPicker.current
     val density = LocalDensity.current
     var pressed by remember { mutableStateOf(false) }
     var bounds by remember { mutableStateOf(Rect.Zero) }
@@ -509,7 +548,15 @@ fun Modifier.reactive(
                             if (haptics) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             val l = long
                             val text = currentLabel
-                            if (l != null) l() else if (text != null) hints?.show(text, bounds)
+                            if (tapOpens && currentOptions != null) {
+                                // Przytrzymanie = szybka akcja przycisku.
+                                click()
+                                if (text != null) tapped++
+                            } else if (l != null) {
+                                l()
+                            } else if (text != null) {
+                                hints?.show(text, bounds)
+                            }
                             continue
                         }
                         val change = event.changes.firstOrNull { it.id == down.id } ?: break
@@ -522,8 +569,16 @@ fun Modifier.reactive(
                                     if (hintOnTap) tapped++
                                 }
                             } else if (!moved && !longFired) {
-                                click()
-                                if (hintOnTap) tapped++
+                                val opts = currentOptions
+                                if (tapOpens && opts != null && picker != null) {
+                                    picker.openTap(opts, currentSelected, bounds, pickerDirection) { i ->
+                                        pick(i)
+                                        if (hintOnTap) tapped++
+                                    }
+                                } else {
+                                    click()
+                                    if (hintOnTap) tapped++
+                                }
                             }
                             change.consume()
                             break
@@ -697,6 +752,38 @@ fun GlassValueButton(
                     style = androidx.compose.ui.text.TextStyle(lineHeight = 9.sp),
                 )
             }
+        }
+    }
+}
+
+/**
+ * Pasek przytwierdzony do krawędzi: poziomo – czarny pas na całą szerokość u góry, pionowo –
+ * czarna kolumna przy lewej krawędzi z lekko zaokrąglonymi rogami.
+ */
+@Composable
+fun DockBar(
+    vertical: Boolean,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    CompositionLocalProvider(LocalToolbar provides true) {
+        if (vertical) {
+            androidx.compose.foundation.layout.Column(
+                modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color.Black)
+                    .padding(horizontal = 2.dp, vertical = 4.dp),
+                verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(0.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) { content() }
+        } else {
+            Row(
+                modifier
+                    .background(Color.Black)
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                horizontalArrangement = SpreadOrPack,
+                verticalAlignment = Alignment.CenterVertically,
+            ) { content() }
         }
     }
 }

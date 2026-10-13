@@ -47,6 +47,21 @@ class ViewerState(private val scope: CoroutineScope) {
 
     private var anim: Job? = null
 
+    /** Przycięcie marginesów stron: lewy, górny, prawy, dolny (ułamki). */
+    var crop: FloatArray = floatArrayOf(0f, 0f, 0f, 0f)
+
+    /** Prostokąt całej strony, gdy w [visible] mieści się tylko jej przycięty fragment. */
+    fun full(visible: LRect): LRect {
+        val w = visible.width / (1f - crop[0] - crop[2])
+        val h = visible.height / (1f - crop[1] - crop[3])
+        val left = visible.left - crop[0] * w
+        val top = visible.top - crop[1] * h
+        return LRect(left, top, left + w, top + h)
+    }
+
+    /** Cała strona na ekranie (z przyciętymi marginesami poza widocznym miejscem). */
+    fun pageScreen(slot: Slot): Rect = toScreen(full(slot.rect))
+
     val paged: Boolean get() = layout?.spec?.scroll == ScrollMode.PAGED
     val minScale: Float get() = if (paged) 1f else 0.35f
     val maxScale = 12f
@@ -98,7 +113,8 @@ class ViewerState(private val scope: CoroutineScope) {
         for (row in visibleRows()) for (slot in row.slots) {
             val r = slot.rect
             if (c.x >= r.left - s && c.x <= r.right + s && c.y >= r.top - s && c.y <= r.bottom + s) {
-                return slot to PointN((c.x - r.left) / r.width, (c.y - r.top) / r.height)
+                val f = full(r)
+                return slot to PointN((c.x - f.left) / f.width, (c.y - f.top) / f.height)
             }
         }
         return null
@@ -107,7 +123,8 @@ class ViewerState(private val scope: CoroutineScope) {
     /** Punkt ekranu względem konkretnej strony (bez ograniczania do strony). */
     fun pointIn(slot: Slot, pos: Offset): PointN {
         val c = toContent(pos)
-        return PointN((c.x - slot.rect.left) / slot.rect.width, (c.y - slot.rect.top) / slot.rect.height)
+        val f = full(slot.rect)
+        return PointN((c.x - f.left) / f.width, (c.y - f.top) / f.height)
     }
 
     fun currentPage(): Int {
@@ -238,8 +255,9 @@ class ViewerState(private val scope: CoroutineScope) {
             val s = if (sameRow) scale else 1f
             var o = Offset(-row.index * viewport.width * s, offset.y)
             if (region != null && s > 1.01f) {
-                val cx = slot.rect.left + region.centerX * slot.rect.width
-                val cy = slot.rect.top + region.centerY * slot.rect.height
+                val pf = full(slot.rect)
+                val cx = pf.left + region.centerX * pf.width
+                val cy = pf.top + region.centerY * pf.height
                 o = Offset(viewport.width / 2f - cx * s, viewport.height / 2f - cy * s)
             }
             if (animate) animateTo(s, o, 220) else {
@@ -250,8 +268,9 @@ class ViewerState(private val scope: CoroutineScope) {
             return
         }
         val target = if (region != null) {
-            val cx = slot.rect.left + region.centerX * slot.rect.width
-            val cy = slot.rect.top + region.centerY * slot.rect.height
+            val pf = full(slot.rect)
+            val cx = pf.left + region.centerX * pf.width
+            val cy = pf.top + region.centerY * pf.height
             Offset(viewport.width / 2f - cx * scale, viewport.height / 2f - cy * scale)
         } else {
             Offset(offset.x, -(row.rect.top - l.spec.margin - l.spec.topInset) * scale)
