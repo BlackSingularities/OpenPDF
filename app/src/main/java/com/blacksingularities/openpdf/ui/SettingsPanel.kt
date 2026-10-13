@@ -78,133 +78,148 @@ import kotlin.math.roundToInt
 @Composable
 fun SettingsPanel(vm: PdfViewModel, startOnDocument: Boolean = false) {
     val hasDoc = vm.doc != null
-    // Kolejność zakładek: Ogólne, Dokument, Książka, Wyświetlanie, Edycja.
-    var tab by remember { mutableIntStateOf(if (startOnDocument && hasDoc) 4 else 3) }
+    // Dwie zakładki: Dokument i Ustawienia (bez otwartego dokumentu – same ustawienia).
+    var docTab by remember { mutableStateOf(startOnDocument && hasDoc) }
+    Panel(if (hasDoc) tr("Menu") else tr("Ustawienia"), onClose = { vm.sheet = null }) {
+        if (hasDoc) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                TabChip(Icons.Rounded.Description, tr("Dokument"), docTab) { docTab = true }
+                TabChip(Icons.Rounded.Settings, tr("Ustawienia"), !docTab) { docTab = false }
+            }
+        }
+        if (hasDoc && docTab) {
+            DocumentMenu(vm)
+        } else {
+            SettingsContent(vm)
+        }
+    }
+}
+
+/** Wszystkie ustawienia na jednej liście: Książka, Wyświetlanie, Edycja, Ogólne. */
+@Composable
+private fun ColumnScope.SettingsContent(vm: PdfViewModel) {
     val s = vm.settings
     fun set(t: (com.blacksingularities.openpdf.data.AppSettings) -> com.blacksingularities.openpdf.data.AppSettings) = vm.updateSettings(t)
-    Panel(if (hasDoc) tr("Menu") else tr("Ustawienia"), onClose = { vm.sheet = null }) {
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            TabChip(Icons.Rounded.Settings, tr("Ogólne"), tab == 3) { tab = 3 }
-            if (hasDoc) TabChip(Icons.Rounded.Description, tr("Dokument"), tab == 4) { tab = 4 }
-            TabChip(Icons.AutoMirrored.Rounded.MenuBook, tr("Książka"), tab == 0) { tab = 0 }
-            TabChip(Icons.Rounded.LightMode, tr("Wyświetlanie"), tab == 1) { tab = 1 }
-            TabChip(Icons.Rounded.Edit, tr("Edycja"), tab == 2) { tab = 2 }
+    SectionHeader(Icons.AutoMirrored.Rounded.MenuBook, tr("Książka"))
+        TileGrid(
+            listOf(
+                Tile(Icons.Rounded.AutoStories, tr("Auto-układ"), tr("Telefon w pionie: jedna strona, przewijanie w dół. Poziomo, tablet i rozłożony fold: dwie strony jak w książce, z przewracaniem kartek."), s.autoLayout) { v -> set { it.copy(autoLayout = v) } },
+                Tile(Icons.AutoMirrored.Rounded.MenuBook, tr("Okładka osobno"), if (s.coverAlone) tr("Pierwsza strona sama, dalej 2–3, 4–5… (jak w książce)") else tr("Rozkładówki od pierwszej strony: 1–2, 3–4…"), s.coverAlone) { v -> set { it.copy(coverAlone = v) } },
+                Tile(Icons.Rounded.FormatTextdirectionRToL, tr("Od prawej"), tr("Kolejność stron w rozkładówce jak w mandze i językach RTL"), s.rtl) { v -> set { it.copy(rtl = v) } },
+                Tile(Icons.Rounded.Flip, tr("Kartki"), tr("Animacja jak w książce przy przewracaniu stron w poziomie"), s.pageFlip) { v -> set { it.copy(pageFlip = v) } },
+                Tile(Icons.Rounded.Gradient, tr("Cień"), tr("Delikatne przyciemnienie przy zgięciu stron"), s.spineShadow) { v -> set { it.copy(spineShadow = v) } },
+            ),
+        )
+        Group(null) {
+            CompactChoice(
+                Icons.AutoMirrored.Rounded.MenuBook,
+                tr("Dwie strony obok siebie"),
+                BookMode.entries,
+                s.effectiveBookMode,
+                { it.label },
+                short = { when (it) { BookMode.AUTO -> "Auto"; BookMode.ALWAYS -> "2"; BookMode.NEVER -> "1" } },
+            ) { v -> set { it.copy(bookMode = v, autoLayout = v == BookMode.AUTO && it.autoLayout) } }
+            CompactChoice(
+                Icons.Rounded.FitScreen,
+                tr("Dopasowanie rozkładówki"),
+                FitMode.entries,
+                s.fitBook,
+                { if (it == FitMode.PAGE) tr("Cała rozkładówka") else tr("Do szerokości") },
+                short = { if (it == FitMode.PAGE) tr("Całość") else tr("Szerokość") },
+            ) { v -> set { it.copy(fitBook = v) } }
+            CompactChoice(
+                Icons.Rounded.FitScreen,
+                tr("Dopasowanie strony"),
+                FitMode.entries,
+                s.fitSingle,
+                { if (it == FitMode.PAGE) tr("Cała strona") else tr("Do szerokości") },
+                short = { if (it == FitMode.PAGE) tr("Całość") else tr("Szerokość") },
+            ) { v -> set { it.copy(fitSingle = v) } }
         }
-        when (tab) {
-            4 -> DocumentMenu(vm)
-            0 -> {
-                TileGrid(
-                    listOf(
-                        Tile(Icons.Rounded.AutoStories, tr("Auto-układ"), tr("Telefon w pionie: jedna strona, przewijanie w dół. Poziomo, tablet i rozłożony fold: dwie strony jak w książce, z przewracaniem kartek."), s.autoLayout) { v -> set { it.copy(autoLayout = v) } },
-                        Tile(Icons.AutoMirrored.Rounded.MenuBook, tr("Okładka osobno"), if (s.coverAlone) tr("Pierwsza strona sama, dalej 2–3, 4–5… (jak w książce)") else tr("Rozkładówki od pierwszej strony: 1–2, 3–4…"), s.coverAlone) { v -> set { it.copy(coverAlone = v) } },
-                        Tile(Icons.Rounded.FormatTextdirectionRToL, tr("Od prawej"), tr("Kolejność stron w rozkładówce jak w mandze i językach RTL"), s.rtl) { v -> set { it.copy(rtl = v) } },
-                        Tile(Icons.Rounded.Flip, tr("Kartki"), tr("Animacja jak w książce przy przewracaniu stron w poziomie"), s.pageFlip) { v -> set { it.copy(pageFlip = v) } },
-                        Tile(Icons.Rounded.Gradient, tr("Cień"), tr("Delikatne przyciemnienie przy zgięciu stron"), s.spineShadow) { v -> set { it.copy(spineShadow = v) } },
-                    ),
-                )
-                Group(null) {
-                    CompactChoice(
-                        Icons.AutoMirrored.Rounded.MenuBook,
-                        tr("Dwie strony obok siebie"),
-                        BookMode.entries,
-                        s.effectiveBookMode,
-                        { it.label },
-                        short = { when (it) { BookMode.AUTO -> "Auto"; BookMode.ALWAYS -> "2"; BookMode.NEVER -> "1" } },
-                    ) { v -> set { it.copy(bookMode = v, autoLayout = v == BookMode.AUTO && it.autoLayout) } }
-                    CompactChoice(
-                        Icons.Rounded.FitScreen,
-                        tr("Dopasowanie rozkładówki"),
-                        FitMode.entries,
-                        s.fitBook,
-                        { if (it == FitMode.PAGE) tr("Cała rozkładówka") else tr("Do szerokości") },
-                        short = { if (it == FitMode.PAGE) tr("Całość") else tr("Szerokość") },
-                    ) { v -> set { it.copy(fitBook = v) } }
-                    CompactChoice(
-                        Icons.Rounded.FitScreen,
-                        tr("Dopasowanie strony"),
-                        FitMode.entries,
-                        s.fitSingle,
-                        { if (it == FitMode.PAGE) tr("Cała strona") else tr("Do szerokości") },
-                        short = { if (it == FitMode.PAGE) tr("Całość") else tr("Szerokość") },
-                    ) { v -> set { it.copy(fitSingle = v) } }
-                }
-            }
-            1 -> {
-                TileGrid(
-                    listOf(
-                        Tile(Icons.Rounded.ViewAgenda, tr("Odstęp"), tr("Odstęp między stronami"), s.pageGap) { v -> set { it.copy(pageGap = v) } },
-                        Tile(Icons.Rounded.FitScreen, tr("Bez marginesów"), tr("Bez marginesów – strona dotyka boków ekranu"), s.edgeToEdge) { v -> set { it.copy(edgeToEdge = v) } },
-                        Tile(Icons.Rounded.Fullscreen, tr("Bez paska stanu"), tr("Więcej miejsca na czytanie – pasek pojawia się po przesunięciu od góry"), s.hideStatusBar) { v -> set { it.copy(hideStatusBar = v) } },
-                        Tile(Icons.Rounded.TouchApp, tr("Strefy dotyku"), tr("W trybie przewracania: dotknięcie lewej/prawej krawędzi zmienia stronę"), s.tapZones) { v -> set { it.copy(tapZones = v) } },
-                    ),
-                )
-                Group(null) {
-                    CompactChoice(
-                        Icons.Rounded.Contrast,
-                        tr("Papier"),
-                        PaperTheme.entries,
-                        s.paper,
-                        { it.label },
-                    ) { v -> set { it.copy(paper = v) } }
-                    CompactChoice(
-                        Icons.Rounded.SwapVert,
-                        tr("Przewijanie"),
-                        ScrollMode.entries,
-                        s.effectiveScroll(false),
-                        { if (it == ScrollMode.VERTICAL) tr("Ciągłe w pionie") else tr("Przewracanie stron w poziomie") },
-                        short = { if (it == ScrollMode.VERTICAL) tr("Ciągłe") else tr("Strony") },
-                    ) { v -> set { it.copy(scroll = v, autoLayout = false) } }
-                }
-                CropControl(s) { l, t, r, b -> set { it.copy(cropLeft = l, cropTop = t, cropRight = r, cropBottom = b) } }
-            }
-            2 -> {
-                Group(null) {
-                    Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
-                        DarkField(s.author, { v -> set { it.copy(author = v.take(60)) } }, tr("Autor adnotacji"))
-                    }
-                }
-                TileGrid(
-                    listOf(
-                        Tile(Icons.Rounded.Gesture, tr("Tylko rysik"), tr("Palec przewija i powiększa, rysik rysuje"), s.stylusOnly) { v -> set { it.copy(stylusOnly = v) } },
-                    ),
-                )
-                Text(
-                    tr("Rysunki, teksty, kształty, zakreślenia i podpisy są zapisywane jako standardowe adnotacje PDF – ") +
-                        tr("widoczne i edytowalne w Acrobacie, przeglądarkach i innych czytnikach. Do chwili zapisu możesz je ") +
-                        tr("przesuwać, zmieniać i cofać. Zmiany stron (obrót, kolejność, usuwanie) też da się cofnąć."),
-                    color = Palette.TextDim,
-                    fontSize = 11.sp,
-                    lineHeight = 15.sp,
-                    modifier = Modifier.padding(horizontal = 6.dp),
-                )
-            }
-            else -> {
-                Group(null) {
-                    CompactChoice(
-                        Icons.Rounded.Language,
-                        tr("Język aplikacji"),
-                        AppLanguage.entries,
-                        s.language,
-                        { when (it) { AppLanguage.SYSTEM -> tr("Systemowy"); AppLanguage.PL -> "Polski"; AppLanguage.EN -> "English" } },
-                        short = { when (it) { AppLanguage.SYSTEM -> "Auto"; AppLanguage.PL -> "PL"; AppLanguage.EN -> "EN" } },
-                    ) { v -> set { it.copy(language = v) } }
-                }
-                TileGrid(
-                    listOf(
-                        Tile(Icons.Rounded.SystemUpdate, tr("Aktualizacje"), tr("Sprawdzaj przy uruchomieniu"), s.autoUpdate) { v -> set { it.copy(autoUpdate = v) } },
-                        Tile(Icons.Rounded.Vibration, tr("Wibracje"), tr("Wibracje"), s.haptics) { v -> set { it.copy(haptics = v) } },
-                        Tile(Icons.Rounded.LightMode, tr("Ekran włączony"), tr("Nie wygaszaj ekranu"), s.keepScreenOn) { v -> set { it.copy(keepScreenOn = v) } },
-                        Tile(Icons.Rounded.VolumeUp, tr("Głośność"), tr("Klawisze głośności przewracają strony"), s.volumeKeys) { v -> set { it.copy(volumeKeys = v) } },
-                    ),
-                )
-                Group(null) {
-                    DefaultAppRow()
-                    UpdateRow(vm)
-                    ActionRow(Icons.Rounded.Person, tr("Wyczyść listę ostatnich plików"), tr("{0} pozycji", vm.recents.size), danger = true) { vm.clearRecents() }
-                }
-                About()
+    SectionHeader(Icons.Rounded.LightMode, tr("Wyświetlanie"))
+        TileGrid(
+            listOf(
+                Tile(Icons.Rounded.ViewAgenda, tr("Odstęp"), tr("Odstęp między stronami"), s.pageGap) { v -> set { it.copy(pageGap = v) } },
+                Tile(Icons.Rounded.FitScreen, tr("Bez marginesów"), tr("Bez marginesów – strona dotyka boków ekranu"), s.edgeToEdge) { v -> set { it.copy(edgeToEdge = v) } },
+                Tile(Icons.Rounded.Fullscreen, tr("Bez paska stanu"), tr("Więcej miejsca na czytanie – pasek pojawia się po przesunięciu od góry"), s.hideStatusBar) { v -> set { it.copy(hideStatusBar = v) } },
+                Tile(Icons.Rounded.TouchApp, tr("Strefy dotyku"), tr("W trybie przewracania: dotknięcie lewej/prawej krawędzi zmienia stronę"), s.tapZones) { v -> set { it.copy(tapZones = v) } },
+            ),
+        )
+        Group(null) {
+            CompactChoice(
+                Icons.Rounded.Contrast,
+                tr("Papier"),
+                PaperTheme.entries,
+                s.paper,
+                { it.label },
+            ) { v -> set { it.copy(paper = v) } }
+            CompactChoice(
+                Icons.Rounded.SwapVert,
+                tr("Przewijanie"),
+                ScrollMode.entries,
+                s.effectiveScroll(false),
+                { if (it == ScrollMode.VERTICAL) tr("Ciągłe w pionie") else tr("Przewracanie stron w poziomie") },
+                short = { if (it == ScrollMode.VERTICAL) tr("Ciągłe") else tr("Strony") },
+            ) { v -> set { it.copy(scroll = v, autoLayout = false) } }
+        }
+        CropControl(s) { l, t, r, b -> set { it.copy(cropLeft = l, cropTop = t, cropRight = r, cropBottom = b) } }
+    SectionHeader(Icons.Rounded.Edit, tr("Edycja"))
+        Group(null) {
+            Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                DarkField(s.author, { v -> set { it.copy(author = v.take(60)) } }, tr("Autor adnotacji"))
             }
         }
+        TileGrid(
+            listOf(
+                Tile(Icons.Rounded.Gesture, tr("Tylko rysik"), tr("Palec przewija i powiększa, rysik rysuje"), s.stylusOnly) { v -> set { it.copy(stylusOnly = v) } },
+            ),
+        )
+        Text(
+            tr("Rysunki, teksty, kształty, zakreślenia i podpisy są zapisywane jako standardowe adnotacje PDF – ") +
+                tr("widoczne i edytowalne w Acrobacie, przeglądarkach i innych czytnikach. Do chwili zapisu możesz je ") +
+                tr("przesuwać, zmieniać i cofać. Zmiany stron (obrót, kolejność, usuwanie) też da się cofnąć."),
+            color = Palette.TextDim,
+            fontSize = 11.sp,
+            lineHeight = 15.sp,
+            modifier = Modifier.padding(horizontal = 6.dp),
+        )
+    SectionHeader(Icons.Rounded.Settings, tr("Ogólne"))
+        Group(null) {
+            CompactChoice(
+                Icons.Rounded.Language,
+                tr("Język aplikacji"),
+                AppLanguage.entries,
+                s.language,
+                { when (it) { AppLanguage.SYSTEM -> tr("Systemowy"); AppLanguage.PL -> "Polski"; AppLanguage.EN -> "English" } },
+                short = { when (it) { AppLanguage.SYSTEM -> "Auto"; AppLanguage.PL -> "PL"; AppLanguage.EN -> "EN" } },
+            ) { v -> set { it.copy(language = v) } }
+        }
+        TileGrid(
+            listOf(
+                Tile(Icons.Rounded.SystemUpdate, tr("Aktualizacje"), tr("Sprawdzaj przy uruchomieniu"), s.autoUpdate) { v -> set { it.copy(autoUpdate = v) } },
+                Tile(Icons.Rounded.Vibration, tr("Wibracje"), tr("Wibracje"), s.haptics) { v -> set { it.copy(haptics = v) } },
+                Tile(Icons.Rounded.LightMode, tr("Ekran włączony"), tr("Nie wygaszaj ekranu"), s.keepScreenOn) { v -> set { it.copy(keepScreenOn = v) } },
+                Tile(Icons.Rounded.VolumeUp, tr("Głośność"), tr("Klawisze głośności przewracają strony"), s.volumeKeys) { v -> set { it.copy(volumeKeys = v) } },
+            ),
+        )
+        Group(null) {
+            DefaultAppRow()
+            UpdateRow(vm)
+            ActionRow(Icons.Rounded.Person, tr("Wyczyść listę ostatnich plików"), tr("{0} pozycji", vm.recents.size), danger = true) { vm.clearRecents() }
+        }
+        About()
+    Spacer(Modifier.height(12.dp))
+}
+
+/** Nagłówek sekcji ustawień: ikona, nazwa i cienka linia do krawędzi. */
+@Composable
+private fun SectionHeader(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String) {
+    Row(Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 2.dp, start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, tint = Color.White, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.width(10.dp))
+        Box(Modifier.weight(1f).height(1.dp).background(Color.White.copy(alpha = 0.12f)))
     }
 }
 

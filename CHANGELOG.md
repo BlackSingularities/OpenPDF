@@ -1,5 +1,9 @@
 # Zmiany
 
+## 1.5.0
+- Menu z dwiema zakładkami: Dokument i Ustawienia; ustawienia na jednej liście (Książka, Wyświetlanie, Edycja, Ogólne).
+- Na tablecie dotknięcie obok menu je zamyka.
+
 ## 1.4.0
 - Górny pasek przytwierdzony do krawędzi ekranu (w poziomie – kolumna przy lewej krawędzi), bez zaokrąglonej kapsuły.
 - Przyciski paska: dotknięcie pokazuje wszystkie opcje, przytrzymanie – szybka akcja.

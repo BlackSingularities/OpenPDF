@@ -120,10 +120,8 @@ fun Panel(
 ) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wide = maxWidth >= 720.dp
-        // Na tablecie panel jest boczną kolumną – dokument obok zostaje dostępny.
-        if (!wide) {
-            Box(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { onClose() } })
-        }
+        // Na tablecie panel jest boczną kolumną bez przyciemnienia; dotknięcie obok go zamyka.
+        Box(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { onClose() } })
         Column(
             modifier
                 .then(if (wide) Modifier.align(Alignment.CenterEnd).width(420.dp).fillMaxHeight() else Modifier.fillMaxSize())
