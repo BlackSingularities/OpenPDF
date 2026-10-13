@@ -1,5 +1,11 @@
 # Zmiany
 
+## 1.3.0
+- Automatyczny układ (domyślnie): telefon w pionie – jedna strona i przewijanie w dół; poziomo, na tablecie i rozłożonym foldzie – dwie strony jak w książce z przewracaniem kartek. Można go wyłączyć w ustawieniach.
+- Czarne tło pod AMOLED, czarne paski tylko w swoim obrębie, pasek edycji przy dolnej krawędzi.
+- Szybsze pojawianie się stron: najpierw widoczne strony, podgląd z miniatur dla sąsiednich.
+- Usunięto opcję przypiętego paska narzędzi.
+
 ## 1.2.0
 - Ustawienie OpenPDF jako domyślnej aplikacji do plików PDF (Menu → Ogólne → Aplikacja domyślna).
 

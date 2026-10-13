@@ -109,6 +109,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.blacksingularities.openpdf.data.BookMode
+import com.blacksingularities.openpdf.data.effectiveBookMode
+import com.blacksingularities.openpdf.data.effectiveScroll
 import com.blacksingularities.openpdf.pdf.MarkupKind
 import com.blacksingularities.openpdf.pdf.ShapeKind
 import com.blacksingularities.openpdf.ui.components.ColorDot
@@ -126,10 +128,11 @@ import com.blacksingularities.openpdf.ui.theme.reactive
 import kotlin.math.roundToInt
 
 /** Czy pokazywać rozkładówki: ustawienie, a w trybie automatycznym – poziomy ekran lub rozłożony fold. */
-fun bookActive(mode: BookMode, widthDp: Float, heightDp: Float, foldBook: Boolean): Boolean = when (mode) {
+fun bookActive(mode: BookMode, widthDp: Float, heightDp: Float, smallestDp: Int, foldBook: Boolean): Boolean = when (mode) {
     BookMode.ALWAYS -> true
     BookMode.NEVER -> false
-    BookMode.AUTO -> foldBook || (widthDp > heightDp * 1.15f && widthDp >= 560f)
+    // Poziomy ekran, tablet (najkrótszy bok ≥ 600 dp) albo rozłożony fold.
+    BookMode.AUTO -> foldBook || smallestDp >= 600 || (widthDp > heightDp * 1.15f && widthDp >= 560f)
 }
 
 @Composable
@@ -138,7 +141,7 @@ fun ViewerScreen(vm: PdfViewModel) {
     val state = remember { ViewerState(scope) }
     val config = LocalConfiguration.current
     val landscape = config.screenWidthDp > config.screenHeightDp
-    val book = bookActive(vm.settings.bookMode, config.screenWidthDp.toFloat(), config.screenHeightDp.toFloat(), vm.foldBook)
+    val book = bookActive(vm.settings.effectiveBookMode, config.screenWidthDp.toFloat(), config.screenHeightDp.toFloat(), config.smallestScreenWidthDp, vm.foldBook)
     // Nowy dokument (lub jego nowa wersja) – nowy stan widoku zachowuje stronę w PdfViewer.
     BackHandler(enabled = true) {
         when {
@@ -148,14 +151,9 @@ fun ViewerScreen(vm: PdfViewModel) {
             else -> vm.exitToHome()
         }
     }
-    val pinned = vm.settings.pinToolbar
-    var barSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
     val density = androidx.compose.ui.platform.LocalDensity.current
     Box(Modifier.fillMaxSize().background(Palette.Desk)) {
-        // Przypięty pasek: pierwsza strona zaczyna się pod paskiem, ale płótno dokumentu się nie
-        // przesuwa – chowanie i pokazywanie paska nie zmienia położenia stron.
-        val topInset = if (pinned && !landscape) barSize.height.toFloat() else 0f
-        PdfViewer(vm, state, book, topInset = topInset)
+        PdfViewer(vm, state, book)
         val showChrome = vm.chrome || vm.editing || vm.searchActive
         // Pasek główny: u góry (pionowo – z lewej, jak w OpenShot).
         AnimatedVisibility(
@@ -164,7 +162,7 @@ fun ViewerScreen(vm: PdfViewModel) {
             exit = fadeOut() + if (landscape) slideOutHorizontally { -it } else slideOutVertically { -it },
             modifier = if (landscape) Modifier.align(Alignment.CenterStart) else Modifier.align(Alignment.TopCenter),
         ) {
-            Box(Modifier.onSizeChanged { barSize = it }.windowInsetsPadding(WindowInsets.safeDrawing).padding(10.dp)) {
+            Box(Modifier.windowInsetsPadding(WindowInsets.safeDrawing).padding(10.dp)) {
                 if (vm.searchActive && !landscape) SearchBar(vm) else MainBar(vm, book, vertical = landscape)
             }
         }
@@ -178,7 +176,7 @@ fun ViewerScreen(vm: PdfViewModel) {
             Modifier
                 .align(if (landscape && vm.editing) Alignment.CenterEnd else Alignment.BottomCenter)
                 .windowInsetsPadding(WindowInsets.safeDrawing)
-                .padding(10.dp),
+                .padding(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 2.dp),
         ) {
             AnimatedVisibility(visible = vm.editing, enter = fadeIn() + slideInVertically { it }, exit = fadeOut() + slideOutVertically { it }) {
                 EditBar(vm, vertical = landscape)
@@ -225,21 +223,24 @@ private fun MainBar(vm: PdfViewModel, book: Boolean, vertical: Boolean) {
         val modes = listOf(BookMode.NEVER, BookMode.ALWAYS, BookMode.AUTO)
         RoundIcon(
             if (book) Icons.AutoMirrored.Rounded.MenuBook else Icons.Rounded.Description,
-            when (s.bookMode) {
+            when (s.effectiveBookMode) {
                 BookMode.AUTO -> if (book) tr("Tryb książki (automatycznie)") else tr("Pojedyncze strony (automatycznie)")
                 BookMode.ALWAYS -> tr("Tryb książki: dwie strony obok siebie")
                 BookMode.NEVER -> tr("Pojedyncze strony")
             },
             active = book,
-            badge = if (s.bookMode == BookMode.AUTO) "A" else null,
+            badge = if (s.effectiveBookMode == BookMode.AUTO) "A" else null,
             options = listOf(
                 PickerOption(tr("Pojedyncze strony"), Icons.Rounded.Description, caption = tr("Jedna")),
                 PickerOption(tr("Tryb książki"), Icons.AutoMirrored.Rounded.MenuBook, caption = tr("Książka")),
                 PickerOption(tr("Automatycznie: poziomo i na rozłożonym foldzie"), Icons.Rounded.AutoStories, caption = "Auto"),
             ),
-            selected = modes.indexOf(s.bookMode),
-            onPick = { i -> vm.updateSettings { it.copy(bookMode = modes[i]) } },
-            onClick = { vm.updateSettings { it.copy(bookMode = if (book) BookMode.NEVER else BookMode.ALWAYS) } },
+            selected = modes.indexOf(s.effectiveBookMode),
+            onPick = { i ->
+                // „Auto” z listy przywraca automatyczny układ; ręczny wybór go wyłącza.
+                vm.updateSettings { it.copy(bookMode = modes[i], autoLayout = modes[i] == BookMode.AUTO, scroll = it.effectiveScroll(book)) }
+            },
+            onClick = { vm.updateSettings { it.copy(bookMode = if (book) BookMode.NEVER else BookMode.ALWAYS, autoLayout = false, scroll = it.effectiveScroll(book)) } },
         )
         if (book) {
             GlassValueButton(
@@ -259,15 +260,20 @@ private fun MainBar(vm: PdfViewModel, book: Boolean, vertical: Boolean) {
         }
         val scrolls = listOf(ScrollMode.VERTICAL, ScrollMode.PAGED)
         RoundIcon(
-            if (s.scroll == ScrollMode.VERTICAL) Icons.Rounded.SwapVert else Icons.Rounded.ViewCarousel,
-            if (s.scroll == ScrollMode.VERTICAL) tr("Przewijanie ciągłe w pionie") else tr("Przewracanie stron w poziomie"),
+            if (s.effectiveScroll(book) == ScrollMode.VERTICAL) Icons.Rounded.SwapVert else Icons.Rounded.ViewCarousel,
+            if (s.effectiveScroll(book) == ScrollMode.VERTICAL) tr("Przewijanie ciągłe w pionie") else tr("Przewracanie stron w poziomie"),
             options = listOf(
                 PickerOption(tr("Przewijanie ciągłe"), Icons.Rounded.SwapVert, caption = tr("Ciągłe")),
                 PickerOption(tr("Przewracanie stron"), Icons.Rounded.ViewCarousel, caption = tr("Strony")),
             ),
-            selected = scrolls.indexOf(s.scroll),
-            onPick = { i -> vm.updateSettings { it.copy(scroll = scrolls[i]) } },
-            onClick = { vm.updateSettings { it.copy(scroll = if (it.scroll == ScrollMode.VERTICAL) ScrollMode.PAGED else ScrollMode.VERTICAL) } },
+            selected = scrolls.indexOf(s.effectiveScroll(book)),
+            onPick = { i -> vm.updateSettings { it.copy(scroll = scrolls[i], autoLayout = false, bookMode = if (book) BookMode.ALWAYS else BookMode.NEVER) } },
+            onClick = {
+                vm.updateSettings {
+                    val now = it.effectiveScroll(book)
+                    it.copy(scroll = if (now == ScrollMode.VERTICAL) ScrollMode.PAGED else ScrollMode.VERTICAL, autoLayout = false, bookMode = if (book) BookMode.ALWAYS else BookMode.NEVER)
+                }
+            },
         )
         RoundIcon(Icons.Rounded.Search, tr("Szukaj w dokumencie"), active = vm.searchActive, onClick = { vm.searchActive = !vm.searchActive; if (!vm.searchActive) vm.closeSearch() })
         RoundIcon(Icons.Rounded.Toc, tr("Spis treści i zakładki"), onClick = { vm.sheet = Sheet.OUTLINE })

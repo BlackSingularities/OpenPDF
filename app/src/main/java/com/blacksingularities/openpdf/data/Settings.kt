@@ -27,6 +27,11 @@ enum class PaperTheme(private val pl: String) {
 
 /** Ustawienia aplikacji (SharedPreferences). */
 data class AppSettings(
+    /**
+     * Automatyczny układ: telefon w pionie – pojedyncze strony przewijane w pionie; w poziomie,
+     * na tablecie i rozłożonym foldzie – książka z rozkładówkami i przewracaniem kartek.
+     */
+    val autoLayout: Boolean = true,
     val bookMode: BookMode = BookMode.AUTO,
     val coverAlone: Boolean = true,
     val rtl: Boolean = false,
@@ -37,7 +42,6 @@ data class AppSettings(
     val fitBook: FitMode = FitMode.PAGE,
     val pageGap: Boolean = true,
     val edgeToEdge: Boolean = true,
-    val pinToolbar: Boolean = true,
     val hideStatusBar: Boolean = false,
     val paper: PaperTheme = PaperTheme.NORMAL,
     val keepScreenOn: Boolean = true,
@@ -56,6 +60,7 @@ class SettingsStore(context: Context) {
     fun load(): AppSettings {
         val d = AppSettings()
         return AppSettings(
+            autoLayout = prefs.getBoolean("autoLayout", d.autoLayout),
             bookMode = enumOr(prefs.getString("bookMode", null), d.bookMode),
             coverAlone = prefs.getBoolean("coverAlone", d.coverAlone),
             rtl = prefs.getBoolean("rtl", d.rtl),
@@ -66,7 +71,6 @@ class SettingsStore(context: Context) {
             fitBook = enumOr(prefs.getString("fitBook", null), d.fitBook),
             pageGap = prefs.getBoolean("pageGap", d.pageGap),
             edgeToEdge = prefs.getBoolean("edgeToEdge", d.edgeToEdge),
-            pinToolbar = prefs.getBoolean("pinToolbar", d.pinToolbar),
             hideStatusBar = prefs.getBoolean("hideStatusBar", d.hideStatusBar),
             paper = enumOr(prefs.getString("paper", null), d.paper),
             keepScreenOn = prefs.getBoolean("keepScreenOn", d.keepScreenOn),
@@ -82,6 +86,7 @@ class SettingsStore(context: Context) {
 
     fun save(s: AppSettings) {
         prefs.edit()
+            .putBoolean("autoLayout", s.autoLayout)
             .putString("bookMode", s.bookMode.name)
             .putBoolean("coverAlone", s.coverAlone)
             .putBoolean("rtl", s.rtl)
@@ -92,7 +97,6 @@ class SettingsStore(context: Context) {
             .putString("fitBook", s.fitBook.name)
             .putBoolean("pageGap", s.pageGap)
             .putBoolean("edgeToEdge", s.edgeToEdge)
-            .putBoolean("pinToolbar", s.pinToolbar)
             .putBoolean("hideStatusBar", s.hideStatusBar)
             .putString("paper", s.paper.name)
             .putBoolean("keepScreenOn", s.keepScreenOn)
@@ -109,3 +113,9 @@ class SettingsStore(context: Context) {
     private inline fun <reified T : Enum<T>> enumOr(name: String?, default: T): T =
         name?.let { n -> enumValues<T>().firstOrNull { it.name == n } } ?: default
 }
+
+/** Tryb książki w użyciu (przy automatycznym układzie zawsze „Automatycznie”). */
+val AppSettings.effectiveBookMode: BookMode get() = if (autoLayout) BookMode.AUTO else bookMode
+
+/** Przewijanie w użyciu: przy automatycznym układzie książka przewraca kartki, pojedyncze strony płyną w pionie. */
+fun AppSettings.effectiveScroll(book: Boolean): ScrollMode = if (autoLayout) (if (book) ScrollMode.PAGED else ScrollMode.VERTICAL) else scroll

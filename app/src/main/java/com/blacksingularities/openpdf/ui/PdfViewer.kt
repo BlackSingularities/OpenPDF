@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.blacksingularities.openpdf.data.PaperTheme
+import com.blacksingularities.openpdf.data.effectiveScroll
 import com.blacksingularities.openpdf.pdf.AnnotationWriter
 import com.blacksingularities.openpdf.pdf.ImageMark
 import com.blacksingularities.openpdf.pdf.InkMark
@@ -115,7 +116,7 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Mod
         coverAlone = settings.coverAlone,
         rtl = settings.rtl,
         fit = if (book) settings.fitBook else settings.fitSingle,
-        scroll = settings.scroll,
+        scroll = settings.effectiveScroll(book),
         margin = margin,
         gap = if (book) gap else gap,
         topInset = topInset,
@@ -151,12 +152,16 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Mod
             .collectLatest { (t, layout) ->
                 val (scale, _, interacting) = t
                 if (layout == null) return@collectLatest
-                if (!interacting) delay(60)
                 val visible = state.visibleRows()
-                val around = state.visibleRows(extra = max(vp.width, vp.height))
+                val around = state.visibleRows(extra = max(vp.width, vp.height) * 2f)
                 val base = ArrayList<Pair<Int, Int>>()
                 val zoomBase = scale.coerceIn(0.35f, 1f)
-                for (row in visible + around) for (slot in row.slots) {
+                for (row in visible) for (slot in row.slots) {
+                    val w = vm.images.bucket(slot.rect.width * zoomBase)
+                    if (base.none { it.first == slot.page }) base += slot.page to w
+                }
+                val visibleCount = base.size
+                for (row in around) for (slot in row.slots) {
                     val w = vm.images.bucket(slot.rect.width * zoomBase)
                     if (base.none { it.first == slot.page }) base += slot.page to w
                 }
@@ -181,7 +186,10 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Mod
                         tiles += TileRequest(slot.page, region, pw)
                     }
                 }
-                vm.images.request(base, tiles)
+                vm.images.request(base, tiles, visibleCount)
+                // Miniatury sąsiednich stron renderują się błyskawicznie i służą za podgląd,
+                // zanim powstanie pełny obraz strony.
+                vm.images.requestThumbs(around.flatMap { r -> r.slots.map { it.page } })
             }
     }
 
@@ -387,7 +395,7 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Mod
                     val r = state.toScreen(slot.rect)
                     drawRect(Color.Black.copy(alpha = 0.35f), Offset(r.left, r.top + shadowOffset), r.size)
                     drawRect(paperColor, r.topLeft, r.size)
-                    val bmp = vm.images.base(slot.page)
+                    val bmp = vm.images.base(slot.page) ?: vm.images.thumb(slot.page)
                     if (bmp != null) {
                         drawImage(
                             bmp.asImageBitmap(),
@@ -485,7 +493,7 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Mod
 private fun DrawScope.drawPageInto(vm: PdfViewModel, page: Int, r: Rect, paper: Color, filter: ColorFilter?) {
     if (r.width < 0.5f) return
     drawRect(paper, r.topLeft, r.size)
-    val bmp = vm.images.base(page) ?: return
+    val bmp = vm.images.base(page) ?: vm.images.thumb(page) ?: return
     drawImage(
         bmp.asImageBitmap(),
         dstOffset = IntOffset(r.left.roundToInt(), r.top.roundToInt()),
