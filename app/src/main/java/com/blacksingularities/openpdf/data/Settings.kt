@@ -42,6 +42,11 @@ data class AppSettings(
     val fitBook: FitMode = FitMode.PAGE,
     val pageGap: Boolean = true,
     val edgeToEdge: Boolean = true,
+    /** Przycięcie marginesów stron (ułamek szerokości/wysokości): lewy, górny, prawy, dolny. */
+    val cropLeft: Float = 0f,
+    val cropTop: Float = 0f,
+    val cropRight: Float = 0f,
+    val cropBottom: Float = 0f,
     val hideStatusBar: Boolean = false,
     val paper: PaperTheme = PaperTheme.NORMAL,
     val keepScreenOn: Boolean = true,
@@ -71,6 +76,10 @@ class SettingsStore(context: Context) {
             fitBook = enumOr(prefs.getString("fitBook", null), d.fitBook),
             pageGap = prefs.getBoolean("pageGap", d.pageGap),
             edgeToEdge = prefs.getBoolean("edgeToEdge", d.edgeToEdge),
+            cropLeft = prefs.getFloat("cropLeft", 0f),
+            cropTop = prefs.getFloat("cropTop", 0f),
+            cropRight = prefs.getFloat("cropRight", 0f),
+            cropBottom = prefs.getFloat("cropBottom", 0f),
             hideStatusBar = prefs.getBoolean("hideStatusBar", d.hideStatusBar),
             paper = enumOr(prefs.getString("paper", null), d.paper),
             keepScreenOn = prefs.getBoolean("keepScreenOn", d.keepScreenOn),
@@ -97,6 +106,10 @@ class SettingsStore(context: Context) {
             .putString("fitBook", s.fitBook.name)
             .putBoolean("pageGap", s.pageGap)
             .putBoolean("edgeToEdge", s.edgeToEdge)
+            .putFloat("cropLeft", s.cropLeft)
+            .putFloat("cropTop", s.cropTop)
+            .putFloat("cropRight", s.cropRight)
+            .putFloat("cropBottom", s.cropBottom)
             .putBoolean("hideStatusBar", s.hideStatusBar)
             .putString("paper", s.paper.name)
             .putBoolean("keepScreenOn", s.keepScreenOn)
@@ -119,3 +132,7 @@ val AppSettings.effectiveBookMode: BookMode get() = if (autoLayout) BookMode.AUT
 
 /** Przewijanie w użyciu: przy automatycznym układzie książka przewraca kartki, pojedyncze strony płyną w pionie. */
 fun AppSettings.effectiveScroll(book: Boolean): ScrollMode = if (autoLayout) (if (book) ScrollMode.PAGED else ScrollMode.VERTICAL) else scroll
+
+/** Przycięcie jako tablica [lewy, górny, prawy, dolny], z bezpiecznymi granicami. */
+val AppSettings.crop: FloatArray
+    get() = floatArrayOf(cropLeft, cropTop, cropRight, cropBottom).map { it.coerceIn(0f, 0.3f) }.toFloatArray()
