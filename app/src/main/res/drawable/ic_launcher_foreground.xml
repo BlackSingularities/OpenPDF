@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Lewa strona otwartej książki -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M30,36 L52,40 L52,74 L30,70 Z" />
+    <!-- Prawa strona -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M56,40 L78,36 L78,70 L56,74 Z" />
+    <!-- Linie tekstu -->
+    <path
+        android:strokeColor="#FF0B0C10"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:pathData="M35,47 L47,49 M35,54 L47,56 M35,61 L43,62.5 M61,49 L73,47 M61,56 L73,54 M61,63 L69,61.5" />
+    <!-- Pióro -->
+    <path
+        android:fillColor="#FFFF3B47"
+        android:pathData="M72,58 L80,50 L84,54 L76,62 Z M71,59 L75,63 L69,65 Z" />
+</vector>
