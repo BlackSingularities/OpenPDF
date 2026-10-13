@@ -1,19 +1,28 @@
 package com.blacksingularities.openpdf.data
 
 import android.content.Context
+import com.blacksingularities.openpdf.i18n.AppLanguage
+import com.blacksingularities.openpdf.i18n.tr
 import com.blacksingularities.openpdf.ui.FitMode
 import com.blacksingularities.openpdf.ui.ScrollMode
 
-enum class BookMode(val label: String) {
+enum class BookMode(private val pl: String) {
     AUTO("Automatycznie"),
     ALWAYS("Zawsze"),
     NEVER("Nigdy"),
+    ;
+
+    val label: String get() = tr(pl)
 }
 
-enum class PaperTheme(val label: String) {
+enum class PaperTheme(private val pl: String) {
     NORMAL("Zwykły"),
     NIGHT("Nocny"),
+    DARK("Ciemny"),
     SEPIA("Sepia"),
+    ;
+
+    val label: String get() = tr(pl)
 }
 
 /** Ustawienia aplikacji (SharedPreferences). */
@@ -22,10 +31,14 @@ data class AppSettings(
     val coverAlone: Boolean = true,
     val rtl: Boolean = false,
     val spineShadow: Boolean = true,
+    val pageFlip: Boolean = true,
     val scroll: ScrollMode = ScrollMode.VERTICAL,
     val fitSingle: FitMode = FitMode.WIDTH,
     val fitBook: FitMode = FitMode.PAGE,
     val pageGap: Boolean = true,
+    val edgeToEdge: Boolean = true,
+    val pinToolbar: Boolean = true,
+    val hideStatusBar: Boolean = false,
     val paper: PaperTheme = PaperTheme.NORMAL,
     val keepScreenOn: Boolean = true,
     val volumeKeys: Boolean = true,
@@ -34,6 +47,7 @@ data class AppSettings(
     val stylusOnly: Boolean = false,
     val author: String = "OpenPDF",
     val autoUpdate: Boolean = true,
+    val language: AppLanguage = AppLanguage.SYSTEM,
 )
 
 class SettingsStore(context: Context) {
@@ -46,10 +60,14 @@ class SettingsStore(context: Context) {
             coverAlone = prefs.getBoolean("coverAlone", d.coverAlone),
             rtl = prefs.getBoolean("rtl", d.rtl),
             spineShadow = prefs.getBoolean("spineShadow", d.spineShadow),
+            pageFlip = prefs.getBoolean("pageFlip", d.pageFlip),
             scroll = enumOr(prefs.getString("scroll", null), d.scroll),
             fitSingle = enumOr(prefs.getString("fitSingle", null), d.fitSingle),
             fitBook = enumOr(prefs.getString("fitBook", null), d.fitBook),
             pageGap = prefs.getBoolean("pageGap", d.pageGap),
+            edgeToEdge = prefs.getBoolean("edgeToEdge", d.edgeToEdge),
+            pinToolbar = prefs.getBoolean("pinToolbar", d.pinToolbar),
+            hideStatusBar = prefs.getBoolean("hideStatusBar", d.hideStatusBar),
             paper = enumOr(prefs.getString("paper", null), d.paper),
             keepScreenOn = prefs.getBoolean("keepScreenOn", d.keepScreenOn),
             volumeKeys = prefs.getBoolean("volumeKeys", d.volumeKeys),
@@ -58,6 +76,7 @@ class SettingsStore(context: Context) {
             stylusOnly = prefs.getBoolean("stylusOnly", d.stylusOnly),
             author = prefs.getString("author", null) ?: d.author,
             autoUpdate = prefs.getBoolean("autoUpdate", d.autoUpdate),
+            language = enumOr(prefs.getString("language", null), d.language),
         )
     }
 
@@ -67,10 +86,14 @@ class SettingsStore(context: Context) {
             .putBoolean("coverAlone", s.coverAlone)
             .putBoolean("rtl", s.rtl)
             .putBoolean("spineShadow", s.spineShadow)
+            .putBoolean("pageFlip", s.pageFlip)
             .putString("scroll", s.scroll.name)
             .putString("fitSingle", s.fitSingle.name)
             .putString("fitBook", s.fitBook.name)
             .putBoolean("pageGap", s.pageGap)
+            .putBoolean("edgeToEdge", s.edgeToEdge)
+            .putBoolean("pinToolbar", s.pinToolbar)
+            .putBoolean("hideStatusBar", s.hideStatusBar)
             .putString("paper", s.paper.name)
             .putBoolean("keepScreenOn", s.keepScreenOn)
             .putBoolean("volumeKeys", s.volumeKeys)
@@ -79,6 +102,7 @@ class SettingsStore(context: Context) {
             .putBoolean("stylusOnly", s.stylusOnly)
             .putString("author", s.author)
             .putBoolean("autoUpdate", s.autoUpdate)
+            .putString("language", s.language.name)
             .apply()
     }
 

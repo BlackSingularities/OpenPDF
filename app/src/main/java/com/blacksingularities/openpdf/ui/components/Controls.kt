@@ -1,5 +1,6 @@
 package com.blacksingularities.openpdf.ui.components
 
+import com.blacksingularities.openpdf.i18n.tr
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -119,12 +120,10 @@ fun Panel(
 ) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wide = maxWidth >= 720.dp
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = if (wide) 0.25f else 0f))
-                .pointerInput(Unit) { detectTapGestures { onClose() } },
-        )
+        // Na tablecie panel jest boczną kolumną – dokument obok zostaje dostępny.
+        if (!wide) {
+            Box(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { onClose() } })
+        }
         Column(
             modifier
                 .then(if (wide) Modifier.align(Alignment.CenterEnd).width(420.dp).fillMaxHeight() else Modifier.fillMaxSize())
@@ -137,7 +136,7 @@ fun Panel(
                 Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 actions()
                 Spacer(Modifier.width(6.dp))
-                GlassIconButton(Icons.Rounded.Close, "Zamknij", 0f, size = 38.dp, onClick = onClose)
+                GlassIconButton(Icons.Rounded.Close, tr("Zamknij"), 0f, size = 38.dp, onClick = onClose)
             }
             Column(
                 Modifier
@@ -179,7 +178,7 @@ fun Group(
             if (collapsible) {
                 Icon(
                     Icons.Rounded.ExpandMore,
-                    if (expanded) "Zwiń sekcję $title" else "Rozwiń sekcję $title",
+                    if (expanded) tr("Zwiń sekcję {0}", title) else tr("Rozwiń sekcję {0}", title),
                     tint = Palette.Amber,
                     modifier = Modifier.size(18.dp).rotate(if (expanded) 0f else -90f),
                 )

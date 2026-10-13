@@ -37,6 +37,7 @@ Najnowszy plik APK jest zawsze w **[Releases → Latest](../../releases/latest)*
 - Wyszukiwanie (bez względu na polskie znaki), spis treści, zakładki, kopiowanie tekstu.
 - Hasło AES-256, właściwości dokumentu, kompresja obrazów, eksport stron do PNG/JPG, wyodrębnianie tekstu, druk, udostępnianie.
 - Cofanie i ponawianie wszystkich zmian – także operacji na stronach.
+- Interfejs po polsku i angielsku – automatycznie według języka systemu albo wybrany w ustawieniach.
 
 ## Architektura
 

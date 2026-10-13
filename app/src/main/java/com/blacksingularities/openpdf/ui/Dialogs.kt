@@ -1,5 +1,6 @@
 package com.blacksingularities.openpdf.ui
 
+import com.blacksingularities.openpdf.i18n.tr
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -63,28 +64,28 @@ fun ViewModelDialogs(vm: PdfViewModel) {
     }
     vm.discardRequest?.let { proceed ->
         DarkDialog(
-            title = "Niezapisane zmiany",
+            title = tr("Niezapisane zmiany"),
             onDismiss = { vm.discardRequest = null },
             buttons = {
-                PillButton("Anuluj", primary = false) { vm.discardRequest = null }
-                PillButton("Odrzuć", danger = true) {
+                PillButton(tr("Anuluj"), primary = false) { vm.discardRequest = null }
+                PillButton(tr("Odrzuć"), danger = true) {
                     vm.discardRequest = null
                     proceed()
                 }
-                PillButton("Zapisz") {
+                PillButton(tr("Zapisz")) {
                     vm.discardRequest = null
                     vm.save()
                 }
             },
         ) {
-            Text("Dokument ma zmiany, które nie zostały zapisane. Co zrobić?", color = Palette.TextDim, fontSize = 14.sp)
+            Text(tr("Dokument ma zmiany, które nie zostały zapisane. Co zrobić?"), color = Palette.TextDim, fontSize = 14.sp)
         }
     }
     vm.textRequest?.let { req ->
         TextInputDialog(vm, req)
     }
     vm.noteView?.let { n ->
-        DarkDialog(n.title, onDismiss = { vm.noteView = null }, buttons = { PillButton("Zamknij") { vm.noteView = null } }) {
+        DarkDialog(n.title, onDismiss = { vm.noteView = null }, buttons = { PillButton(tr("Zamknij")) { vm.noteView = null } }) {
             Text(n.text, color = Color.White, fontSize = 15.sp, lineHeight = 21.sp)
         }
     }
@@ -100,16 +101,16 @@ fun ViewModelDialogs(vm: PdfViewModel) {
 fun PasswordDialog(name: String, wrong: Boolean, onDismiss: () -> Unit, onSubmit: (String) -> Unit) {
     var pass by remember { mutableStateOf("") }
     DarkDialog(
-        title = "Plik chroniony hasłem",
+        title = tr("Plik chroniony hasłem"),
         onDismiss = onDismiss,
         buttons = {
-            PillButton("Anuluj", primary = false, onClick = onDismiss)
-            PillButton("Otwórz", enabled = pass.isNotEmpty()) { onSubmit(pass) }
+            PillButton(tr("Anuluj"), primary = false, onClick = onDismiss)
+            PillButton(tr("Otwórz"), enabled = pass.isNotEmpty()) { onSubmit(pass) }
         },
     ) {
         Text(name, color = Palette.TextDim, fontSize = 13.sp)
-        if (wrong) Text("Nieprawidłowe hasło – spróbuj ponownie.", color = Palette.Record, fontSize = 13.sp)
-        DarkField(pass, { pass = it }, "Hasło", password = true)
+        if (wrong) Text(tr("Nieprawidłowe hasło – spróbuj ponownie."), color = Palette.Record, fontSize = 13.sp)
+        DarkField(pass, { pass = it }, tr("Hasło"), password = true)
     }
 }
 
@@ -118,14 +119,14 @@ fun GoToPageDialog(count: Int, current: Int, onDismiss: () -> Unit, onGo: (Int) 
     var text by remember { mutableStateOf("${current + 1}") }
     val n = text.toIntOrNull()
     DarkDialog(
-        title = "Przejdź do strony",
+        title = tr("Przejdź do strony"),
         onDismiss = onDismiss,
         buttons = {
-            PillButton("Anuluj", primary = false, onClick = onDismiss)
-            PillButton("Przejdź", enabled = n != null && n in 1..count) { onGo(n!! - 1) }
+            PillButton(tr("Anuluj"), primary = false, onClick = onDismiss)
+            PillButton(tr("Przejdź"), enabled = n != null && n in 1..count) { onGo(n!! - 1) }
         },
     ) {
-        DarkField(text, { text = it.filter(Char::isDigit).take(6) }, "Numer strony (1–$count)", number = true)
+        DarkField(text, { text = it.filter(Char::isDigit).take(6) }, tr("Numer strony (1–{0})", count), number = true)
     }
 }
 
@@ -137,22 +138,22 @@ private fun TextInputDialog(vm: PdfViewModel, req: TextRequest) {
     val isNote = req.tool == Tool.NOTE
     DarkDialog(
         title = when {
-            isNote && req.editId != null -> "Edytuj notatkę"
-            isNote -> "Nowa notatka"
-            req.editId != null -> "Edytuj tekst"
-            else -> "Nowy tekst"
+            isNote && req.editId != null -> tr("Edytuj notatkę")
+            isNote -> tr("Nowa notatka")
+            req.editId != null -> tr("Edytuj tekst")
+            else -> tr("Nowy tekst")
         },
         onDismiss = { vm.textRequest = null },
         buttons = {
-            if (req.editId != null) PillButton("Usuń", danger = true) { vm.submitText("") }
-            PillButton("Anuluj", primary = false) { vm.textRequest = null }
-            PillButton("Gotowe", enabled = text.isNotBlank()) { vm.submitText(text, if (isNote) null else size) }
+            if (req.editId != null) PillButton(tr("Usuń"), danger = true) { vm.submitText("") }
+            PillButton(tr("Anuluj"), primary = false) { vm.textRequest = null }
+            PillButton(tr("Gotowe"), enabled = text.isNotBlank()) { vm.submitText(text, if (isNote) null else size) }
         },
     ) {
-        DarkField(text, { text = it }, if (isNote) "Treść notatki" else "Tekst", singleLine = false, minLines = 3)
+        DarkField(text, { text = it }, if (isNote) tr("Treść notatki") else tr("Tekst"), singleLine = false, minLines = 3)
         if (!isNote) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Rozmiar", color = Palette.TextDim, fontSize = 12.sp, modifier = Modifier.padding(end = 8.dp))
+                Text(tr("Rozmiar"), color = Palette.TextDim, fontSize = 12.sp, modifier = Modifier.padding(end = 8.dp))
                 Slider(
                     value = size,
                     onValueChange = { size = it },
@@ -173,13 +174,13 @@ fun FieldEditDialog(field: FieldInfo, onDismiss: () -> Unit, onSave: (String) ->
         title = field.label.ifBlank { field.name },
         onDismiss = onDismiss,
         buttons = {
-            PillButton("Anuluj", primary = false, onClick = onDismiss)
-            PillButton("Zapisz") { onSave(value) }
+            PillButton(tr("Anuluj"), primary = false, onClick = onDismiss)
+            PillButton(tr("Zapisz")) { onSave(value) }
         },
     ) {
         if (field.label.isNotBlank() && field.label != field.name) Text(field.name, color = Palette.TextFaint, fontSize = 11.sp)
         when (field.kind) {
-            FieldKind.TEXT -> DarkField(value, { value = it }, "Wartość", singleLine = !field.multiline, minLines = 3)
+            FieldKind.TEXT -> DarkField(value, { value = it }, tr("Wartość"), singleLine = !field.multiline, minLines = 3)
             FieldKind.CHECKBOX -> {
                 val checked = value == "true"
                 Row(
@@ -187,7 +188,7 @@ fun FieldEditDialog(field: FieldInfo, onDismiss: () -> Unit, onSave: (String) ->
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(if (checked) Icons.Rounded.CheckBox else Icons.Rounded.CheckBoxOutlineBlank, null, tint = Color.White)
-                    Text(if (checked) "Zaznaczone" else "Niezaznaczone", color = Color.White, modifier = Modifier.padding(start = 10.dp))
+                    Text(if (checked) tr("Zaznaczone") else tr("Niezaznaczone"), color = Color.White, modifier = Modifier.padding(start = 10.dp))
                 }
             }
             FieldKind.RADIO, FieldKind.CHOICE -> {
@@ -202,9 +203,9 @@ fun FieldEditDialog(field: FieldInfo, onDismiss: () -> Unit, onSave: (String) ->
                         Text(label, color = Color.White, modifier = Modifier.padding(start = 10.dp))
                     }
                 }
-                if (field.options.isEmpty()) DarkField(value, { value = it }, "Wartość")
+                if (field.options.isEmpty()) DarkField(value, { value = it }, tr("Wartość"))
             }
-            else -> Text("Tego pola nie można edytować w aplikacji.", color = Palette.TextDim)
+            else -> Text(tr("Tego pola nie można edytować w aplikacji."), color = Palette.TextDim)
         }
     }
 }
@@ -217,12 +218,12 @@ fun SignaturePadDialog(onDismiss: () -> Unit, onSave: (List<List<PointN>>, Float
     var padW by remember { mutableFloatStateOf(1f) }
     var padH by remember { mutableFloatStateOf(1f) }
     DarkDialog(
-        title = "Podpis",
+        title = tr("Podpis"),
         onDismiss = onDismiss,
         buttons = {
-            PillButton("Wyczyść", primary = false) { strokes.clear() }
-            PillButton("Anuluj", primary = false, onClick = onDismiss)
-            PillButton("Zapisz", enabled = strokes.isNotEmpty()) {
+            PillButton(tr("Wyczyść"), primary = false) { strokes.clear() }
+            PillButton(tr("Anuluj"), primary = false, onClick = onDismiss)
+            PillButton(tr("Zapisz"), enabled = strokes.isNotEmpty()) {
                 val all = strokes.flatten()
                 val minX = all.minOf { it.x }
                 val maxX = all.maxOf { it.x }
@@ -237,7 +238,7 @@ fun SignaturePadDialog(onDismiss: () -> Unit, onSave: (List<List<PointN>>, Float
             }
         },
     ) {
-        Text("Złóż podpis w ramce. Zostanie zapisany do ponownego użycia.", color = Palette.TextDim, fontSize = 13.sp)
+        Text(tr("Złóż podpis w ramce. Zostanie zapisany do ponownego użycia."), color = Palette.TextDim, fontSize = 13.sp)
         Box(
             Modifier
                 .fillMaxWidth()
@@ -294,16 +295,16 @@ fun BlankDocDialog(onDismiss: () -> Unit, onCreate: (Int, Boolean) -> Unit) {
     var pages by remember { mutableStateOf("1") }
     var landscape by remember { mutableStateOf(false) }
     DarkDialog(
-        title = "Nowy dokument",
+        title = tr("Nowy dokument"),
         onDismiss = onDismiss,
         buttons = {
-            PillButton("Anuluj", primary = false, onClick = onDismiss)
-            PillButton("Utwórz", enabled = (pages.toIntOrNull() ?: 0) in 1..500) { onCreate(pages.toInt(), landscape) }
+            PillButton(tr("Anuluj"), primary = false, onClick = onDismiss)
+            PillButton(tr("Utwórz"), enabled = (pages.toIntOrNull() ?: 0) in 1..500) { onCreate(pages.toInt(), landscape) }
         },
     ) {
-        DarkField(pages, { pages = it.filter(Char::isDigit).take(3) }, "Liczba stron A4", number = true)
+        DarkField(pages, { pages = it.filter(Char::isDigit).take(3) }, tr("Liczba stron A4"), number = true)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(false to "Pionowo", true to "Poziomo").forEach { (v, label) ->
+            listOf(false to tr("Pionowo"), true to tr("Poziomo")).forEach { (v, label) ->
                 Text(
                     label,
                     color = if (landscape == v) Palette.Ink else Color.White,

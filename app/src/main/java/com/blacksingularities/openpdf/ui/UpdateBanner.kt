@@ -1,5 +1,6 @@
 package com.blacksingularities.openpdf.ui
 
+import com.blacksingularities.openpdf.i18n.tr
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -45,10 +46,10 @@ fun UpdateBanner(vm: PdfViewModel, modifier: Modifier = Modifier) {
     val u = vm.update
     AnimatedVisibility(visible = vm.updatePending && !vm.updateBannerHidden, modifier = modifier) {
         val (title, action) = when (u) {
-            is UpdateState.Available -> "Nowa wersja ${u.info.version}" to "Aktualizuj"
-            is UpdateState.Downloading -> "Pobieranie ${u.info.version} · ${(u.progress * 100).roundToInt()}%" to null
-            is UpdateState.Ready -> "Wersja ${u.info.version} pobrana" to "Zainstaluj"
-            is UpdateState.Installing -> "Instalowanie ${u.info.version}…" to null
+            is UpdateState.Available -> tr("Nowa wersja {0}", u.info.version) to tr("Aktualizuj")
+            is UpdateState.Downloading -> tr("Pobieranie {0} · {1}%", u.info.version, (u.progress * 100).roundToInt()) to null
+            is UpdateState.Ready -> tr("Wersja {0} pobrana", u.info.version) to tr("Zainstaluj")
+            is UpdateState.Installing -> tr("Instalowanie {0}…", u.info.version) to null
             else -> "" to null
         }
         val notes = (u as? UpdateState.Available)?.info?.notes ?: (u as? UpdateState.Ready)?.info?.notes
@@ -64,7 +65,7 @@ fun UpdateBanner(vm: PdfViewModel, modifier: Modifier = Modifier) {
                 Column(Modifier.weight(1f)) {
                     Text(title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        if (u is UpdateState.Available) "Pobierze się i zainstaluje automatycznie" else "Nie zamykaj aplikacji",
+                        if (u is UpdateState.Available) tr("Pobierze się i zainstaluje automatycznie") else tr("Nie zamykaj aplikacji"),
                         color = Palette.TextDim,
                         fontSize = 11.sp,
                     )
@@ -85,7 +86,7 @@ fun UpdateBanner(vm: PdfViewModel, modifier: Modifier = Modifier) {
                 if (u is UpdateState.Available) {
                     Icon(
                         Icons.Rounded.Close,
-                        "Później",
+                        tr("Później"),
                         tint = Palette.TextDim,
                         modifier = Modifier.padding(start = 6.dp).size(32.dp).clip(RoundedCornerShape(50)).clickable { vm.updateBannerHidden = true }.padding(6.dp),
                     )

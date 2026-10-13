@@ -1,5 +1,14 @@
 # Zmiany
 
+## 1.1.0
+- Jedno menu: dokument i ustawienia w jednym panelu (na tablecie – boczna kolumna obok dokumentu).
+- Tryb ciemny: biały tekst na czarnym tle (pełna inwersja), szybki przełącznik papieru na pasku.
+- Strony od krawędzi do krawędzi – bez marginesów.
+- Przypięty pasek narzędzi (dokument pod nim, chowa się po dotknięciu strony) i opcja ukrycia paska stanu.
+- Pełna angielska wersja interfejsu: język automatycznie według systemu (polski albo angielski) lub wybrany w Ustawienia → Ogólne → Język.
+- Tryb książki: przewracanie kartek z animacją – kartka obraca się wokół grzbietu i podąża za palcem (tryb „Przewracanie stron”).
+- Aktualizacje jednym dotknięciem: baner nowej wersji, pobieranie i instalacja bez przeglądarki.
+
 ## 1.0.0
 - Pierwsze wydanie OpenPDF.
 - Tryb książki: dwie strony obok siebie (automatycznie w poziomie i na rozłożonym foldzie), okładka osobno albo rozkładówki od pierwszej strony, kolejność od prawej do lewej, cień grzbietu.

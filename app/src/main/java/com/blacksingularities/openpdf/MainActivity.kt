@@ -32,6 +32,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = false
         UpdateManager.clearUpdatedNotification(this)
+        vm.applyLanguage()
 
         // Rozłożony fold (pionowy zawias) albo pozycja „książki” – sygnał dla automatycznego trybu książki.
         lifecycleScope.launch {
@@ -52,9 +53,23 @@ class MainActivity : ComponentActivity() {
                     if (keepOn) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                     else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 }
+                // Ukryty pasek stanu w czytniku – pojawia się po przesunięciu palcem od góry.
+                val hideBars = vm.settings.hideStatusBar && vm.screen != Screen.HOME
+                LaunchedEffect(hideBars) {
+                    val c = WindowCompat.getInsetsController(window, window.decorView)
+                    c.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    if (hideBars) c.hide(androidx.core.view.WindowInsetsCompat.Type.statusBars())
+                    else c.show(androidx.core.view.WindowInsetsCompat.Type.statusBars())
+                }
                 AppRoot(vm)
             }
         }
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // Zmiana języka systemu bez restartu ekranu.
+        vm.applyLanguage()
     }
 
     override fun onResume() {

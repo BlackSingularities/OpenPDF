@@ -2,12 +2,14 @@
 
 package com.blacksingularities.openpdf.ui
 
+import com.blacksingularities.openpdf.i18n.tr
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -95,7 +97,7 @@ fun ViewerSheets(vm: PdfViewModel) {
         Sheet.SECURITY -> SecuritySheet(vm)
         Sheet.COMPRESS -> CompressSheet(vm)
         Sheet.EXPORT -> ExportSheet(vm)
-        Sheet.MORE -> MoreSheet(vm)
+        Sheet.MORE -> SettingsPanel(vm, startOnDocument = true)
         Sheet.TEXT -> TextSheet(vm)
         Sheet.SIGNATURES -> SignaturesSheet(vm)
         Sheet.SETTINGS -> SettingsPanel(vm)
@@ -108,29 +110,29 @@ private fun close(vm: PdfViewModel) {
 }
 
 @Composable
-private fun MoreSheet(vm: PdfViewModel) {
+fun ColumnScope.DocumentMenu(vm: PdfViewModel) {
     val idx = vm.index
-    Panel("Dokument", onClose = { close(vm) }) {
+    run {
         Text(vm.doc?.name ?: "", color = Palette.TextDim, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 6.dp))
-        Group("Plik") {
-            ActionRow(Icons.Rounded.Save, "Zapisz", if (vm.doc?.writable == true && vm.doc?.uri != null) "W miejscu oryginału" else "Wybierz miejsce zapisu") { close(vm); vm.save() }
-            ActionRow(Icons.Rounded.SaveAs, "Zapisz jako…", "Nowy plik ze wszystkimi zmianami") { close(vm); vm.saveAs() }
-            ActionRow(Icons.Rounded.Share, "Udostępnij") { close(vm); vm.share() }
-            ActionRow(Icons.Rounded.Print, "Drukuj") { close(vm); vm.print() }
+        Group(tr("Plik")) {
+            ActionRow(Icons.Rounded.Save, tr("Zapisz"), if (vm.doc?.writable == true && vm.doc?.uri != null) tr("W miejscu oryginału") else tr("Wybierz miejsce zapisu")) { close(vm); vm.save() }
+            ActionRow(Icons.Rounded.SaveAs, tr("Zapisz jako…"), tr("Nowy plik ze wszystkimi zmianami")) { close(vm); vm.saveAs() }
+            ActionRow(Icons.Rounded.Share, tr("Udostępnij")) { close(vm); vm.share() }
+            ActionRow(Icons.Rounded.Print, tr("Drukuj")) { close(vm); vm.print() }
         }
-        Group("Treść") {
-            ActionRow(Icons.Rounded.FactCheck, "Formularz", if (idx.fields.isEmpty()) "Dokument nie ma pól formularza" else "Pola do wypełnienia: ${idx.fields.count { it.kind != FieldKind.BUTTON && it.kind != FieldKind.SIGNATURE }}", enabled = idx.fields.isNotEmpty()) { vm.sheet = Sheet.FORM }
-            ActionRow(Icons.Rounded.Layers, "Adnotacje", "W pliku: ${idx.annotCount} · niezapisane: ${vm.marks.size}") { vm.sheet = Sheet.ANNOTATIONS }
-            ActionRow(Icons.Rounded.Notes, "Wyodrębnij tekst", "Cały tekst dokumentu do skopiowania lub zapisu") { close(vm); vm.extractText() }
-            ActionRow(Icons.Rounded.Draw, "Podpisy", "Zapisane podpisy i nowy podpis") { vm.sheet = Sheet.SIGNATURES }
+        Group(tr("Treść")) {
+            ActionRow(Icons.Rounded.FactCheck, tr("Formularz"), if (idx.fields.isEmpty()) tr("Dokument nie ma pól formularza") else tr("Pola do wypełnienia: {0}", idx.fields.count { it.kind != FieldKind.BUTTON && it.kind != FieldKind.SIGNATURE }), enabled = idx.fields.isNotEmpty()) { vm.sheet = Sheet.FORM }
+            ActionRow(Icons.Rounded.Layers, tr("Adnotacje"), tr("W pliku: {0} · niezapisane: {1}", idx.annotCount, vm.marks.size)) { vm.sheet = Sheet.ANNOTATIONS }
+            ActionRow(Icons.Rounded.Notes, tr("Wyodrębnij tekst"), tr("Cały tekst dokumentu do skopiowania lub zapisu")) { close(vm); vm.extractText() }
+            ActionRow(Icons.Rounded.Draw, tr("Podpisy"), tr("Zapisane podpisy i nowy podpis")) { vm.sheet = Sheet.SIGNATURES }
         }
-        Group("Narzędzia") {
-            ActionRow(Icons.Rounded.Image, "Eksport stron jako obrazy", "PNG lub JPG do galerii") { vm.sheet = Sheet.EXPORT }
-            ActionRow(Icons.Rounded.Compress, "Zmniejsz rozmiar", "Kompresja obrazów w dokumencie") { vm.compressResult = null; vm.sheet = Sheet.COMPRESS }
-            ActionRow(Icons.Rounded.MergeType, "Wstaw strony z innego PDF", "Na końcu dokumentu – kolejność zmienisz w widoku stron") { close(vm); vm.screen = Screen.PAGES }
-            ActionRow(Icons.Rounded.CallSplit, "Wyodrębnij lub podziel strony", "W widoku stron zaznacz strony i wybierz „Wyodrębnij”") { close(vm); vm.screen = Screen.PAGES }
-            ActionRow(Icons.Rounded.Lock, "Hasło i ochrona", if (vm.protection != null) "Dokument będzie zapisany z hasłem" else "Bez hasła") { vm.sheet = Sheet.SECURITY }
-            ActionRow(Icons.Rounded.Info, "Właściwości", "Tytuł, autor, temat, informacje o pliku") { vm.sheet = Sheet.INFO }
+        Group(tr("Narzędzia")) {
+            ActionRow(Icons.Rounded.Image, tr("Eksport stron jako obrazy"), tr("PNG lub JPG do galerii")) { vm.sheet = Sheet.EXPORT }
+            ActionRow(Icons.Rounded.Compress, tr("Zmniejsz rozmiar"), tr("Kompresja obrazów w dokumencie")) { vm.compressResult = null; vm.sheet = Sheet.COMPRESS }
+            ActionRow(Icons.Rounded.MergeType, tr("Wstaw strony z innego PDF"), tr("Na końcu dokumentu – kolejność zmienisz w widoku stron")) { close(vm); vm.screen = Screen.PAGES }
+            ActionRow(Icons.Rounded.CallSplit, tr("Wyodrębnij lub podziel strony"), tr("W widoku stron zaznacz strony i wybierz „Wyodrębnij”")) { close(vm); vm.screen = Screen.PAGES }
+            ActionRow(Icons.Rounded.Lock, tr("Hasło i ochrona"), if (vm.protection != null) tr("Dokument będzie zapisany z hasłem") else tr("Bez hasła")) { vm.sheet = Sheet.SECURITY }
+            ActionRow(Icons.Rounded.Info, tr("Właściwości"), tr("Tytuł, autor, temat, informacje o pliku")) { vm.sheet = Sheet.INFO }
         }
     }
 }
@@ -141,14 +143,14 @@ private fun MoreSheet(vm: PdfViewModel) {
 private fun OutlineSheet(vm: PdfViewModel) {
     val outline = vm.index.outline
     var tab by remember { mutableStateOf(if (outline.isEmpty()) 1 else 0) }
-    Panel("Nawigacja", onClose = { close(vm) }) {
+    Panel(tr("Nawigacja"), onClose = { close(vm) }) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            TabChip(Icons.Rounded.Toc, "Spis treści", tab == 0) { tab = 0 }
-            TabChip(Icons.Rounded.Bookmark, "Zakładki (${vm.bookmarks.size})", tab == 1) { tab = 1 }
+            TabChip(Icons.Rounded.Toc, tr("Spis treści"), tab == 0) { tab = 0 }
+            TabChip(Icons.Rounded.Bookmark, tr("Zakładki ({0})", vm.bookmarks.size), tab == 1) { tab = 1 }
         }
         if (tab == 0) {
             if (outline.isEmpty()) {
-                Text("Ten dokument nie ma spisu treści.", color = Palette.TextDim, fontSize = 13.sp, modifier = Modifier.padding(8.dp))
+                Text(tr("Ten dokument nie ma spisu treści."), color = Palette.TextDim, fontSize = 13.sp, modifier = Modifier.padding(8.dp))
             } else {
                 Group(null) {
                     outline.forEach { e ->
@@ -163,7 +165,7 @@ private fun OutlineSheet(vm: PdfViewModel) {
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                e.title.ifBlank { "(bez tytułu)" },
+                                e.title.ifBlank { tr("(bez tytułu)") },
                                 color = if (e.depth == 0) Color.White else Palette.TextDim,
                                 fontSize = if (e.depth == 0) 14.sp else 13.sp,
                                 fontWeight = if (e.depth == 0) FontWeight.SemiBold else FontWeight.Normal,
@@ -178,7 +180,7 @@ private fun OutlineSheet(vm: PdfViewModel) {
             }
         } else {
             if (vm.bookmarks.isEmpty()) {
-                Text("Brak zakładek. Dodasz je przyciskiem zakładki obok numeru strony.", color = Palette.TextDim, fontSize = 13.sp, modifier = Modifier.padding(8.dp))
+                Text(tr("Brak zakładek. Dodasz je przyciskiem zakładki obok numeru strony."), color = Palette.TextDim, fontSize = 13.sp, modifier = Modifier.padding(8.dp))
             } else {
                 Group(null) {
                     vm.bookmarks.forEach { b ->
@@ -187,7 +189,7 @@ private fun OutlineSheet(vm: PdfViewModel) {
                             b.title,
                             trailing = {
                                 Text(
-                                    "Usuń",
+                                    tr("Usuń"),
                                     color = Palette.Record,
                                     fontSize = 12.sp,
                                     modifier = Modifier.clip(RoundedCornerShape(50)).clickable { vm.removeBookmark(b) }.padding(8.dp),
@@ -207,28 +209,28 @@ private fun OutlineSheet(vm: PdfViewModel) {
 // ------------------------------------------------------------------ adnotacje
 
 private fun markLabel(m: Mark): String = when (m) {
-    is InkMark -> if (m.highlighter) "Zakreślacz" else "Rysunek"
+    is InkMark -> if (m.highlighter) tr("Zakreślacz") else tr("Rysunek")
     is ShapeMark -> m.kind.label
-    is TextMark -> "Tekst: " + m.text.take(40)
-    is NoteMark -> "Notatka: " + m.text.take(40)
+    is TextMark -> tr("Tekst: ") + m.text.take(40)
+    is NoteMark -> tr("Notatka: ") + m.text.take(40)
     is MarkupMark -> m.kind.label + ": " + m.text.take(40)
-    is ImageMark -> "Obraz"
-    is SignatureMark -> "Podpis"
+    is ImageMark -> tr("Obraz")
+    is SignatureMark -> tr("Podpis")
 }
 
 @Composable
 private fun AnnotationsSheet(vm: PdfViewModel) {
     var confirmAll by remember { mutableStateOf(false) }
-    Panel("Adnotacje", onClose = { close(vm) }) {
+    Panel(tr("Adnotacje"), onClose = { close(vm) }) {
         if (vm.marks.isNotEmpty()) {
-            Group("Niezapisane (${vm.marks.size})") {
+            Group(tr("Niezapisane ({0})", vm.marks.size)) {
                 vm.marks.sortedBy { it.page }.forEach { m ->
                     ActionRow(
                         Icons.Rounded.Edit,
                         markLabel(m),
-                        "Strona ${m.page + 1}",
+                        tr("Strona {0}", m.page + 1),
                         trailing = {
-                            Text("Usuń", color = Palette.Record, fontSize = 12.sp, modifier = Modifier.clip(RoundedCornerShape(50)).clickable { vm.removePendingMark(m.id) }.padding(8.dp))
+                            Text(tr("Usuń"), color = Palette.Record, fontSize = 12.sp, modifier = Modifier.clip(RoundedCornerShape(50)).clickable { vm.removePendingMark(m.id) }.padding(8.dp))
                         },
                     ) {
                         vm.jumpTo(m.page, m.bounds())
@@ -236,22 +238,22 @@ private fun AnnotationsSheet(vm: PdfViewModel) {
                     }
                 }
                 Row(Modifier.fillMaxWidth().padding(10.dp), horizontalArrangement = Arrangement.End) {
-                    PillButton("Zapisz w dokumencie") { vm.commitPending() }
+                    PillButton(tr("Zapisz w dokumencie")) { vm.commitPending() }
                 }
             }
         }
         val all = vm.index.annots.flatten()
-        Group("W pliku (${all.size})") {
+        Group(tr("W pliku ({0})", all.size)) {
             if (all.isEmpty()) {
-                Text("Brak adnotacji w pliku.", color = Palette.TextDim, fontSize = 13.sp, modifier = Modifier.padding(12.dp))
+                Text(tr("Brak adnotacji w pliku."), color = Palette.TextDim, fontSize = 13.sp, modifier = Modifier.padding(12.dp))
             }
             all.forEach { a ->
                 ActionRow(
                     Icons.Rounded.Layers,
                     PdfViewModel.annotTypeLabel(a.subtype) + (if (a.contents.isNotBlank()) ": " + a.contents.take(50) else ""),
-                    "Strona ${a.page + 1}" + (if (a.author.isNotBlank()) " · ${a.author}" else ""),
+                    tr("Strona {0}", a.page + 1) + (if (a.author.isNotBlank()) " · ${a.author}" else ""),
                     trailing = {
-                        Text("Usuń", color = Palette.Record, fontSize = 12.sp, modifier = Modifier.clip(RoundedCornerShape(50)).clickable { vm.deleteAnnotation(a) }.padding(8.dp))
+                        Text(tr("Usuń"), color = Palette.Record, fontSize = 12.sp, modifier = Modifier.clip(RoundedCornerShape(50)).clickable { vm.deleteAnnotation(a) }.padding(8.dp))
                     },
                 ) {
                     vm.jumpTo(a.page, a.rect)
@@ -261,7 +263,7 @@ private fun AnnotationsSheet(vm: PdfViewModel) {
         }
         if (all.isNotEmpty()) {
             Group(null) {
-                ActionRow(Icons.Rounded.DeleteSweep, if (confirmAll) "Dotknij ponownie, aby usunąć wszystkie" else "Usuń wszystkie adnotacje z pliku", "Odnośniki i pola formularza zostają", danger = true) {
+                ActionRow(Icons.Rounded.DeleteSweep, if (confirmAll) tr("Dotknij ponownie, aby usunąć wszystkie") else tr("Usuń wszystkie adnotacje z pliku"), tr("Odnośniki i pola formularza zostają"), danger = true) {
                     if (confirmAll) {
                         confirmAll = false
                         vm.deleteAllAnnotations()
@@ -279,19 +281,19 @@ private fun AnnotationsSheet(vm: PdfViewModel) {
 @Composable
 private fun FormSheet(vm: PdfViewModel) {
     val fields = vm.index.fields.filter { it.kind != FieldKind.BUTTON }
-    Panel("Formularz", onClose = { close(vm) }) {
-        Text("Pola są podświetlone na stronach – dotknij pola w dokumencie albo na liście.", color = Palette.TextDim, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 6.dp))
-        Group("Pola (${fields.size})") {
+    Panel(tr("Formularz"), onClose = { close(vm) }) {
+        Text(tr("Pola są podświetlone na stronach – dotknij pola w dokumencie albo na liście."), color = Palette.TextDim, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 6.dp))
+        Group(tr("Pola ({0})", fields.size)) {
             fields.forEach { f ->
                 val value = when (f.kind) {
-                    FieldKind.CHECKBOX -> if (f.value == "true") "Zaznaczone" else "Niezaznaczone"
-                    FieldKind.SIGNATURE -> "Pole podpisu cyfrowego"
-                    else -> f.value.ifBlank { "(puste)" }
+                    FieldKind.CHECKBOX -> if (f.value == "true") tr("Zaznaczone") else tr("Niezaznaczone")
+                    FieldKind.SIGNATURE -> tr("Pole podpisu cyfrowego")
+                    else -> f.value.ifBlank { tr("(puste)") }
                 }
                 ActionRow(
                     Icons.Rounded.FactCheck,
                     f.label.ifBlank { f.name },
-                    value + (f.widgets.firstOrNull()?.let { " · strona ${it.page + 1}" } ?: "") + (if (f.readOnly) " · tylko do odczytu" else ""),
+                    value + (f.widgets.firstOrNull()?.let { tr(" · strona {0}", it.page + 1) } ?: "") + (if (f.readOnly) tr(" · tylko do odczytu") else ""),
                     enabled = !f.readOnly && f.kind != FieldKind.SIGNATURE,
                 ) {
                     f.widgets.firstOrNull()?.let { vm.jumpTo(it.page, it.rect) }
@@ -300,7 +302,7 @@ private fun FormSheet(vm: PdfViewModel) {
             }
         }
         Group(null) {
-            ActionRow(Icons.Rounded.Layers, "Spłaszcz formularz", "Wartości staną się zwykłą treścią stron – pól nie da się już edytować") { vm.flattenForm(); close(vm) }
+            ActionRow(Icons.Rounded.Layers, tr("Spłaszcz formularz"), tr("Wartości staną się zwykłą treścią stron – pól nie da się już edytować")) { vm.flattenForm(); close(vm) }
         }
     }
 }
@@ -315,30 +317,30 @@ private fun InfoSheet(vm: PdfViewModel) {
     var subject by remember { mutableStateOf(info.subject) }
     var keywords by remember { mutableStateOf(info.keywords) }
     val fmt = remember { DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT) }
-    Panel("Właściwości", onClose = { close(vm) }) {
-        Group("Opis") {
+    Panel(tr("Właściwości"), onClose = { close(vm) }) {
+        Group(tr("Opis")) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                DarkField(title, { title = it }, "Tytuł")
-                DarkField(author, { author = it }, "Autor")
-                DarkField(subject, { subject = it }, "Temat")
-                DarkField(keywords, { keywords = it }, "Słowa kluczowe")
+                DarkField(title, { title = it }, tr("Tytuł"))
+                DarkField(author, { author = it }, tr("Autor"))
+                DarkField(subject, { subject = it }, tr("Temat"))
+                DarkField(keywords, { keywords = it }, tr("Słowa kluczowe"))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    PillButton("Zapisz właściwości", enabled = title != info.title || author != info.author || subject != info.subject || keywords != info.keywords) {
+                    PillButton(tr("Zapisz właściwości"), enabled = title != info.title || author != info.author || subject != info.subject || keywords != info.keywords) {
                         vm.setInfo(InfoEdit(title, author, subject, keywords))
                     }
                 }
             }
         }
-        Group("Plik") {
-            InfoRow(Icons.Rounded.Description, "Nazwa", vm.doc?.name ?: "")
-            InfoRow(Icons.Rounded.Layers, "Strony", "${vm.index.pageCount}")
-            InfoRow(Icons.Rounded.Info, "Rozmiar pliku roboczego", PdfViewModel.formatSize(vm.doc?.source?.length() ?: 0))
-            InfoRow(Icons.Rounded.Title, "Wersja PDF", info.version)
-            InfoRow(Icons.Rounded.Person, "Program", listOf(info.creator, info.producer).filter { it.isNotBlank() }.joinToString(" · "))
-            info.created?.let { InfoRow(Icons.Rounded.Info, "Utworzono", fmt.format(Date(it))) }
-            info.modified?.let { InfoRow(Icons.Rounded.Info, "Zmieniono", fmt.format(Date(it))) }
+        Group(tr("Plik")) {
+            InfoRow(Icons.Rounded.Description, tr("Nazwa"), vm.doc?.name ?: "")
+            InfoRow(Icons.Rounded.Layers, tr("Strony"), "${vm.index.pageCount}")
+            InfoRow(Icons.Rounded.Info, tr("Rozmiar pliku roboczego"), PdfViewModel.formatSize(vm.doc?.source?.length() ?: 0))
+            InfoRow(Icons.Rounded.Title, tr("Wersja PDF"), info.version)
+            InfoRow(Icons.Rounded.Person, tr("Program"), listOf(info.creator, info.producer).filter { it.isNotBlank() }.joinToString(" · "))
+            info.created?.let { InfoRow(Icons.Rounded.Info, tr("Utworzono"), fmt.format(Date(it))) }
+            info.modified?.let { InfoRow(Icons.Rounded.Info, tr("Zmieniono"), fmt.format(Date(it))) }
             vm.index.geos.firstOrNull()?.let { g ->
-                InfoRow(Icons.Rounded.Description, "Rozmiar strony 1", "%.0f × %.0f mm".format(g.displayWidth / 72f * 25.4f, g.displayHeight / 72f * 25.4f))
+                InfoRow(Icons.Rounded.Description, tr("Rozmiar strony 1"), "%.0f × %.0f mm".format(g.displayWidth / 72f * 25.4f, g.displayHeight / 72f * 25.4f))
             }
         }
     }
@@ -350,35 +352,35 @@ private fun InfoSheet(vm: PdfViewModel) {
 private fun SecuritySheet(vm: PdfViewModel) {
     var user by remember { mutableStateOf(vm.protection?.user ?: "") }
     var owner by remember { mutableStateOf(vm.protection?.owner?.takeIf { it != vm.protection?.user } ?: "") }
-    Panel("Hasło i ochrona", onClose = { close(vm) }) {
+    Panel(tr("Hasło i ochrona"), onClose = { close(vm) }) {
         Text(
-            "Hasło jest dodawane przy zapisie (AES-256). Dokument w aplikacji pozostaje otwarty, dopóki go nie zamkniesz.",
+            tr("Hasło jest dodawane przy zapisie (AES-256). Dokument w aplikacji pozostaje otwarty, dopóki go nie zamkniesz."),
             color = Palette.TextDim,
             fontSize = 12.sp,
             modifier = Modifier.padding(horizontal = 6.dp),
         )
-        Group(if (vm.protection != null) "Dokument chroniony" else "Bez ochrony") {
+        Group(if (vm.protection != null) tr("Dokument chroniony") else tr("Bez ochrony")) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                DarkField(user, { user = it }, "Hasło do otwarcia", password = true)
-                DarkField(owner, { owner = it }, "Hasło właściciela (opcjonalnie)", password = true)
+                DarkField(user, { user = it }, tr("Hasło do otwarcia"), password = true)
+                DarkField(owner, { owner = it }, tr("Hasło właściciela (opcjonalnie)"), password = true)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
                     if (vm.protection != null) {
-                        PillButton("Usuń hasło", primary = false) {
+                        PillButton(tr("Usuń hasło"), primary = false) {
                             vm.protection = null
-                            vm.toast("Hasło zostanie usunięte przy zapisie")
+                            vm.toast(tr("Hasło zostanie usunięte przy zapisie"))
                             close(vm)
                         }
                     }
-                    PillButton("Ustaw hasło", enabled = user.length >= 1) {
+                    PillButton(tr("Ustaw hasło"), enabled = user.length >= 1) {
                         vm.protection = Protection(user, owner.ifEmpty { user })
-                        vm.toast("Hasło zostanie dodane przy zapisie")
+                        vm.toast(tr("Hasło zostanie dodane przy zapisie"))
                         close(vm)
                     }
                 }
             }
         }
         Group(null) {
-            ActionRow(if (vm.protection != null) Icons.Rounded.Lock else Icons.Rounded.LockOpen, "Zapisz teraz", "Zapisz dokument z bieżącymi ustawieniami ochrony") {
+            ActionRow(if (vm.protection != null) Icons.Rounded.Lock else Icons.Rounded.LockOpen, tr("Zapisz teraz"), tr("Zapisz dokument z bieżącymi ustawieniami ochrony")) {
                 close(vm)
                 vm.save()
             }
@@ -392,23 +394,23 @@ private fun SecuritySheet(vm: PdfViewModel) {
 private fun CompressSheet(vm: PdfViewModel) {
     data class Level(val name: String, val maxSide: Int, val quality: Float, val hint: String)
     val levels = listOf(
-        Level("Lekka", 2400, 0.85f, "Obrazy do 2400 px, jakość 85% – prawie bez różnic"),
-        Level("Średnia", 1600, 0.72f, "Obrazy do 1600 px, jakość 72% – dobre do czytania na ekranie"),
-        Level("Mocna", 1100, 0.55f, "Obrazy do 1100 px, jakość 55% – najmniejszy plik"),
+        Level(tr("Lekka"), 2400, 0.85f, tr("Obrazy do 2400 px, jakość 85% – prawie bez różnic")),
+        Level(tr("Średnia"), 1600, 0.72f, tr("Obrazy do 1600 px, jakość 72% – dobre do czytania na ekranie")),
+        Level(tr("Mocna"), 1100, 0.55f, tr("Obrazy do 1100 px, jakość 55% – najmniejszy plik")),
     )
     var level by remember { mutableStateOf(levels[1]) }
-    Panel("Zmniejsz rozmiar", onClose = { close(vm) }) {
+    Panel(tr("Zmniejsz rozmiar"), onClose = { close(vm) }) {
         Group(null) {
-            InfoRow(Icons.Rounded.Info, "Obecny rozmiar", PdfViewModel.formatSize(vm.doc?.source?.length() ?: 0))
-            Chips(Icons.Rounded.Compress, "Poziom", levels, level, { it.name }, hint = level.hint) { level = it }
+            InfoRow(Icons.Rounded.Info, tr("Obecny rozmiar"), PdfViewModel.formatSize(vm.doc?.source?.length() ?: 0))
+            Chips(Icons.Rounded.Compress, tr("Poziom"), levels, level, { it.name }, hint = level.hint) { level = it }
             Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.End) {
-                PillButton("Kompresuj") { vm.compress(level.maxSide, level.quality) }
+                PillButton(tr("Kompresuj")) { vm.compress(level.maxSide, level.quality) }
             }
         }
         vm.compressResult?.let {
-            Group("Wynik") {
+            Group(tr("Wynik")) {
                 Text(it, color = Color.White, fontSize = 13.sp, modifier = Modifier.padding(12.dp))
-                Text("Zapisz dokument, aby zachować mniejszą wersję. Zmianę można cofnąć.", color = Palette.TextDim, fontSize = 12.sp, modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp))
+                Text(tr("Zapisz dokument, aby zachować mniejszą wersję. Zmianę można cofnąć."), color = Palette.TextDim, fontSize = 12.sp, modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp))
             }
         }
     }
@@ -424,19 +426,19 @@ private fun ExportSheet(vm: PdfViewModel) {
     var to by remember { mutableStateOf("$n") }
     var dpi by remember { mutableStateOf(150) }
     var png by remember { mutableStateOf(false) }
-    Panel("Eksport jako obrazy", onClose = { close(vm) }) {
+    Panel(tr("Eksport jako obrazy"), onClose = { close(vm) }) {
         Group(null) {
-            Chips(Icons.Rounded.Description, "Strony", listOf("bieżąca", "wszystkie", "zakres"), range, { it.replaceFirstChar(Char::titlecase) }) { range = it }
+            Chips(Icons.Rounded.Description, tr("Strony"), listOf("bieżąca", "wszystkie", "zakres"), range, { tr(it.replaceFirstChar(Char::titlecase)) }) { range = it }
             if (range == "zakres") {
                 Row(Modifier.padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(Modifier.weight(1f)) { DarkField(from, { from = it.filter(Char::isDigit) }, "Od", number = true) }
-                    Box(Modifier.weight(1f)) { DarkField(to, { to = it.filter(Char::isDigit) }, "Do", number = true) }
+                    Box(Modifier.weight(1f)) { DarkField(from, { from = it.filter(Char::isDigit) }, tr("Od"), number = true) }
+                    Box(Modifier.weight(1f)) { DarkField(to, { to = it.filter(Char::isDigit) }, tr("Do"), number = true) }
                 }
             }
-            Chips(Icons.Rounded.Image, "Rozdzielczość", listOf(96, 150, 220, 300), dpi, { "$it DPI" }) { dpi = it }
-            Chips(Icons.Rounded.Image, "Format", listOf(false, true), png, { if (it) "PNG" else "JPG" }) { png = it }
+            Chips(Icons.Rounded.Image, tr("Rozdzielczość"), listOf(96, 150, 220, 300), dpi, { "$it DPI" }) { dpi = it }
+            Chips(Icons.Rounded.Image, tr("Format"), listOf(false, true), png, { if (it) "PNG" else "JPG" }) { png = it }
             Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.End) {
-                PillButton("Eksportuj") {
+                PillButton(tr("Eksportuj")) {
                     val pages = when (range) {
                         "bieżąca" -> listOf(vm.currentPage)
                         "wszystkie" -> (0 until n).toList()
@@ -461,22 +463,22 @@ private fun TextSheet(vm: PdfViewModel) {
     val text = vm.extractedText ?: ""
     val clipboard = LocalClipboardManager.current
     Panel(
-        "Tekst dokumentu",
+        tr("Tekst dokumentu"),
         onClose = { close(vm) },
         actions = {
             Text(
-                "Kopiuj",
+                tr("Kopiuj"),
                 color = Palette.Ink,
                 fontWeight = FontWeight.Bold,
                 fontSize = 13.sp,
                 modifier = Modifier.clip(RoundedCornerShape(50)).background(Color.White).clickable {
                     clipboard.setText(AnnotatedString(text))
-                    vm.toast("Skopiowano ${text.length} znaków")
+                    vm.toast(tr("Skopiowano {0} znaków", text.length))
                 }.padding(horizontal = 14.dp, vertical = 7.dp),
             )
             Spacer(Modifier.width(6.dp))
             Text(
-                "Zapisz .txt",
+                tr("Zapisz .txt"),
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
                 fontSize = 13.sp,
@@ -485,7 +487,7 @@ private fun TextSheet(vm: PdfViewModel) {
         },
     ) {
         SelectionContainer {
-            Text(text.ifBlank { "Brak tekstu." }, color = Color.White, fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.padding(6.dp))
+            Text(text.ifBlank { tr("Brak tekstu.") }, color = Color.White, fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.padding(6.dp))
         }
     }
 }
@@ -495,8 +497,8 @@ private fun TextSheet(vm: PdfViewModel) {
 @Composable
 private fun SignaturesSheet(vm: PdfViewModel) {
     var list by remember { mutableStateOf(vm.signatures()) }
-    Panel("Podpisy", onClose = { close(vm) }) {
-        Text("Dotknij podpisu, aby wstawić go na bieżącej stronie. Potem przesuń go i dopasuj rozmiar.", color = Palette.TextDim, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 6.dp))
+    Panel(tr("Podpisy"), onClose = { close(vm) }) {
+        Text(tr("Dotknij podpisu, aby wstawić go na bieżącej stronie. Potem przesuń go i dopasuj rozmiar."), color = Palette.TextDim, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 6.dp))
         list.forEach { sig ->
             Row(
                 Modifier
@@ -515,11 +517,11 @@ private fun SignaturesSheet(vm: PdfViewModel) {
                     },
                     contentAlignment = Alignment.Center,
                 ) {
-                    androidx.compose.material3.Icon(Icons.Rounded.Delete, "Usuń podpis", tint = Palette.Record)
+                    androidx.compose.material3.Icon(Icons.Rounded.Delete, tr("Usuń podpis"), tint = Palette.Record)
                 }
             }
         }
-        PillButton("Nowy podpis", modifier = Modifier.fillMaxWidth()) {
+        PillButton(tr("Nowy podpis"), modifier = Modifier.fillMaxWidth()) {
             vm.sheet = null
             vm.signaturePad = true
         }

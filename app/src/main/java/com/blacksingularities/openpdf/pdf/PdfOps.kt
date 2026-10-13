@@ -1,5 +1,6 @@
 package com.blacksingularities.openpdf.pdf
 
+import com.blacksingularities.openpdf.i18n.tr
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import com.tom_roush.pdfbox.cos.COSArray
@@ -68,8 +69,8 @@ object PdfOps {
             doc.save(tmp)
             r
         }
-        if (out.exists() && !out.delete()) error("Nie można zastąpić pliku ${out.name}")
-        if (!tmp.renameTo(out)) error("Nie można zapisać pliku ${out.name}")
+        if (out.exists() && !out.delete()) error(tr("Nie można zastąpić pliku {0}", out.name))
+        if (!tmp.renameTo(out)) error(tr("Nie można zapisać pliku {0}", out.name))
         return result
     }
 
@@ -439,7 +440,7 @@ object PdfOps {
     }
 
     fun deletePages(file: File, pages: Collection<Int>) = edit(file) { doc ->
-        require(pages.size < doc.numberOfPages) { "Dokument musi mieć co najmniej jedną stronę" }
+        require(pages.size < doc.numberOfPages) { tr("Dokument musi mieć co najmniej jedną stronę") }
         for (i in pages.sortedDescending()) if (i in 0 until doc.numberOfPages) doc.removePage(i)
     }
 
@@ -504,7 +505,7 @@ object PdfOps {
                 doc.save(tmp)
             }
         }
-        if (!file.delete() || !tmp.renameTo(file)) error("Nie można zapisać pliku ${file.name}")
+        if (!file.delete() || !tmp.renameTo(file)) error(tr("Nie można zapisać pliku {0}", file.name))
     }
 
     /** Zapisuje wybrane strony do nowego pliku. */
@@ -526,7 +527,7 @@ object PdfOps {
     fun createFromImages(images: List<File>, out: File) {
         PDDocument(memory).use { doc ->
             for (f in images) imagePage(doc, f)?.let { doc.addPage(it) }
-            require(doc.numberOfPages > 0) { "Nie udało się odczytać żadnego obrazu" }
+            require(doc.numberOfPages > 0) { tr("Nie udało się odczytać żadnego obrazu") }
             doc.save(out)
         }
     }

@@ -1,5 +1,6 @@
 package com.blacksingularities.openpdf.ui
 
+import com.blacksingularities.openpdf.i18n.tr
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -44,19 +45,19 @@ fun AppRoot(vm: PdfViewModel) {
                 is UiEvent.AskSaveLocation -> try {
                     if (e.mime == "text/plain") saveText.launch(e.name) else savePdf.launch(e.name)
                 } catch (_: ActivityNotFoundException) {
-                    vm.toast("Brak aplikacji do wyboru miejsca zapisu")
+                    vm.toast(tr("Brak aplikacji do wyboru miejsca zapisu"))
                 }
                 is UiEvent.Share -> share(context, e.file, e.mime)
                 is UiEvent.Print -> print(context, e.file, e.name)
                 is UiEvent.OpenUri -> try {
                     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(e.uri)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 } catch (_: Exception) {
-                    vm.toast("Nie można otworzyć: ${e.uri}")
+                    vm.toast(tr("Nie można otworzyć: {0}", e.uri))
                 }
                 UiEvent.PickImageForPlacement -> try {
                     pickImage.launch("image/*")
                 } catch (_: ActivityNotFoundException) {
-                    vm.toast("Brak aplikacji do wyboru obrazu")
+                    vm.toast(tr("Brak aplikacji do wyboru obrazu"))
                 }
             }
         }
