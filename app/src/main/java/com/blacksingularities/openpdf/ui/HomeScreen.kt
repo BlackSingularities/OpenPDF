@@ -95,8 +95,11 @@ fun HomeScreen(vm: PdfViewModel) {
                         Text("OpenPDF", fontSize = 30.sp, fontWeight = FontWeight.Black, color = Color.White)
                         Text("Czytaj, adnotuj, podpisuj i układaj PDF-y", fontSize = 13.sp, color = Palette.TextDim)
                     }
-                    RoundIcon(Icons.Rounded.Settings, "Ustawienia", onClick = { vm.sheet = Sheet.SETTINGS })
+                    RoundIcon(Icons.Rounded.Settings, "Ustawienia", badge = if (vm.updatePending) "1" else null, onClick = { vm.sheet = Sheet.SETTINGS })
                 }
+            }
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                UpdateBanner(vm)
             }
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {

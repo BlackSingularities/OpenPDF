@@ -1528,17 +1528,45 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun downloadUpdate() {
+    fun downloadUpdate(installAfter: Boolean = false) {
         val info = (update as? UpdateState.Available)?.info ?: return
         updateJob = viewModelScope.launch {
             update = UpdateState.Downloading(info, 0f)
             update = try {
-                val file = UpdateManager.download(ctx, info) { p -> update = UpdateState.Downloading(info, p) }
+                val file = UpdateManager.download(ctx, info) { p ->
+                    viewModelScope.launch { if (update is UpdateState.Downloading) update = UpdateState.Downloading(info, p) }
+                }
                 UpdateState.Ready(info, file)
             } catch (e: Throwable) {
                 UpdateState.Failed(e.message ?: "Pobieranie nie powiodło się")
             }
+            if (installAfter && update is UpdateState.Ready) installUpdate()
         }
+    }
+
+    /** Jednym dotknięciem: pobranie nowej wersji z GitHuba i instalacja. */
+    fun updateNow() {
+        when (update) {
+            is UpdateState.Available -> downloadUpdate(installAfter = true)
+            is UpdateState.Ready -> installUpdate()
+            is UpdateState.Failed, UpdateState.Idle, UpdateState.UpToDate -> checkUpdate()
+            else -> Unit
+        }
+    }
+
+    /** Baner nowej wersji ukryty przez użytkownika (do następnego uruchomienia). */
+    var updateBannerHidden by mutableStateOf(false)
+
+    private var lastUpdateCheck = 0L
+
+    /** Ponowne sprawdzenie po powrocie do aplikacji – najwyżej co 6 godzin. */
+    fun checkUpdateIfDue() {
+        if (!settings.autoUpdate) return
+        val now = System.currentTimeMillis()
+        if (now - lastUpdateCheck < 6 * 3600_000L) return
+        if (update is UpdateState.Downloading || update is UpdateState.Ready || update is UpdateState.Installing) return
+        lastUpdateCheck = now
+        checkUpdate(silent = true)
     }
 
     fun installUpdate() {
@@ -1561,7 +1589,7 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
     init {
         // Pozostałości poprzednich uruchomień.
         runCatching { sessionsRoot.listFiles()?.forEach { it.deleteRecursively() } }
-        if (settings.autoUpdate) checkUpdate(silent = true)
+        checkUpdateIfDue()
     }
 
     override fun onCleared() {

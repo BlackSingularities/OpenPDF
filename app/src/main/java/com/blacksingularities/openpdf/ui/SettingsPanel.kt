@@ -65,7 +65,7 @@ import kotlin.math.roundToInt
 
 @Composable
 fun SettingsPanel(vm: PdfViewModel) {
-    var tab by remember { mutableIntStateOf(0) }
+    var tab by remember { mutableIntStateOf(if (vm.updatePending) 3 else 0) }
     val s = vm.settings
     fun set(t: (com.blacksingularities.openpdf.data.AppSettings) -> com.blacksingularities.openpdf.data.AppSettings) = vm.updateSettings(t)
     Panel("Ustawienia", onClose = { vm.sheet = null }) {
@@ -188,7 +188,7 @@ private fun UpdateRow(vm: PdfViewModel) {
         UpdateState.Idle -> Triple("Wersja ${UpdateManager.currentVersion}", "Sprawdź", { vm.checkUpdate() })
         UpdateState.Checking -> Triple("Sprawdzanie…", null, {})
         UpdateState.UpToDate -> Triple("Wersja ${UpdateManager.currentVersion} jest najnowsza", "Sprawdź", { vm.checkUpdate() })
-        is UpdateState.Available -> Triple("Dostępna wersja ${update.info.version}", "Pobierz", { vm.downloadUpdate() })
+        is UpdateState.Available -> Triple("Dostępna wersja ${update.info.version}", "Aktualizuj", { vm.updateNow() })
         is UpdateState.Downloading -> Triple("Pobieranie ${update.info.version} · ${(update.progress * 100).roundToInt()}%", null, {})
         is UpdateState.Ready -> Triple("Wersja ${update.info.version} gotowa", "Zainstaluj", { vm.installUpdate() })
         is UpdateState.Installing -> Triple("Instalowanie ${update.info.version}…", null, {})

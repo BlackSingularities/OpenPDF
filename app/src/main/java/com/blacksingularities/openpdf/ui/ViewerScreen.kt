@@ -274,7 +274,7 @@ private fun MainBar(vm: PdfViewModel, book: Boolean, vertical: Boolean) {
         RoundIcon(Icons.Rounded.MoreVert, "Więcej: formularz, eksport, hasło, kompresja…", onClick = { vm.sheet = Sheet.MORE })
     }
     val settings: @Composable () -> Unit = {
-        RoundIcon(Icons.Rounded.Settings, "Ustawienia", onClick = { vm.sheet = Sheet.SETTINGS })
+        RoundIcon(Icons.Rounded.Settings, if (vm.updatePending) "Ustawienia – dostępna aktualizacja" else "Ustawienia", badge = if (vm.updatePending) "1" else null, onClick = { vm.sheet = Sheet.SETTINGS })
     }
     if (vertical) {
         Column(
