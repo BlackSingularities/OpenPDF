@@ -254,6 +254,10 @@ class ViewerState(private val scope: CoroutineScope) {
     fun step(direction: Int) {
         val l = layout ?: return
         if (l.rows.isEmpty()) return
+        if (canFlip()) {
+            if (flip == null) startFlip(direction > 0)?.let { completeFlip(it) }
+            return
+        }
         if (l.spec.scroll == ScrollMode.PAGED) {
             val target = (pagedRow + direction).coerceIn(0, l.rows.size - 1)
             pagedRow = target
@@ -283,6 +287,80 @@ class ViewerState(private val scope: CoroutineScope) {
             }
             animateTo(scale, Offset(offset.x, target), 240)
         }
+    }
+
+    // ------------------------------------------------------------------ przewracanie kartek
+
+    /**
+     * Przewracana kartka: z rozkładówki [from] na [to]. [forward] – do następnej rozkładówki.
+     * [progress] 0..1: kartka obraca się wokół grzbietu (0 – leży, 1 – przewrócona).
+     */
+    @Stable
+    class Flip(val from: Int, val to: Int, val forward: Boolean) {
+        var progress by mutableFloatStateOf(0f)
+    }
+
+    var flip by mutableStateOf<Flip?>(null)
+        private set
+
+    /** Ustawiane przez widok: tryb książki z przewracaniem stron i włączona animacja. */
+    var flipEnabled = false
+
+    fun canFlip(): Boolean {
+        val l = layout ?: return false
+        return flipEnabled && l.spec.scroll == ScrollMode.PAGED && scale <= 1.01f && l.rows.size > 1
+    }
+
+    private fun startFlip(forward: Boolean): Flip? {
+        val l = layout ?: return null
+        val target = pagedRow + if (forward) 1 else -1
+        if (target !in l.rows.indices) return null
+        stop()
+        // Na czas animacji widok stoi na bieżącej rozkładówce.
+        offset = Offset(-pagedRow * viewport.width, offset.y)
+        return Flip(pagedRow, target, forward).also { flip = it }
+    }
+
+    private fun completeFlip(f: Flip, velocity: Float = 0f) {
+        stop()
+        anim = scope.launch {
+            val remaining = 1f - f.progress
+            animate(f.progress, 1f, initialVelocity = velocity, animationSpec = tween((520 * remaining).toInt().coerceAtLeast(120))) { v, _ ->
+                f.progress = v
+            }
+            pagedRow = f.to
+            offset = clamped(1f, Offset(-f.to * viewport.width, offset.y))
+            flip = null
+        }
+    }
+
+    private fun cancelFlip(f: Flip) {
+        stop()
+        anim = scope.launch {
+            animate(f.progress, 0f, animationSpec = tween((380 * f.progress).toInt().coerceAtLeast(100))) { v, _ -> f.progress = v }
+            flip = null
+        }
+    }
+
+    /** Przeciąganie palcem: [dx] – przesunięcie od początku gestu (w pikselach). */
+    fun flipDrag(dx: Float) {
+        val rtl = layout?.spec?.rtl == true
+        var f = flip
+        if (f == null) {
+            if (abs(dx) < 4f) return
+            // Przesunięcie w lewo = dalej (w kolejności od prawej do lewej – odwrotnie).
+            val forward = (dx < 0) != rtl
+            f = startFlip(forward) ?: return
+        }
+        val towards = if (f.forward != rtl) -dx else dx
+        f.progress = (towards / (viewport.width * 0.75f)).coerceIn(0f, 1f)
+    }
+
+    fun flipRelease(vx: Float) {
+        val f = flip ?: return
+        val rtl = layout?.spec?.rtl == true
+        val v = if (f.forward != rtl) -vx else vx
+        if (f.progress > 0.33f || v > 800f) completeFlip(f, (v / viewport.width).coerceIn(0f, 6f)) else cancelFlip(f)
     }
 
     /** Pionowy suwak szybkiego przewijania: 0..1. */

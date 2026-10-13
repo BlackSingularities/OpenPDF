@@ -101,6 +101,12 @@ fun SettingsPanel(vm: PdfViewModel) {
                         tr("Kolejność stron w rozkładówce jak w mandze i językach RTL"),
                         s.rtl,
                     ) { v -> set { it.copy(rtl = v) } }
+                    SwitchRow(
+                        Icons.Rounded.AutoStories,
+                        tr("Przewracanie kartek"),
+                        tr("Animacja jak w książce przy przewracaniu stron w poziomie"),
+                        s.pageFlip,
+                    ) { v -> set { it.copy(pageFlip = v) } }
                     SwitchRow(Icons.Rounded.Gradient, tr("Cień grzbietu"), tr("Delikatne przyciemnienie przy zgięciu stron"), s.spineShadow) { v -> set { it.copy(spineShadow = v) } }
                     CompactChoice(
                         Icons.Rounded.FitScreen,

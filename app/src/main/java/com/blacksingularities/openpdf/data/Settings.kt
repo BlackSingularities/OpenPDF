@@ -30,6 +30,7 @@ data class AppSettings(
     val coverAlone: Boolean = true,
     val rtl: Boolean = false,
     val spineShadow: Boolean = true,
+    val pageFlip: Boolean = true,
     val scroll: ScrollMode = ScrollMode.VERTICAL,
     val fitSingle: FitMode = FitMode.WIDTH,
     val fitBook: FitMode = FitMode.PAGE,
@@ -55,6 +56,7 @@ class SettingsStore(context: Context) {
             coverAlone = prefs.getBoolean("coverAlone", d.coverAlone),
             rtl = prefs.getBoolean("rtl", d.rtl),
             spineShadow = prefs.getBoolean("spineShadow", d.spineShadow),
+            pageFlip = prefs.getBoolean("pageFlip", d.pageFlip),
             scroll = enumOr(prefs.getString("scroll", null), d.scroll),
             fitSingle = enumOr(prefs.getString("fitSingle", null), d.fitSingle),
             fitBook = enumOr(prefs.getString("fitBook", null), d.fitBook),
@@ -77,6 +79,7 @@ class SettingsStore(context: Context) {
             .putBoolean("coverAlone", s.coverAlone)
             .putBoolean("rtl", s.rtl)
             .putBoolean("spineShadow", s.spineShadow)
+            .putBoolean("pageFlip", s.pageFlip)
             .putString("scroll", s.scroll.name)
             .putString("fitSingle", s.fitSingle.name)
             .putString("fitBook", s.fitBook.name)

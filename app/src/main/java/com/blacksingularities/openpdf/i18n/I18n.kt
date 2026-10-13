@@ -232,6 +232,8 @@ private val En: Map<String, String> = hashMapOf(
     "Od prawej do lewej" to "Right to left",
     "Kolejność stron w rozkładówce jak w mandze i językach RTL" to "Page order in spreads as in manga and RTL languages",
     "Cień grzbietu" to "Spine shadow",
+    "Przewracanie kartek" to "Page curl",
+    "Animacja jak w książce przy przewracaniu stron w poziomie" to "Book-like animation when turning pages horizontally",
     "Delikatne przyciemnienie przy zgięciu stron" to "Subtle shading at the page fold",
     "Dopasowanie rozkładówki" to "Spread fit",
     "Cała rozkładówka" to "Whole spread",

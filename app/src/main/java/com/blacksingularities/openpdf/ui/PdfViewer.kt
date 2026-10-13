@@ -195,6 +195,7 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Mod
     val shadowOffset = with(density) { 2.dp.toPx() }
 
     val currentBook by rememberUpdatedState(book)
+    state.flipEnabled = book && settings.pageFlip
 
     Box(
         modifier
@@ -300,6 +301,8 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Mod
                                                 singleTap(vm, state, pos, currentBook)
                                             }
                                         }
+                                    } else if (!multi && state.flip != null) {
+                                        state.flipRelease(tracker.calculateVelocity().x)
                                     } else if (!multi) {
                                         state.fling(tracker.calculateVelocity().let { Offset(it.x, it.y) })
                                     } else if (state.paged && state.scale <= 1.01f) {
@@ -341,7 +344,10 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Mod
                             }
                             GestureMode.PENDING, GestureMode.PAN -> if (moved) {
                                 mode = GestureMode.PAN
-                                if (!multi) {
+                                if (!multi && (state.flip != null || state.canFlip())) {
+                                    state.flipDrag(ch.position.x - down.position.x)
+                                    tracker.addPosition(ch.uptimeMillis, ch.position)
+                                } else if (!multi) {
                                     state.panBy(ch.positionChange())
                                     tracker.addPosition(ch.uptimeMillis, ch.position)
                                 } else {
@@ -368,6 +374,11 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Mod
             val erased = vm.erasedPreview
             val geos = vm.index.geos
             val showFields = vm.index.fields.isNotEmpty() && vm.sheet == Sheet.FORM
+            val flip = state.flip
+            if (flip != null) {
+                drawFlip(vm, state, layout, flip, paperColor, paperFilter, shadowOffset)
+                return@Canvas
+            }
             for (row in state.visibleRows()) {
                 val rowRect = state.toScreen(row.rect)
                 for (slot in row.slots) {
@@ -466,6 +477,80 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Mod
         }
         FastScroller(state, vm)
     }
+}
+
+/** Strona narysowana w dowolnym prostokącie (podstawowa bitmapa, bez kafelków). */
+private fun DrawScope.drawPageInto(vm: PdfViewModel, page: Int, r: Rect, paper: Color, filter: ColorFilter?) {
+    if (r.width < 0.5f) return
+    drawRect(paper, r.topLeft, r.size)
+    val bmp = vm.images.base(page) ?: return
+    drawImage(
+        bmp.asImageBitmap(),
+        dstOffset = IntOffset(r.left.roundToInt(), r.top.roundToInt()),
+        dstSize = IntSize(r.width.roundToInt().coerceAtLeast(1), r.height.roundToInt().coerceAtLeast(1)),
+        filterQuality = FilterQuality.Medium,
+        colorFilter = filter,
+    )
+}
+
+/**
+ * Przewracanie kartki jak w książce: kartka obraca się wokół grzbietu – w pierwszej połowie
+ * zwęża się bieżąca strona, w drugiej rozwija się strona z kolejnej rozkładówki.
+ * Pod spodem widać już stronę z rozkładówki docelowej; cienie podkreślają głębię.
+ */
+private fun DrawScope.drawFlip(
+    vm: PdfViewModel,
+    state: ViewerState,
+    layout: DocLayout,
+    flip: ViewerState.Flip,
+    paper: Color,
+    filter: ColorFilter?,
+    shadow: Float,
+) {
+    val from = layout.rows.getOrNull(flip.from) ?: return
+    val to = layout.rows.getOrNull(flip.to) ?: return
+    val vw = state.viewport.width
+    val oy = state.offset.y
+    fun screen(row: Row, slot: Slot) = Rect(slot.rect.left - row.index * vw, slot.rect.top + oy, slot.rect.right - row.index * vw, slot.rect.bottom + oy)
+    val spine = (from.spine ?: from.rect.centerX) - from.index * vw
+    // Strona po lewej / prawej stronie grzbietu w danym rzędzie.
+    fun side(row: Row, left: Boolean): Pair<Int, Rect>? {
+        val sp = (row.spine ?: row.rect.centerX) - row.index * vw
+        return row.slots.map { it.page to screen(row, it) }.firstOrNull { (_, r) -> if (left) r.center.x < sp else r.center.x >= sp }
+    }
+    // Kartka odchodzi od prawej krawędzi (do przodu) albo od lewej (wstecz); w RTL odwrotnie.
+    val fromRight = flip.forward != layout.spec.rtl
+    val t = flip.progress.coerceIn(0f, 1f)
+    val c = cos(PI * t).toFloat()
+    val staticSide = side(from, left = fromRight)
+    val revealed = side(to, left = !fromRight)
+    for ((page, r) in listOfNotNull(staticSide, revealed)) {
+        drawRect(Color.Black.copy(alpha = 0.35f), Offset(r.left, r.top + shadow), r.size)
+        drawPageInto(vm, page, r, paper, filter)
+    }
+    revealed?.let { (_, r) ->
+        drawRect(Color.Black.copy(alpha = 0.32f * (1f - kotlin.math.abs(c))), r.topLeft, r.size)
+    }
+    val firstHalf = t < 0.5f
+    val leaf = if (firstHalf) side(from, left = !fromRight) else side(to, left = fromRight)
+    if (leaf != null) {
+        val r = leaf.second
+        val w = r.width * kotlin.math.abs(c)
+        // Kartka zawsze przylega do grzbietu: przed połową po stronie odejścia, potem po przeciwnej.
+        val onRight = firstHalf == fromRight
+        val box = if (onRight) Rect(spine, r.top, spine + w, r.bottom) else Rect(spine - w, r.top, spine, r.bottom)
+        drawPageInto(vm, leaf.first, box, paper, filter)
+        val dark = Color.Black.copy(alpha = 0.28f * (1f - kotlin.math.abs(c)))
+        val light = Color.Black.copy(alpha = 0.04f)
+        drawRect(
+            Brush.horizontalGradient(if (onRight) listOf(dark, light) else listOf(light, dark), startX = box.left, endX = box.right),
+            box.topLeft,
+            box.size,
+        )
+    }
+    val top = minOf(from.rect.top, to.rect.top) + oy
+    val h = maxOf(from.rect.height, to.rect.height)
+    drawLine(Color.Black.copy(alpha = 0.25f), Offset(spine, top), Offset(spine, top + h), 1.5f)
 }
 
 private fun Offset.isSpecified() = !x.isNaN() && !y.isNaN()
