@@ -141,7 +141,7 @@ fun ViewerScreen(vm: PdfViewModel) {
         when {
             vm.selection != null -> vm.clearSelection()
             vm.searchActive -> vm.closeSearch()
-            vm.editing -> vm.setEditing(false)
+            vm.editing -> vm.changeEditing(false)
             else -> vm.exitToHome()
         }
     }
@@ -262,7 +262,7 @@ private fun MainBar(vm: PdfViewModel, book: Boolean, vertical: Boolean) {
         )
         RoundIcon(Icons.Rounded.Search, "Szukaj w dokumencie", active = vm.searchActive, onClick = { vm.searchActive = !vm.searchActive; if (!vm.searchActive) vm.closeSearch() })
         RoundIcon(Icons.Rounded.Toc, "Spis treści i zakładki", onClick = { vm.sheet = Sheet.OUTLINE })
-        RoundIcon(Icons.Rounded.Edit, if (vm.editing) "Zakończ edycję" else "Edycja: rysowanie, tekst, podpis", active = vm.editing, onClick = { vm.setEditing(!vm.editing) })
+        RoundIcon(Icons.Rounded.Edit, if (vm.editing) "Zakończ edycję" else "Edycja: rysowanie, tekst, podpis", active = vm.editing, onClick = { vm.changeEditing(!vm.editing) })
         RoundIcon(
             Icons.Rounded.Save,
             if (vm.dirty || vm.marks.isNotEmpty()) "Zapisz zmiany" else "Zapisz",
@@ -564,7 +564,7 @@ private fun EditBar(vm: PdfViewModel, vertical: Boolean) {
         }
         RoundIcon(Icons.AutoMirrored.Rounded.Undo, "Cofnij", enabled = vm.canUndo, onClick = { vm.undo() })
         RoundIcon(Icons.AutoMirrored.Rounded.Redo, "Ponów", enabled = vm.canRedo, onClick = { vm.redo() })
-        RoundIcon(Icons.Rounded.Check, "Zakończ edycję", onClick = { vm.setEditing(false) })
+        RoundIcon(Icons.Rounded.Check, "Zakończ edycję", onClick = { vm.changeEditing(false) })
     }
     val direction = if (vertical) PickerDirection.LEFT else PickerDirection.UP
     if (vertical) {

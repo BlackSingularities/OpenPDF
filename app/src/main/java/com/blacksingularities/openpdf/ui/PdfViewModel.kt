@@ -648,7 +648,7 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
     var editing by mutableStateOf(false)
         private set
 
-    fun setEditing(on: Boolean) {
+    fun changeEditing(on: Boolean) {
         editing = on
         tool = if (on) (lastEditTool ?: Tool.PEN) else Tool.VIEW
         selectedId = null
