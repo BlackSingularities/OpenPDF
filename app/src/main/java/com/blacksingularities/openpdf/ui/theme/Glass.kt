@@ -113,9 +113,9 @@ enum class GlassLevel(val tint: Color) {
     /** Przyciski i plakietki. */
     Thin(Color(0xFF1C1C1C)),
     /** Paski i panele. */
-    Regular(Color(0xFF111111)),
+    Regular(Color(0xFF000000)),
     /** Arkusz ustawień. */
-    Thick(Color(0xFF0B0B0B)),
+    Thick(Color(0xFF000000)),
 }
 
 /** Aktywny element: biały blok z czarną ikoną. */

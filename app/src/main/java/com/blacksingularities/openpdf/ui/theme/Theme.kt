@@ -16,8 +16,8 @@ object Palette {
     val Coral = Color(0xFFE0E0E0)
     val Record = Color(0xFFFF3B47)
     val Moon = Color(0xFFBDBDBD)
-    val Ink = Color(0xFF0B0C10)
-    val Panel = Color(0xFF0B0B0B)
+    val Ink = Color(0xFF000000)
+    val Panel = Color(0xFF000000)
     val PanelHigh = Color(0xFF1C1C1C)
     val Glass = Color(0x29FFFFFF)
     val GlassStrong = Color(0x47000000)
@@ -25,7 +25,7 @@ object Palette {
     val TextFaint = Color(0x66FFFFFF)
 
     /** Tło pod stronami dokumentu. */
-    val Desk = Color(0xFF15161A)
+    val Desk = Color(0xFF000000)
 
     /** Kolory narzędzi (pióro, kształty, tekst). */
     val InkColors = listOf(

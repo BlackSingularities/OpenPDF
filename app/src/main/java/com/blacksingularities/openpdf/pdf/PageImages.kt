@@ -75,7 +75,11 @@ class PageImages(private val scope: CoroutineScope) {
     fun bucket(px: Float): Int = (ceil(px / 128f) * 128).toInt().coerceIn(128, 2560)
 
     /** Zlecenia dla widocznego obszaru (w kolejności ważności). */
-    fun request(baseWanted: List<Pair<Int, Int>>, tileWanted: List<TileRequest>) {
+    @Volatile private var visibleBase = Int.MAX_VALUE
+
+    /** [visibleCount] – ile pierwszych pozycji [baseWanted] jest teraz na ekranie. */
+    fun request(baseWanted: List<Pair<Int, Int>>, tileWanted: List<TileRequest>, visibleCount: Int = baseWanted.size) {
+        visibleBase = visibleCount
         wantedBase = baseWanted
         wantedTiles = tileWanted
         // Kafelki niepotrzebne już na ekranie – zwalniamy.
@@ -129,8 +133,17 @@ class PageImages(private val scope: CoroutineScope) {
             version.intValue++
             return true
         }
-        // 2. Podstawowe obrazy stron.
-        for ((page, width) in wantedBase) {
+        // 2. Pełne obrazy widocznych stron, 3. szybkie miniatury sąsiednich (podgląd),
+        // 4. pełne obrazy sąsiednich stron.
+        val wanted = wantedBase
+        val visibleCount = visibleBase.coerceIn(0, wanted.size)
+        if (renderBase(s, wanted.subList(0, visibleCount))) return true
+        if (renderThumbs(s)) return true
+        return renderBase(s, wanted.subList(visibleCount, wanted.size))
+    }
+
+    private suspend fun renderBase(s: RenderSession, list: List<Pair<Int, Int>>): Boolean {
+        for ((page, width) in list) {
             val have = base.get(page)
             if (have != null && have.width >= width * 0.9f) continue
             val key = "b$page:$width"
@@ -146,7 +159,10 @@ class PageImages(private val scope: CoroutineScope) {
             thumbVersion.intValue++
             return true
         }
-        // 3. Miniatury (siatka stron, wyszukiwanie).
+        return false
+    }
+
+    private suspend fun renderThumbs(s: RenderSession): Boolean {
         for (page in wantedThumbs) {
             if (thumbs.get(page) != null) continue
             val key = "m$page"
@@ -161,6 +177,7 @@ class PageImages(private val scope: CoroutineScope) {
             }
             thumbs.put(page, bmp)
             thumbVersion.intValue++
+            version.intValue++
             return true
         }
         return false

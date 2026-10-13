@@ -25,7 +25,6 @@ import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.PictureAsPdf
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Fullscreen
-import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.Language
 import com.blacksingularities.openpdf.i18n.AppLanguage
 import androidx.compose.material.icons.rounded.LightMode
@@ -87,6 +86,14 @@ fun SettingsPanel(vm: PdfViewModel, startOnDocument: Boolean = false) {
         when (tab) {
             4 -> DocumentMenu(vm)
             0 -> {
+                Group(tr("Układ")) {
+                    SwitchRow(
+                        Icons.Rounded.AutoStories,
+                        tr("Automatyczny układ"),
+                        tr("Telefon w pionie: jedna strona, przewijanie w dół. Poziomo, tablet i rozłożony fold: dwie strony jak w książce, z przewracaniem kartek."),
+                        s.autoLayout,
+                    ) { v -> set { it.copy(autoLayout = v) } }
+                }
                 Group(tr("Tryb książki")) {
                     CompactChoice(
                         Icons.AutoMirrored.Rounded.MenuBook,
@@ -95,7 +102,7 @@ fun SettingsPanel(vm: PdfViewModel, startOnDocument: Boolean = false) {
                         s.bookMode,
                         { it.label },
                         hint = tr("Auto: w poziomie i na rozłożonym foldzie"),
-                    ) { v -> set { it.copy(bookMode = v) } }
+                    ) { v -> set { it.copy(bookMode = v, autoLayout = false) } }
                     SwitchRow(
                         Icons.Rounded.AutoStories,
                         tr("Okładka osobno"),
@@ -144,7 +151,7 @@ fun SettingsPanel(vm: PdfViewModel, startOnDocument: Boolean = false) {
                         s.scroll,
                         { if (it == ScrollMode.VERTICAL) tr("Ciągłe w pionie") else tr("Przewracanie stron w poziomie") },
                         short = { if (it == ScrollMode.VERTICAL) tr("Ciągłe") else tr("Strony") },
-                    ) { v -> set { it.copy(scroll = v) } }
+                    ) { v -> set { it.copy(scroll = v, autoLayout = false) } }
                     CompactChoice(
                         Icons.Rounded.Contrast,
                         tr("Papier"),
@@ -157,7 +164,6 @@ fun SettingsPanel(vm: PdfViewModel, startOnDocument: Boolean = false) {
                     SwitchRow(Icons.Rounded.FitScreen, tr("Strony od krawędzi do krawędzi"), tr("Bez marginesów – strona dotyka boków ekranu"), s.edgeToEdge) { v -> set { it.copy(edgeToEdge = v) } }
                 }
                 Group(tr("Ekran")) {
-                    SwitchRow(Icons.Rounded.PushPin, tr("Przypięty pasek narzędzi"), tr("Dokument pod paskiem, nie pod nim zakryty; dotknięcie strony chowa pasek"), s.pinToolbar) { v -> set { it.copy(pinToolbar = v) } }
                     SwitchRow(Icons.Rounded.Fullscreen, tr("Ukryj pasek stanu"), tr("Więcej miejsca na czytanie – pasek pojawia się po przesunięciu od góry"), s.hideStatusBar) { v -> set { it.copy(hideStatusBar = v) } }
                 }
                 Group(tr("Sterowanie")) {
