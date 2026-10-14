@@ -19,6 +19,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -763,6 +764,7 @@ fun GlassValueButton(
  * czarna kolumna przy lewej krawędzi z lekko zaokrąglonymi rogami.
  */
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 fun DockBar(
     vertical: Boolean,
     modifier: Modifier = Modifier,
