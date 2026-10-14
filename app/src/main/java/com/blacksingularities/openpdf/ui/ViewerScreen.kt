@@ -89,6 +89,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -157,6 +158,7 @@ fun ViewerScreen(vm: PdfViewModel) {
     }
     val density = androidx.compose.ui.platform.LocalDensity.current
     Box(Modifier.fillMaxSize().background(Palette.Desk)) {
+        SideEffect { vm.bookView = book }
         PdfViewer(vm, state, book)
         val showChrome = vm.chrome || vm.editing || vm.searchActive
         // Pasek główny: u góry (pionowo – z lewej, jak w OpenShot).

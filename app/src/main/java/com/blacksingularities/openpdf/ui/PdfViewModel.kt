@@ -118,6 +118,8 @@ class PdfViewModel(app: Application) : AndroidViewModel(app) {
     var passwordRequest by mutableStateOf<PasswordRequest?>(null)
     var recents by mutableStateOf(library.recents())
         private set
+    /** Czy dokument jest teraz pokazywany jako książka (rozkładówki) – dla ustawień przycinania. */
+    var bookView by mutableStateOf(false)
     var bookmarks by mutableStateOf<List<UserBookmark>>(emptyList())
         private set
 

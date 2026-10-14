@@ -47,6 +47,16 @@ data class AppSettings(
     val cropTop: Float = 0f,
     val cropRight: Float = 0f,
     val cropBottom: Float = 0f,
+    /**
+     * Przycinanie rozkładówki jako całości: w widoku książki lewy margines dotyczy tylko lewej
+     * strony, prawy – tylko prawej, a miejsce styku przy grzbiecie zostaje nietknięte.
+     * Wyłączone – każda strona rozkładówki przycinana jak pojedyncza strona.
+     */
+    val cropSpread: Boolean = true,
+    val spreadCropLeft: Float = 0f,
+    val spreadCropTop: Float = 0f,
+    val spreadCropRight: Float = 0f,
+    val spreadCropBottom: Float = 0f,
     val hideStatusBar: Boolean = false,
     val paper: PaperTheme = PaperTheme.NORMAL,
     val keepScreenOn: Boolean = true,
@@ -80,6 +90,11 @@ class SettingsStore(context: Context) {
             cropTop = prefs.getFloat("cropTop", 0f),
             cropRight = prefs.getFloat("cropRight", 0f),
             cropBottom = prefs.getFloat("cropBottom", 0f),
+            cropSpread = prefs.getBoolean("cropSpread", d.cropSpread),
+            spreadCropLeft = prefs.getFloat("spreadCropLeft", 0f),
+            spreadCropTop = prefs.getFloat("spreadCropTop", 0f),
+            spreadCropRight = prefs.getFloat("spreadCropRight", 0f),
+            spreadCropBottom = prefs.getFloat("spreadCropBottom", 0f),
             hideStatusBar = prefs.getBoolean("hideStatusBar", d.hideStatusBar),
             paper = enumOr(prefs.getString("paper", null), d.paper),
             keepScreenOn = prefs.getBoolean("keepScreenOn", d.keepScreenOn),
@@ -110,6 +125,11 @@ class SettingsStore(context: Context) {
             .putFloat("cropTop", s.cropTop)
             .putFloat("cropRight", s.cropRight)
             .putFloat("cropBottom", s.cropBottom)
+            .putBoolean("cropSpread", s.cropSpread)
+            .putFloat("spreadCropLeft", s.spreadCropLeft)
+            .putFloat("spreadCropTop", s.spreadCropTop)
+            .putFloat("spreadCropRight", s.spreadCropRight)
+            .putFloat("spreadCropBottom", s.spreadCropBottom)
             .putBoolean("hideStatusBar", s.hideStatusBar)
             .putString("paper", s.paper.name)
             .putBoolean("keepScreenOn", s.keepScreenOn)
@@ -133,6 +153,35 @@ val AppSettings.effectiveBookMode: BookMode get() = if (autoLayout) BookMode.AUT
 /** Przewijanie w użyciu: przy automatycznym układzie książka przewraca kartki, pojedyncze strony płyną w pionie. */
 fun AppSettings.effectiveScroll(book: Boolean): ScrollMode = if (autoLayout) (if (book) ScrollMode.PAGED else ScrollMode.VERTICAL) else scroll
 
-/** Przycięcie jako tablica [lewy, górny, prawy, dolny], z bezpiecznymi granicami. */
+/** Najwięcej, ile można przyciąć z jednej krawędzi strony. */
+const val MAX_CROP = 0.3f
+
+private fun cropOf(vararg v: Float) = FloatArray(4) { v[it].coerceIn(0f, MAX_CROP) }
+
+/** Przycięcie pojedynczej strony jako tablica [lewy, górny, prawy, dolny], z bezpiecznymi granicami. */
 val AppSettings.crop: FloatArray
-    get() = floatArrayOf(cropLeft, cropTop, cropRight, cropBottom).map { it.coerceIn(0f, 0.3f) }.toFloatArray()
+    get() = cropOf(cropLeft, cropTop, cropRight, cropBottom)
+
+/** Przycięcie rozkładówki [zewnętrzny lewy, górny, zewnętrzny prawy, dolny]. */
+val AppSettings.spreadCrop: FloatArray
+    get() = cropOf(spreadCropLeft, spreadCropTop, spreadCropRight, spreadCropBottom)
+
+/**
+ * Przycięcie każdej strony w danym układzie. W rozkładówce przycinanej jako całość strona po
+ * lewej stronie grzbietu traci tylko lewy (zewnętrzny) margines, a po prawej – tylko prawy;
+ * krawędzie przy grzbiecie zostają, więc strony stykają się jak w otwartej książce.
+ */
+fun AppSettings.pageCrops(groups: List<List<Int?>>, count: Int, book: Boolean): List<FloatArray> {
+    val single = crop
+    if (!book || !cropSpread) return List(count) { single }
+    val sc = spreadCrop
+    val leftSide = floatArrayOf(sc[0], sc[1], 0f, sc[3])
+    val rightSide = floatArrayOf(0f, sc[1], sc[2], sc[3])
+    val out = MutableList(count) { single }
+    for (g in groups) {
+        if (g.size != 2) continue
+        g[0]?.let { out[it] = leftSide }
+        g[1]?.let { out[it] = rightSide }
+    }
+    return out
+}

@@ -63,7 +63,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.blacksingularities.openpdf.data.PaperTheme
-import com.blacksingularities.openpdf.data.crop
+import com.blacksingularities.openpdf.data.pageCrops
 import com.blacksingularities.openpdf.data.effectiveScroll
 import com.blacksingularities.openpdf.pdf.AnnotationWriter
 import com.blacksingularities.openpdf.pdf.ImageMark
@@ -122,11 +122,22 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Mod
         gap = if (book) gap else gap,
         topInset = topInset,
     )
-    val crop = settings.crop
-    state.crop = crop
+    // Przycięcie każdej strony zależy od jej miejsca w rozkładówce (zewnętrzna krawędź czy grzbiet).
+    val crops = remember(
+        session, book, spec.coverAlone, spec.rtl, settings.cropSpread,
+        settings.cropLeft, settings.cropTop, settings.cropRight, settings.cropBottom,
+        settings.spreadCropLeft, settings.spreadCropTop, settings.spreadCropRight, settings.spreadCropBottom,
+    ) {
+        val n = session.sizes.size
+        settings.pageCrops(DocLayout.group(n, book, spec.coverAlone, spec.rtl), n, book)
+    }
+    state.crops = crops
     // Proporcje stron po przycięciu marginesów – układ liczy tylko widoczną część.
-    val aspects = remember(session, crop.toList()) {
-        session.sizes.map { it.aspect * (1f - crop[0] - crop[2]) / (1f - crop[1] - crop[3]) }
+    val aspects = remember(session, crops) {
+        session.sizes.mapIndexed { i, size ->
+            val c = crops[i]
+            size.aspect * (1f - c[0] - c[2]) / (1f - c[1] - c[3])
+        }
     }
     val vp = state.viewport
 
@@ -163,12 +174,12 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Mod
                 val base = ArrayList<Pair<Int, Int>>()
                 val zoomBase = scale.coerceIn(0.35f, 1f)
                 for (row in visible) for (slot in row.slots) {
-                    val w = vm.images.bucket(state.full(slot.rect).width * zoomBase)
+                    val w = vm.images.bucket(state.full(slot).width * zoomBase)
                     if (base.none { it.first == slot.page }) base += slot.page to w
                 }
                 val visibleCount = base.size
                 for (row in around) for (slot in row.slots) {
-                    val w = vm.images.bucket(state.full(slot.rect).width * zoomBase)
+                    val w = vm.images.bucket(state.full(slot).width * zoomBase)
                     if (base.none { it.first == slot.page }) base += slot.page to w
                 }
                 val tiles = ArrayList<TileRequest>()
@@ -553,7 +564,7 @@ private fun DrawScope.drawFlip(
     val revealed = side(to, left = !fromRight)
     for ((page, r) in listOfNotNull(staticSide, revealed)) {
         drawRect(Color.Black.copy(alpha = 0.35f), Offset(r.left, r.top + shadow), r.size)
-        drawPageInto(vm, page, r, paper, filter, state.crop)
+        drawPageInto(vm, page, r, paper, filter, state.cropOf(page))
     }
     revealed?.let { (_, r) ->
         drawRect(Color.Black.copy(alpha = 0.32f * (1f - kotlin.math.abs(c))), r.topLeft, r.size)
@@ -566,7 +577,7 @@ private fun DrawScope.drawFlip(
         // Kartka zawsze przylega do grzbietu: przed połową po stronie odejścia, potem po przeciwnej.
         val onRight = firstHalf == fromRight
         val box = if (onRight) Rect(spine, r.top, spine + w, r.bottom) else Rect(spine - w, r.top, spine, r.bottom)
-        drawPageInto(vm, leaf.first, box, paper, filter, state.crop)
+        drawPageInto(vm, leaf.first, box, paper, filter, state.cropOf(leaf.first))
         val dark = Color.Black.copy(alpha = 0.28f * (1f - kotlin.math.abs(c)))
         val light = Color.Black.copy(alpha = 0.04f)
         drawRect(
