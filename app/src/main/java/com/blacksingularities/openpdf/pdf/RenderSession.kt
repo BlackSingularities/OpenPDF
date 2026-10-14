@@ -5,42 +5,38 @@ import android.graphics.Color
 import android.graphics.Matrix
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import com.blacksingularities.openpdf.platform.PageRenderer
+import com.blacksingularities.openpdf.platform.PageSize
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import java.io.Closeable
+import okio.Path
+import okio.Path.Companion.toOkioPath
 import java.io.File
 import java.util.concurrent.Executors
-
-/** Rozmiar wyświetlanej strony w punktach. */
-data class PageSize(val width: Float, val height: Float) {
-    val aspect get() = width / height
-}
 
 /**
  * Systemowy renderer PDF (pdfium) dla jednego pliku. Renderer obsługuje tylko jedną otwartą
  * stronę naraz, więc wszystkie operacje idą przez wspólny wątek i blokadę.
  */
 class RenderSession private constructor(
-    val file: File,
+    private val source: File,
     private val fd: ParcelFileDescriptor,
     private val renderer: PdfRenderer,
-    val sizes: List<PageSize>,
-) : Closeable {
+    override val sizes: List<PageSize>,
+) : PageRenderer {
     private val lock = Mutex()
 
+    override val file: Path = source.toOkioPath()
+
     @Volatile
-    var closed = false
+    override var closed = false
         private set
 
-    val pageCount get() = sizes.size
-
-    /**
-     * Renderuje fragment strony: [width]×[height] px, [matrix] przenosi punkty strony do pikseli
-     * bitmapy (null = cała strona dopasowana do bitmapy).
-     */
-    suspend fun render(page: Int, width: Int, height: Int, matrix: Matrix? = null): Bitmap? = withContext(dispatcher) {
+    override suspend fun render(page: Int, width: Int, height: Int, matrix: FloatArray?): ImageBitmap? = withContext(dispatcher) {
         lock.withLock {
             if (closed || page !in 0 until pageCount || width <= 0 || height <= 0) return@withLock null
             val bmp = try {
@@ -49,36 +45,17 @@ class RenderSession private constructor(
                 return@withLock null
             }
             bmp.eraseColor(Color.WHITE)
+            val m = matrix?.let { v ->
+                Matrix().apply { setValues(floatArrayOf(v[0], v[2], v[4], v[1], v[3], v[5], 0f, 0f, 1f)) }
+            }
             try {
-                renderer.openPage(page).use { p -> p.render(bmp, null, matrix, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY) }
-                bmp
+                renderer.openPage(page).use { p -> p.render(bmp, null, m, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY) }
+                bmp.asImageBitmap()
             } catch (e: Exception) {
                 bmp.recycle()
                 null
             }
         }
-    }
-
-    /** Cała strona o szerokości [width] px. */
-    suspend fun renderPage(page: Int, width: Int): Bitmap? {
-        val s = sizes.getOrNull(page) ?: return null
-        val h = (width / s.aspect).toInt().coerceAtLeast(1)
-        return render(page, width, h)
-    }
-
-    /** Strona do druku/eksportu w zadanej rozdzielczości (DPI). */
-    suspend fun renderAtDpi(page: Int, dpi: Int): Bitmap? {
-        val s = sizes.getOrNull(page) ?: return null
-        var w = (s.width / 72f * dpi).toInt()
-        var h = (s.height / 72f * dpi).toInt()
-        // Ograniczenie pamięci: najwyżej ok. 40 Mpx.
-        val maxPx = 40_000_000f
-        if (w.toFloat() * h > maxPx) {
-            val k = kotlin.math.sqrt(maxPx / (w.toFloat() * h))
-            w = (w * k).toInt()
-            h = (h * k).toInt()
-        }
-        return render(page, w, h)
     }
 
     override fun close() {

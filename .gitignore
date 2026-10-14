@@ -12,3 +12,10 @@ build/
 *.keystore
 /.claude/
 /signing/
+# iOS: projekt Xcode i Info.plist generuje XcodeGen (iosApp/project.yml)
+/iosApp/OpenPDF.xcodeproj/
+/iosApp/OpenPDF/Info.plist
+/iosApp/build/
+/iosApp/Payload/
+*.ipa
+/.kotlin/

@@ -15,6 +15,8 @@ import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.window.layout.FoldingFeature
 import androidx.window.layout.WindowInfoTracker
 import com.blacksingularities.openpdf.ui.AppRoot
@@ -25,7 +27,9 @@ import com.blacksingularities.openpdf.update.UpdateManager
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
-    private val vm: PdfViewModel by viewModels()
+    private val vm: PdfViewModel by viewModels {
+        viewModelFactory { initializer { PdfViewModel(AndroidPlatform(application)) } }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -61,7 +65,7 @@ class MainActivity : ComponentActivity() {
                     if (hideBars) c.hide(androidx.core.view.WindowInsetsCompat.Type.statusBars())
                     else c.show(androidx.core.view.WindowInsetsCompat.Type.statusBars())
                 }
-                AppRoot(vm)
+                ProvideAndroidPlatformUi(vm) { AppRoot(vm) }
             }
         }
     }
@@ -94,7 +98,7 @@ class MainActivity : ComponentActivity() {
             }
             else -> null
         }
-        if (uri != null) vm.open(uri)
+        if (uri != null) vm.open(uri.toString())
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {

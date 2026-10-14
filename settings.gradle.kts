@@ -14,3 +14,5 @@ dependencyResolutionManagement {
 }
 rootProject.name = "OpenPDF"
 include(":app")
+// Wspólny kod (interfejs, logika) dla Androida i iOS.
+include(":shared")

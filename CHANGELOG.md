@@ -1,6 +1,8 @@
 # Zmiany
 
 ## 1.6.0
+- Wersja na iPhone'a i iPada: ten sam interfejs i funkcje (Compose Multiplatform), silnik PDF na Apple PDFKit. Każde wydanie zawiera teraz `OpenPDF-x.y.z.apk` (Android) i `OpenPDF-x.y.z.ipa` (iOS 16.4+, instalacja przez AltStore lub Sideloadly).
+- Na iOS aktualizacja otwiera stronę wydania z nowym plikiem IPA.
 - Przycinanie marginesów w dwóch trybach: pojedyncze strony (jak dotąd) i rozkładówka książki jako całość – lewy margines przycina lewą stronę, prawy prawą, a miejsce styku przy grzbiecie zostaje nietknięte. Przełącznik „Rozkładówka jako całość” pozwala wrócić do przycinania każdej strony osobno.
 - Dokładniejsze ustawianie marginesów: przyciski −/+ co 0,5%, wartości z dokładnością do 0,1%, nowy szybki wybór 2%.
 

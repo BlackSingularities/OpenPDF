@@ -1,4 +1,4 @@
-name: Build & Release APK
+name: Build & Release (Android + iOS)
 
 on:
   push:
@@ -14,30 +14,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  # Wersja z pliku VERSION. Gdy wydanie o tym numerze już istnieje (kolejny merge bez
+  # podbicia wersji), dostaje przyrostek z numerem budowania – każdy merge to nowe wydanie.
+  version:
     runs-on: ubuntu-latest
-    env:
-      KEYSTORE_B64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+    outputs:
+      base: ${{ steps.ver.outputs.base }}
+      name: ${{ steps.ver.outputs.name }}
+      code: ${{ steps.ver.outputs.code }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.14.3'
-
-      # Wersja z pliku VERSION. Gdy wydanie o tym numerze już istnieje (kolejny merge bez
-      # podbicia wersji), dostaje przyrostek z numerem budowania – każdy merge to nowe wydanie.
       - name: Wersja
         id: ver
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           BASE=$(tr -d '[:space:]' < VERSION)
           NAME="$BASE"
@@ -48,6 +39,23 @@ jobs:
           echo "base=$BASE" >> "$GITHUB_OUTPUT"
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
+
+  android:
+    needs: version
+    runs-on: ubuntu-latest
+    env:
+      KEYSTORE_B64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
 
       - name: Klucz podpisu
         if: env.KEYSTORE_B64 != ''
@@ -63,29 +71,102 @@ jobs:
           SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
           SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
           SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
-        run: gradle assembleRelease -PversionCode=${{ steps.ver.outputs.code }} -PversionName=${{ steps.ver.outputs.name }} --stacktrace
+        run: gradle :app:assembleRelease -PversionCode=${{ needs.version.outputs.code }} -PversionName=${{ needs.version.outputs.name }} --stacktrace
 
       - name: Przygotowanie pliku
-        run: cp app/build/outputs/apk/release/app-release.apk "OpenPDF-${{ steps.ver.outputs.name }}.apk"
+        run: cp app/build/outputs/apk/release/app-release.apk "OpenPDF-${{ needs.version.outputs.name }}.apk"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: OpenPDF-${{ steps.ver.outputs.name }}
-          path: OpenPDF-${{ steps.ver.outputs.name }}.apk
+          name: OpenPDF-${{ needs.version.outputs.name }}-android
+          path: OpenPDF-${{ needs.version.outputs.name }}.apk
+
+  # Aplikacja iOS: framework z Kotlina (Compose Multiplatform) i powłoka Xcode generowana przez
+  # XcodeGen. Plik .ipa nie jest podpisany – instaluje się go przez AltStore lub Sideloadly.
+  ios:
+    needs: version
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+
+      - name: Cache Kotlin/Native
+        uses: actions/cache@v4
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ hashFiles('build.gradle.kts') }}
+
+      - name: Framework Kotlin
+        run: gradle :shared:linkReleaseFrameworkIosArm64 --stacktrace
+
+      - name: Projekt Xcode
+        working-directory: iosApp
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Budowanie aplikacji
+        working-directory: iosApp
+        run: |
+          xcodebuild -project OpenPDF.xcodeproj -scheme OpenPDF -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath build/derived \
+            MARKETING_VERSION=${{ needs.version.outputs.base }} \
+            CURRENT_PROJECT_VERSION=${{ needs.version.outputs.code }} \
+            OPENPDF_VERSION=${{ needs.version.outputs.name }} \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Pakowanie IPA
+        working-directory: iosApp
+        run: |
+          APP=$(find build/derived/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' | head -1)
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -qry "../OpenPDF-${{ needs.version.outputs.name }}.ipa" Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenPDF-${{ needs.version.outputs.name }}-ios
+          path: OpenPDF-${{ needs.version.outputs.name }}.ipa
+
+  release:
+    needs: [version, android, ios]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
 
       - name: Publikacja wydania
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
+          NAME: ${{ needs.version.outputs.name }}
+          BASE: ${{ needs.version.outputs.base }}
         run: |
-          TAG="v${{ steps.ver.outputs.name }}"
-          NOTES=$(awk -v version="${{ steps.ver.outputs.base }}" '$0 == "## " version { found=1; next } found && /^## / { exit } found { print }' CHANGELOG.md)
-          if [ "${{ steps.ver.outputs.name }}" != "${{ steps.ver.outputs.base }}" ]; then
+          TAG="v$NAME"
+          NOTES=$(awk -v version="$BASE" '$0 == "## " version { found=1; next } found && /^## / { exit } found { print }' CHANGELOG.md)
+          if [ "$NAME" != "$BASE" ]; then
             LOG=$(git log -5 --pretty='- %s' "$GITHUB_SHA")
             NOTES=$(printf 'Poprawki i ulepszenia:\n\n%s' "$LOG")
           fi
-          gh release create "$TAG" "OpenPDF-${{ steps.ver.outputs.name }}.apk" \
+          FOOTER=$(printf -- '---\n**Android:** pobierz **OpenPDF-%s.apk** i zainstaluj go na telefonie (Android 10+).\n\n**iPhone / iPad:** pobierz **OpenPDF-%s.ipa** i zainstaluj przez AltStore lub Sideloadly (iOS 16.4+).' "$NAME" "$NAME")
+          gh release create "$TAG" "dist/OpenPDF-$NAME.apk" "dist/OpenPDF-$NAME.ipa" \
             --target "$GITHUB_SHA" \
-            --title "OpenPDF ${{ steps.ver.outputs.name }}" \
-            --notes "$(printf '%s\n\n---\nPobierz plik **OpenPDF-%s.apk** poniżej i zainstaluj go na telefonie (Android 10+).' "$NOTES" "${{ steps.ver.outputs.name }}")" \
+            --title "OpenPDF $NAME" \
+            --notes "$(printf '%s\n\n%s' "$NOTES" "$FOOTER")" \
             --latest

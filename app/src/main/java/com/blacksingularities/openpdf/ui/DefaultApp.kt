@@ -5,9 +5,24 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.Settings
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.PictureAsPdf
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.blacksingularities.openpdf.i18n.tr
 import com.blacksingularities.openpdf.pdf.PdfOps
+import com.blacksingularities.openpdf.ui.components.ActionRow
+import com.blacksingularities.openpdf.ui.components.DarkDialog
+import com.blacksingularities.openpdf.ui.components.PillButton
+import com.blacksingularities.openpdf.ui.theme.Palette
 import com.tom_roush.pdfbox.pdmodel.common.PDRectangle
 import java.io.File
 
@@ -55,5 +70,50 @@ object DefaultApp {
         PdfHandler.Us -> tr("OpenPDF otwiera pliki PDF domyślnie")
         PdfHandler.None -> tr("Brak domyślnej aplikacji – wybierz OpenPDF i „Zawsze”")
         is PdfHandler.Other -> tr("Teraz domyślna: {0}", h.label)
+    }
+}
+
+/** Ustawienie OpenPDF jako domyślnej aplikacji do plików PDF (przez okno wyboru systemu). */
+@Composable
+fun DefaultAppRow() {
+    val ctx = LocalContext.current
+    var handler by remember { mutableStateOf(DefaultApp.current(ctx)) }
+    var explain by remember { mutableStateOf<PdfHandler.Other?>(null) }
+    LifecycleResumeEffect(Unit) {
+        handler = DefaultApp.current(ctx)
+        onPauseOrDispose { }
+    }
+    val h = handler
+    ActionRow(
+        Icons.Rounded.PictureAsPdf,
+        if (h == PdfHandler.Us) tr("OpenPDF jest domyślną aplikacją PDF") else tr("Ustaw jako domyślną aplikację PDF"),
+        DefaultApp.describe(h),
+        enabled = h != PdfHandler.Us,
+    ) {
+        when (h) {
+            PdfHandler.None -> DefaultApp.askSystem(ctx)
+            is PdfHandler.Other -> explain = h
+            PdfHandler.Us -> Unit
+        }
+    }
+    explain?.let { other ->
+        DarkDialog(
+            tr("Zmiana domyślnej aplikacji"),
+            onDismiss = { explain = null },
+            buttons = {
+                PillButton(tr("Anuluj"), primary = false) { explain = null }
+                PillButton(tr("Otwórz ustawienia")) {
+                    explain = null
+                    DefaultApp.openSettingsOf(ctx, other.pkg)
+                }
+            },
+        ) {
+            Text(
+                tr("Pliki PDF otwiera teraz „{0}”. Android nie pozwala innej aplikacji tego zmienić – w ustawieniach „{0}” wybierz „Otwieraj domyślnie” → „Wyczyść ustawienia domyślne”, wróć tutaj i dotknij ponownie: pojawi się wybór, w którym zaznacz OpenPDF i „Zawsze”.", other.label),
+                color = Palette.TextDim,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+            )
+        }
     }
 }
