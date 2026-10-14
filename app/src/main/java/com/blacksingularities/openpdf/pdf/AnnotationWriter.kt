@@ -157,6 +157,7 @@ internal class AnnotationWriter(
     }
 
     private fun shape(m: ShapeMark): PDAnnotation {
+        val fill = m.fill
         val subtype = when (m.kind) {
             ShapeKind.RECT -> "Square"
             ShapeKind.ELLIPSE -> "Circle"
@@ -244,6 +245,7 @@ internal class AnnotationWriter(
     }
 
     private fun freeText(m: TextMark): PDAnnotation {
+        val background = m.background
         val font = fonts.font()
         val (d, rect) = base("FreeText", m.rect, null, m.text)
         val rgb = "%.3f %.3f %.3f rg".format(java.util.Locale.US, red(m.color), green(m.color), blue(m.color))
