@@ -9,7 +9,6 @@ import org.junit.Test
 class CropTest {
     private val s = AppSettings(
         cropLeft = 0.01f, cropTop = 0.02f, cropRight = 0.03f, cropBottom = 0.04f,
-        cropSpread = true,
         spreadCropLeft = 0.1f, spreadCropTop = 0.05f, spreadCropRight = 0.2f, spreadCropBottom = 0.06f,
     )
     private val single = floatArrayOf(0.01f, 0.02f, 0.03f, 0.04f)
@@ -39,10 +38,5 @@ class CropTest {
         val c = crops(s, 3, book = true, coverAlone = false, rtl = true)
         assertArrayEquals(right, c[0], 1e-6f)
         assertArrayEquals(left, c[1], 1e-6f)
-    }
-
-    @Test
-    fun spreadModeOffUsesPageCrop() {
-        crops(s.copy(cropSpread = false), 4, book = true).forEach { assertArrayEquals(single, it, 1e-6f) }
     }
 }

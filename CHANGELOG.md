@@ -1,5 +1,11 @@
 # Zmiany
 
+## 1.6.1
+- Precyzyjne przycinanie marginesów: suwaki na całą szerokość panelu, przełączany zakres 0–10% (dokładny) lub 0–30%, przyciski −/+ co 0,1% z powtarzaniem po przytrzymaniu.
+- Nowy suwak „Wszystkie” przesuwa wszystkie cztery marginesy naraz, zachowując różnice między nimi.
+- W trakcie przeciągania suwaka panel ustawień znika, a strony od razu pokazują przycięcie – nad nimi tylko dymek z wartością.
+- Usunięty zbędny przełącznik „Rozkładówka jako całość” – zakładka „Rozkładówka” zawsze przycina rozkładówkę jako całość.
+
 ## 1.6.0
 - Wersja na iPhone'a i iPada: ten sam interfejs i funkcje (Compose Multiplatform), silnik PDF na Apple PDFKit. Każde wydanie zawiera teraz `OpenPDF-x.y.z.apk` (Android) i `OpenPDF-x.y.z.ipa` (iOS 16.4+, instalacja przez AltStore lub Sideloadly).
 - Na iOS aktualizacja otwiera stronę wydania z nowym plikiem IPA.

@@ -48,11 +48,9 @@ data class AppSettings(
     val cropRight: Float = 0f,
     val cropBottom: Float = 0f,
     /**
-     * Przycinanie rozkładówki jako całości: w widoku książki lewy margines dotyczy tylko lewej
+     * Przycięcie rozkładówki jako całości: w widoku książki lewy margines dotyczy tylko lewej
      * strony, prawy – tylko prawej, a miejsce styku przy grzbiecie zostaje nietknięte.
-     * Wyłączone – każda strona rozkładówki przycinana jak pojedyncza strona.
      */
-    val cropSpread: Boolean = true,
     val spreadCropLeft: Float = 0f,
     val spreadCropTop: Float = 0f,
     val spreadCropRight: Float = 0f,
@@ -88,7 +86,6 @@ class SettingsStore(private val prefs: KeyValueStore) {
             cropTop = prefs.getFloat("cropTop", 0f),
             cropRight = prefs.getFloat("cropRight", 0f),
             cropBottom = prefs.getFloat("cropBottom", 0f),
-            cropSpread = prefs.getBoolean("cropSpread", d.cropSpread),
             spreadCropLeft = prefs.getFloat("spreadCropLeft", 0f),
             spreadCropTop = prefs.getFloat("spreadCropTop", 0f),
             spreadCropRight = prefs.getFloat("spreadCropRight", 0f),
@@ -123,7 +120,6 @@ class SettingsStore(private val prefs: KeyValueStore) {
             putFloat("cropTop", s.cropTop)
             putFloat("cropRight", s.cropRight)
             putFloat("cropBottom", s.cropBottom)
-            putBoolean("cropSpread", s.cropSpread)
             putFloat("spreadCropLeft", s.spreadCropLeft)
             putFloat("spreadCropTop", s.spreadCropTop)
             putFloat("spreadCropRight", s.spreadCropRight)
@@ -165,13 +161,13 @@ val AppSettings.spreadCrop: FloatArray
     get() = cropOf(spreadCropLeft, spreadCropTop, spreadCropRight, spreadCropBottom)
 
 /**
- * Przycięcie każdej strony w danym układzie. W rozkładówce przycinanej jako całość strona po
+ * Przycięcie każdej strony w danym układzie. W rozkładówce strona po
  * lewej stronie grzbietu traci tylko lewy (zewnętrzny) margines, a po prawej – tylko prawy;
  * krawędzie przy grzbiecie zostają, więc strony stykają się jak w otwartej książce.
  */
 fun AppSettings.pageCrops(groups: List<List<Int?>>, count: Int, book: Boolean): List<FloatArray> {
     val single = crop
-    if (!book || !cropSpread) return List(count) { single }
+    if (!book) return List(count) { single }
     val sc = spreadCrop
     val leftSide = floatArrayOf(sc[0], sc[1], 0f, sc[3])
     val rightSide = floatArrayOf(0f, sc[1], sc[2], sc[3])

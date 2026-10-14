@@ -68,29 +68,43 @@ import com.blacksingularities.openpdf.ui.components.DarkField
 import com.blacksingularities.openpdf.ui.components.Group
 import com.blacksingularities.openpdf.ui.components.Panel
 import com.blacksingularities.openpdf.ui.components.RowIcon
-import com.blacksingularities.openpdf.ui.components.SwitchRow
 import com.blacksingularities.openpdf.ui.components.TabChip
 import com.blacksingularities.openpdf.ui.theme.Palette
 import com.blacksingularities.openpdf.update.UpdateState
 import kotlin.math.roundToInt
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.input.pointer.pointerInput
+import com.blacksingularities.openpdf.platform.formatDecimal
+import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsPanel(vm: PdfViewModel, startOnDocument: Boolean = false) {
     val hasDoc = vm.doc != null
     // Dwie zakładki: Dokument i Ustawienia (bez otwartego dokumentu – same ustawienia).
     var docTab by remember { mutableStateOf(startOnDocument && hasDoc) }
-    Panel(if (hasDoc) tr("Menu") else tr("Ustawienia"), onClose = { vm.sheet = null }) {
-        if (hasDoc) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                TabChip(Icons.Rounded.Description, tr("Dokument"), docTab) { docTab = true }
-                TabChip(Icons.Rounded.Settings, tr("Ustawienia"), !docTab) { docTab = false }
+    val drag = vm.cropDrag
+    // W trakcie przeciągania suwaka przycinania panel jest niewidoczny (ale dalej prowadzi gest),
+    // żeby było widać strony; nad nimi tylko dymek z nazwą marginesu i wartością.
+    Box(Modifier.fillMaxSize()) {
+        Panel(if (hasDoc) tr("Menu") else tr("Ustawienia"), onClose = { vm.sheet = null }, hidden = drag != null) {
+            if (hasDoc) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    TabChip(Icons.Rounded.Description, tr("Dokument"), docTab) { docTab = true }
+                    TabChip(Icons.Rounded.Settings, tr("Ustawienia"), !docTab) { docTab = false }
+                }
+            }
+            if (hasDoc && docTab) {
+                DocumentMenu(vm)
+            } else {
+                SettingsContent(vm)
             }
         }
-        if (hasDoc && docTab) {
-            DocumentMenu(vm)
-        } else {
-            SettingsContent(vm)
-        }
+        if (drag != null) CropDragHud(drag.first, drag.second, Modifier.align(Alignment.TopCenter))
     }
 }
 
@@ -161,7 +175,7 @@ private fun ColumnScope.SettingsContent(vm: PdfViewModel) {
                 short = { if (it == ScrollMode.VERTICAL) tr("Ciągłe") else tr("Strony") },
             ) { v -> set { it.copy(scroll = v, autoLayout = false) } }
         }
-        CropControl(s, vm.bookView, set = { t -> set(t) })
+        CropControl(vm)
     SectionHeader(Icons.Rounded.Edit, tr("Edycja"))
         Group(null) {
             Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
@@ -270,81 +284,145 @@ private fun TileGrid(tiles: List<Tile>) {
 }
 
 /**
- * Przycinanie marginesów: osobno dla pojedynczych stron i dla rozkładówki. Rozkładówka może być
+ * Przycinanie marginesów: osobno dla pojedynczych stron i dla rozkładówki. Rozkładówka jest
  * przycinana jako całość – lewy margines z lewej strony, prawy z prawej, bez ruszania grzbietu.
+ * W trakcie przeciągania suwaka panel znika, a strony od razu pokazują przycięcie.
  */
 @Composable
-private fun CropControl(
-    s: com.blacksingularities.openpdf.data.AppSettings,
-    bookView: Boolean,
-    set: ((com.blacksingularities.openpdf.data.AppSettings) -> com.blacksingularities.openpdf.data.AppSettings) -> Unit,
-) {
-    var spreadTab by remember(bookView) { mutableStateOf(bookView) }
+private fun CropControl(vm: PdfViewModel) {
+    val s = vm.settings
+    var spreadTab by remember(vm.bookView) { mutableStateOf(vm.bookView) }
+    val labels = listOf(tr("Lewy"), tr("Górny"), tr("Prawy"), tr("Dolny"))
     Group(tr("Przycinanie marginesów")) {
         Row(Modifier.padding(horizontal = 10.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             TabChip(Icons.Rounded.Description, tr("Strony"), !spreadTab) { spreadTab = false }
             TabChip(Icons.AutoMirrored.Rounded.MenuBook, tr("Rozkładówka"), spreadTab) { spreadTab = true }
         }
         if (!spreadTab) {
-            CropEditor(
-                floatArrayOf(s.cropLeft, s.cropTop, s.cropRight, s.cropBottom),
-                spread = false,
-                labels = listOf(tr("Lewy"), tr("Górny"), tr("Prawy"), tr("Dolny")),
-            ) { (l, t, r, b) -> set { it.copy(cropLeft = l, cropTop = t, cropRight = r, cropBottom = b) } }
+            CropEditor(vm, floatArrayOf(s.cropLeft, s.cropTop, s.cropRight, s.cropBottom), spread = false, labels = labels) { (l, t, r, b) ->
+                { it.copy(cropLeft = l, cropTop = t, cropRight = r, cropBottom = b) }
+            }
         } else {
-            SwitchRow(
-                Icons.AutoMirrored.Rounded.MenuBook,
-                tr("Rozkładówka jako całość"),
-                if (s.cropSpread) tr("Lewy margines z lewej strony, prawy z prawej – grzbiet bez zmian")
-                else tr("Każda strona rozkładówki przycinana jak pojedyncza strona"),
-                s.cropSpread,
-            ) { v -> set { it.copy(cropSpread = v) } }
-            if (s.cropSpread) {
-                CropEditor(
-                    floatArrayOf(s.spreadCropLeft, s.spreadCropTop, s.spreadCropRight, s.spreadCropBottom),
-                    spread = true,
-                    labels = listOf(tr("Lewy"), tr("Górny"), tr("Prawy"), tr("Dolny")),
-                ) { (l, t, r, b) -> set { it.copy(spreadCropLeft = l, spreadCropTop = t, spreadCropRight = r, spreadCropBottom = b) } }
+            Text(
+                tr("Lewy margines z lewej strony, prawy z prawej – grzbiet bez zmian"),
+                color = Palette.TextDim,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(horizontal = 14.dp),
+            )
+            CropEditor(vm, floatArrayOf(s.spreadCropLeft, s.spreadCropTop, s.spreadCropRight, s.spreadCropBottom), spread = true, labels = labels) { (l, t, r, b) ->
+                { it.copy(spreadCropLeft = l, spreadCropTop = t, spreadCropRight = r, spreadCropBottom = b) }
             }
         }
     }
 }
 
-/** Krok przycisków −/+ (0,5%) – do dokładnego dostrojenia po przybliżeniu suwakiem. */
-private const val CROP_STEP = 0.005f
+/** Krok przycisków −/+ (0,1%); przytrzymanie powtarza krok coraz szybciej. */
+private const val CROP_STEP = 0.001f
 
-/** Suwaki czterech marginesów z podglądem; [spread] – podgląd dwóch stron z grzbietem. */
+/** Zakres suwaków w trybie dokładnym – trzy razy drobniejszy ruch niż na pełnym zakresie. */
+private const val CROP_FINE_RANGE = 0.1f
+
+private fun snapCrop(v: Float): Float =
+    ((v / CROP_STEP).roundToInt() * CROP_STEP).coerceIn(0f, com.blacksingularities.openpdf.data.MAX_CROP)
+
+/**
+ * Suwaki czterech marginesów i suwak „Wszystkie” (przesuwa wszystkie marginesy naraz, zachowując
+ * różnice między nimi); [spread] – podgląd dwóch stron z grzbietem. [toSettings] buduje zmianę
+ * ustawień z wartości [lewy, górny, prawy, dolny].
+ */
 @Composable
-private fun CropEditor(values: FloatArray, spread: Boolean, labels: List<String>, onChange: (FloatArray) -> Unit) {
-    val key = values.toList()
-    val v = remember(key) { androidx.compose.runtime.mutableStateListOf(*values.toTypedArray()) }
-    fun commit() = onChange(v.toFloatArray())
-    Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        CropPreview(v[0], v[1], v[2], v[3], spread)
-        Column(Modifier.weight(1f).padding(start = 8.dp)) {
-            for (i in 0 until 4) {
-                CropSlider(labels[i], v[i], { v[i] = it }, ::commit)
+private fun CropEditor(
+    vm: PdfViewModel,
+    values: FloatArray,
+    spread: Boolean,
+    labels: List<String>,
+    toSettings: (FloatArray) -> ((com.blacksingularities.openpdf.data.AppSettings) -> com.blacksingularities.openpdf.data.AppSettings),
+) {
+    // Podgląd na żywo bez zapisu; zapis dopiero po puszczeniu suwaka/przycisku.
+    fun preview(v: FloatArray) = vm.previewSettings(toSettings(FloatArray(4) { snapCrop(v[it]) }))
+    fun commit() = vm.updateSettings { it }
+    var fine by remember(spread) { mutableStateOf(values.all { it <= CROP_FINE_RANGE }) }
+    val range = if (fine) CROP_FINE_RANGE else com.blacksingularities.openpdf.data.MAX_CROP
+    // Na wypadek zamknięcia panelu w trakcie przeciągania – panel nie może zostać niewidoczny.
+    DisposableEffect(Unit) { onDispose { vm.cropDrag = null } }
+
+    Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        CropPreview(values[0], values[1], values[2], values[3], spread)
+        Column(Modifier.weight(1f).padding(start = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf(tr("Brak") to 0f, "1%" to 0.01f, "2%" to 0.02f, "4%" to 0.04f, "8%" to 0.08f).forEach { (label, p) ->
+                    CropChip(label, false) {
+                        preview(FloatArray(4) { p })
+                        commit()
+                    }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(tr("Zakres"), fontSize = 11.sp, color = Palette.TextDim)
+                CropChip("0–10%", fine) { fine = true }
+                CropChip("0–30%", !fine) { fine = false }
             }
         }
     }
-    Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End)) {
-        listOf(tr("Brak") to 0f, "2%" to 0.02f, "4%" to 0.04f, "8%" to 0.08f).forEach { (label, p) ->
-            Text(
-                label,
-                color = Color.White,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(Color.White.copy(alpha = 0.08f))
-                    .clickable {
-                        for (i in 0 until 4) v[i] = p
-                        commit()
-                    }
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-            )
-        }
+
+    // Wszystkie naraz: suwak stoi na najmniejszym marginesie, pozostałe przesuwają się o tyle samo.
+    var base by remember { mutableStateOf<FloatArray?>(null) }
+    val allLabel = tr("Wszystkie")
+    fun shiftAll(from: FloatArray, to: Float) {
+        val d = to - from.min()
+        preview(FloatArray(4) { from[it] + d })
     }
+    CropSlider(
+        label = allLabel,
+        value = values.min(),
+        range = range,
+        strong = true,
+        onDrag = { pos ->
+            val b = base ?: values.copyOf().also { base = it }
+            shiftAll(b, pos)
+            vm.cropDrag = allLabel to snapCrop(pos)
+        },
+        onStep = { d -> shiftAll(values, values.min() + d) },
+        onDone = {
+            base = null
+            vm.cropDrag = null
+            commit()
+        },
+    )
+    for (i in 0 until 4) {
+        CropSlider(
+            label = labels[i],
+            value = values[i],
+            range = range,
+            strong = false,
+            onDrag = { pos ->
+                preview(values.copyOf().also { it[i] = pos })
+                vm.cropDrag = labels[i] to snapCrop(pos)
+            },
+            onStep = { d -> preview(values.copyOf().also { it[i] += d }) },
+            onDone = {
+                vm.cropDrag = null
+                commit()
+            },
+        )
+    }
+    Spacer(Modifier.height(4.dp))
+}
+
+@Composable
+private fun CropChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Text(
+        label,
+        color = if (selected) Palette.Ink else Color.White,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.SemiBold,
+        maxLines = 1,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(if (selected) Color.White else Color.White.copy(alpha = 0.08f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 5.dp),
+    )
 }
 
 /** Podgląd: szara strona (albo rozkładówka), biały – to, co zostaje na ekranie. */
@@ -385,49 +463,108 @@ private fun CropPreview(l: Float, t: Float, r: Float, b: Float, spread: Boolean)
     }
 }
 
+/**
+ * Suwak marginesu na całą szerokość panelu, z przyciskami −/+ co 0,1% (przytrzymanie powtarza).
+ * [onDrag] – każdy ruch suwaka, [onStep] – krok przycisku, [onDone] – koniec gestu (zapis).
+ */
 @Composable
-private fun CropSlider(label: String, value: Float, onValue: (Float) -> Unit, onDone: () -> Unit) {
-    val max = com.blacksingularities.openpdf.data.MAX_CROP
-    fun nudge(d: Float) {
-        // Zaokrąglenie do kroku, żeby wartości z suwaka „wskakiwały” na równe dziesiąte procenta.
-        onValue((Math.round((value + d) / CROP_STEP) * CROP_STEP).coerceIn(0f, max))
-        onDone()
-    }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, fontSize = 11.sp, color = Palette.TextDim, modifier = Modifier.width(40.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        CropNudge("−") { nudge(-CROP_STEP) }
-        androidx.compose.material3.Slider(
-            value = value,
-            onValueChange = { onValue((Math.round(it * 1000f) / 1000f).coerceIn(0f, max)) },
-            onValueChangeFinished = onDone,
-            valueRange = 0f..max,
-            modifier = Modifier.weight(1f).height(28.dp),
-            colors = androidx.compose.material3.SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = Color.White, inactiveTrackColor = Color.White.copy(alpha = 0.15f)),
-        )
-        CropNudge("+") { nudge(CROP_STEP) }
+private fun CropSlider(
+    label: String,
+    value: Float,
+    range: Float,
+    strong: Boolean,
+    onDrag: (Float) -> Unit,
+    onStep: (Float) -> Unit,
+    onDone: () -> Unit,
+) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(
-            String.format(java.util.Locale.ROOT, "%.1f%%", value * 100f),
-            fontSize = 11.sp,
+            label,
+            fontSize = 12.sp,
+            color = if (strong) Color.White else Palette.TextDim,
+            fontWeight = if (strong) FontWeight.SemiBold else FontWeight.Normal,
+            modifier = Modifier.width(68.dp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        CropNudge("−", { onStep(-CROP_STEP) }, onDone)
+        androidx.compose.material3.Slider(
+            value = value.coerceAtMost(range),
+            onValueChange = { onDrag(snapCrop(it)) },
+            onValueChangeFinished = onDone,
+            valueRange = 0f..range,
+            modifier = Modifier.weight(1f).height(36.dp).padding(horizontal = 4.dp),
+            colors = androidx.compose.material3.SliderDefaults.colors(
+                thumbColor = if (strong) Palette.Amber else Color.White,
+                activeTrackColor = if (strong) Palette.Amber else Color.White,
+                inactiveTrackColor = Color.White.copy(alpha = 0.15f),
+            ),
+        )
+        CropNudge("+", { onStep(CROP_STEP) }, onDone)
+        Text(
+            formatDecimal(value * 100f, 1) + "%",
+            fontSize = 12.sp,
             color = Color.White,
-            modifier = Modifier.width(40.dp),
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.width(48.dp),
             textAlign = androidx.compose.ui.text.style.TextAlign.End,
         )
     }
 }
 
+/** Przycisk kroku: dotknięcie – jeden krok, przytrzymanie – powtarzanie, coraz szybsze. */
 @Composable
-private fun CropNudge(sign: String, onClick: () -> Unit) {
+private fun CropNudge(sign: String, onStep: () -> Unit, onDone: () -> Unit) {
+    val step by rememberUpdatedState(onStep)
+    val done by rememberUpdatedState(onDone)
+    val scope = rememberCoroutineScope()
     Box(
         Modifier
-            .size(26.dp)
+            .size(32.dp)
             .clip(RoundedCornerShape(50))
             .background(Color.White.copy(alpha = 0.08f))
-            .clickable(onClick = onClick),
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    awaitFirstDown()
+                    val repeat = scope.launch {
+                        step()
+                        kotlinx.coroutines.delay(400)
+                        var pause = 90L
+                        while (true) {
+                            step()
+                            kotlinx.coroutines.delay(pause)
+                            pause = (pause - 6).coerceAtLeast(25L)
+                        }
+                    }
+                    waitForUpOrCancellation()
+                    repeat.cancel()
+                    done()
+                }
+            },
         contentAlignment = Alignment.Center,
     ) {
-        Text(sign, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        Text(sign, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
     }
 }
+
+/** Dymek nad stronami w trakcie przeciągania suwaka, gdy panel ustawień jest ukryty. */
+@Composable
+private fun CropDragHud(label: String, value: Float, modifier: Modifier) {
+    Row(
+        modifier
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .padding(top = 12.dp)
+            .clip(RoundedCornerShape(50))
+            .background(Color.Black.copy(alpha = 0.72f))
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(tr("Przycinanie") + " · " + label, color = Palette.TextDim, fontSize = 13.sp)
+        Spacer(Modifier.width(10.dp))
+        Text(formatDecimal(value * 100f, 1) + "%", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
 
 @Composable
 private fun UpdateRow(vm: PdfViewModel) {

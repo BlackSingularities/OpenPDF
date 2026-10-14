@@ -123,7 +123,7 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Mod
     )
     // Przycięcie każdej strony zależy od jej miejsca w rozkładówce (zewnętrzna krawędź czy grzbiet).
     val crops = remember(
-        session, book, spec.coverAlone, spec.rtl, settings.cropSpread,
+        session, book, spec.coverAlone, spec.rtl,
         settings.cropLeft, settings.cropTop, settings.cropRight, settings.cropBottom,
         settings.spreadCropLeft, settings.spreadCropTop, settings.spreadCropRight, settings.spreadCropBottom,
     ) {
