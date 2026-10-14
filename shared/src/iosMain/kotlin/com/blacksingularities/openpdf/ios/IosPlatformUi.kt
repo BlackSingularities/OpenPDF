@@ -15,12 +15,7 @@ import platform.PhotosUI.PHPickerFilter
 import platform.PhotosUI.PHPickerResult
 import platform.PhotosUI.PHPickerViewController
 import platform.PhotosUI.PHPickerViewControllerDelegateProtocol
-import platform.UIKit.UIActivityViewController
-import platform.UIKit.UIApplication
-import platform.UIKit.UIDocumentPickerDelegateProtocol
-import platform.UIKit.UIDocumentPickerViewController
-import platform.UIKit.UIPrintInteractionController
-import platform.UIKit.UIViewController
+import platform.UIKit.*
 import platform.UniformTypeIdentifiers.UTTypePDF
 import platform.darwin.NSObject
 import platform.darwin.dispatch_async

@@ -166,8 +166,8 @@ internal class AnnotationWriter(
         val bs = COSDictionary()
         bs.setFloat(COSName.W, m.widthPt)
         d.setItem(COSName.BS, bs)
-        if (m.fill != null && (m.kind == ShapeKind.RECT || m.kind == ShapeKind.ELLIPSE)) {
-            d.setItem(COSName.IC, floats(red(m.fill), green(m.fill), blue(m.fill)))
+        if (fill != null && (m.kind == ShapeKind.RECT || m.kind == ShapeKind.ELLIPSE)) {
+            d.setItem(COSName.IC, floats(red(fill), green(fill), blue(fill)))
         }
         if (m.kind == ShapeKind.LINE || m.kind == ShapeKind.ARROW) {
             val (x1, y1) = geo.toPdf(m.start)
@@ -180,10 +180,10 @@ internal class AnnotationWriter(
         }
         return finish(d, rect) { cs ->
             if (alpha(m.color) < 1f) cs.setGraphicsStateParameters(PdfOps.gsAlpha(alpha(m.color), false))
-            if (m.fill != null && alpha(m.fill) < 1f) {
+            if (fill != null && alpha(fill) < 1f) {
                 // Półprzezroczyste wypełnienie, nieprzezroczysty obrys.
                 val gs = com.tom_roush.pdfbox.pdmodel.graphics.state.PDExtendedGraphicsState()
-                gs.cosObject.setFloat(COSName.getPDFName("ca"), alpha(m.fill))
+                gs.cosObject.setFloat(COSName.getPDFName("ca"), alpha(fill))
                 cs.setGraphicsStateParameters(gs)
             }
             cs.stroking(m.color)
@@ -197,8 +197,8 @@ internal class AnnotationWriter(
             when (m.kind) {
                 ShapeKind.RECT -> {
                     cs.addRect(l, b, r - l, t - b)
-                    if (m.fill != null) {
-                        cs.filling(m.fill)
+                    if (fill != null) {
+                        cs.filling(fill)
                         cs.fillAndStroke()
                     } else {
                         cs.stroke()
@@ -216,8 +216,8 @@ internal class AnnotationWriter(
                     cs.curveTo(cx - rx, cy - k * ry, cx - k * rx, cy - ry, cx, cy - ry)
                     cs.curveTo(cx + k * rx, cy - ry, cx + rx, cy - k * ry, cx + rx, cy)
                     cs.closePath()
-                    if (m.fill != null) {
-                        cs.filling(m.fill)
+                    if (fill != null) {
+                        cs.filling(fill)
                         cs.fillAndStroke()
                     } else {
                         cs.stroke()
@@ -251,14 +251,14 @@ internal class AnnotationWriter(
         val bs = COSDictionary()
         bs.setFloat(COSName.W, 0f)
         d.setItem(COSName.BS, bs)
-        if (m.background != null) d.setItem(COSName.C, floats(red(m.background), green(m.background), blue(m.background)))
+        if (background != null) d.setItem(COSName.C, floats(red(background), green(background), blue(background)))
         return finish(d, rect) { cs ->
             val l = m.rect.left * dW
             val t = (1f - m.rect.top) * dH
             val w = m.rect.width * dW
             val h = m.rect.height * dH
-            if (m.background != null) {
-                cs.filling(m.background)
+            if (background != null) {
+                cs.filling(background)
                 cs.addRect(l, t - h, w, h)
                 cs.fill()
             }

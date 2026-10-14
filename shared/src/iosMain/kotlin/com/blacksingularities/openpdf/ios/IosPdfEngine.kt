@@ -584,11 +584,11 @@ private class AnnotationBuilder(private val geo: PageGeo) {
         is ImageMark -> image(mark)
     }
 
-    private fun annotation(bounds: RectN, subtype: String): Pair<PDFAnnotation, FloatArray> {
+    private fun annotation(bounds: RectN, subtype: String?): Pair<PDFAnnotation, FloatArray> {
         val r = pdfRect(bounds)
         r[2] = max(r[2], r[0] + 1f)
         r[3] = max(r[3], r[1] + 1f)
-        return PDFAnnotation(bounds = rectOf(r[0], r[1], r[2], r[3]), forType = subtype, withProperties = null) to r
+        return PDFAnnotation(bounds = rectOf(r[0], r[1], r[2], r[3]), forType = subtype!!, withProperties = null) to r
     }
 
     private fun border(width: Float) = PDFBorder().apply { lineWidth = width.toDouble() }
@@ -687,7 +687,7 @@ private class AnnotationBuilder(private val geo: PageGeo) {
 
 /** Pieczątka z obrazem: PDFKit zapisuje jej wygląd z rysowania [drawWithBox]. */
 private class ImageStamp(bounds: CValue<CGRect>, private val image: UIImage, private val rotation: Int) :
-    PDFAnnotation(bounds = bounds, forType = PDFAnnotationSubtypeStamp, withProperties = null) {
+    PDFAnnotation(bounds = bounds, forType = PDFAnnotationSubtypeStamp!!, withProperties = null) {
     override fun drawWithBox(box: PDFDisplayBox, inContext: CGContextRef?) {
         val ctx = inContext ?: return
         val cg = image.CGImage ?: return

@@ -94,7 +94,7 @@ class IosPlatform : Platform {
         DocMeta(name, size)
     }
 
-    override fun copyFromUri(uri: String, out: Path) = withUrl(uri) { url ->
+    override fun copyFromUri(uri: String, out: Path): Unit = withUrl(uri) { url ->
         // Koordynacja odczytu pobiera plik z iCloud, gdy nie ma go jeszcze na urządzeniu.
         var failure: Throwable? = null
         NSFileCoordinator(filePresenter = null).coordinateReadingItemAtURL(url, options = 0u, error = null) { readUrl ->
@@ -112,7 +112,7 @@ class IosPlatform : Platform {
         NSFileManager.defaultManager.isWritableFileAtPath(path)
     }
 
-    override fun writeToUri(file: Path, uri: String) = withUrl(uri) { url ->
+    override fun writeToUri(file: Path, uri: String): Unit = withUrl(uri) { url ->
         var failure: Throwable? = null
         NSFileCoordinator(filePresenter = null).coordinateWritingItemAtURL(url, options = 0u, error = null) { writeUrl ->
             failure = runCatching {
