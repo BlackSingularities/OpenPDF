@@ -146,6 +146,7 @@ fun ViewerScreen(vm: PdfViewModel) {
     val state = remember { ViewerState(scope) }
     val config = screenSizeDp()
     val landscape = config.width > config.height
+    val compactTopBar = !landscape && config.width < 600
     val book = bookActive(vm.settings.effectiveBookMode, config.width.toFloat(), config.height.toFloat(), config.smallest, vm.foldBook)
     // Nowy dokument (lub jego nowa wersja) – nowy stan widoku zachowuje stronę w PdfViewer.
     PlatformBackHandler(enabled = true) {
@@ -179,7 +180,7 @@ fun ViewerScreen(vm: PdfViewModel) {
                         .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
                 },
             ) {
-                if (vm.searchActive && !landscape) SearchBar(vm) else MainBar(vm, book, vertical = landscape)
+                if (vm.searchActive && !landscape) SearchBar(vm) else MainBar(vm, book, vertical = landscape, wrap = compactTopBar)
             }
         }
         if (vm.searchActive && landscape) {
@@ -215,7 +216,7 @@ fun ViewerScreen(vm: PdfViewModel) {
                 Modifier
                     .align(if (landscape) Alignment.BottomCenter else Alignment.TopCenter)
                     .windowInsetsPadding(WindowInsets.safeDrawing)
-                    .padding(top = if (landscape) 0.dp else 68.dp, bottom = 12.dp),
+                    .padding(top = if (landscape) 0.dp else if (compactTopBar) 112.dp else 68.dp, bottom = 12.dp),
             ) {
                 MarkActions(vm, selectedMark)
             }
@@ -231,7 +232,7 @@ fun ViewerScreen(vm: PdfViewModel) {
 // ------------------------------------------------------------------ pasek główny
 
 @Composable
-private fun MainBar(vm: PdfViewModel, book: Boolean, vertical: Boolean) {
+private fun MainBar(vm: PdfViewModel, book: Boolean, vertical: Boolean, wrap: Boolean) {
     val s = vm.settings
     val items: @Composable () -> Unit = {
         RoundIcon(Icons.AutoMirrored.Rounded.ArrowBack, tr("Zamknij dokument"), onClick = { vm.exitToHome() })
@@ -332,13 +333,8 @@ private fun MainBar(vm: PdfViewModel, book: Boolean, vertical: Boolean) {
                 }
             }
         } else {
-            BoxWithConstraints(Modifier.fillMaxWidth()) {
-                DockBar(
-                    vertical = false,
-                    modifier = Modifier
-                        .horizontalScroll(rememberScrollState())
-                        .widthIn(min = maxWidth),
-                ) {
+            Box(Modifier.fillMaxWidth()) {
+                DockBar(vertical = false, wrap = wrap, modifier = Modifier.fillMaxWidth()) {
                     items()
                     settings()
                 }

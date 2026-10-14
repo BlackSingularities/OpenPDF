@@ -19,8 +19,10 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -764,6 +766,7 @@ fun GlassValueButton(
 fun DockBar(
     vertical: Boolean,
     modifier: Modifier = Modifier,
+    wrap: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     CompositionLocalProvider(LocalToolbar provides true) {
@@ -775,6 +778,16 @@ fun DockBar(
                     .padding(horizontal = 2.dp, vertical = 4.dp),
                 verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(0.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
+            ) { content() }
+        } else if (wrap) {
+            FlowRow(
+                modifier
+                    .fillMaxWidth()
+                    .background(Color.Black)
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                maxItemsInEachRow = 6,
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceEvenly,
+                verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(0.dp),
             ) { content() }
         } else {
             Row(
