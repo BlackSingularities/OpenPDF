@@ -1,0 +1,50 @@
+# Projekt Xcode generowany przez XcodeGen (`xcodegen generate` w tym katalogu).
+# Kod aplikacji jest w module Kotlin `shared` – tu tylko powłoka ze Swifta.
+name: OpenPDF
+options:
+  bundleIdPrefix: com.blacksingularities
+  deploymentTarget:
+    iOS: "16.4"
+settings:
+  base:
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    OPENPDF_VERSION: "1.0-dev"
+targets:
+  OpenPDF:
+    type: application
+    platform: iOS
+    sources:
+      - OpenPDF
+    info:
+      path: OpenPDF/Info.plist
+      properties:
+        CFBundleDisplayName: OpenPDF
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        # Pełny numer wersji (np. 1.6.0.123) – do porównania z wydaniami na GitHubie.
+        OpenPDFVersion: $(OPENPDF_VERSION)
+        UILaunchScreen: {}
+        UIApplicationSupportsIndirectInputEvents: true
+        # Compose Multiplatform wymaga pełnej częstotliwości odświeżania (ProMotion).
+        CADisableMinimumFrameDurationOnPhone: true
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight, UIInterfaceOrientationPortraitUpsideDown]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        UIStatusBarStyle: UIStatusBarStyleLightContent
+        LSSupportsOpeningDocumentsInPlace: true
+        UISupportsDocumentBrowser: false
+        NSPhotoLibraryAddUsageDescription: OpenPDF zapisuje wyeksportowane strony w Zdjęciach.
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: PDF
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Alternate
+            LSItemContentTypes: [com.adobe.pdf]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.blacksingularities.openpdf
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_BITCODE: NO
+        # Statyczny framework z Kotlina (gradle :shared:linkReleaseFrameworkIosArm64).
+        FRAMEWORK_SEARCH_PATHS: $(SRCROOT)/../shared/build/bin/iosArm64/releaseFramework
+        OTHER_LDFLAGS: ["-framework", "Shared"]

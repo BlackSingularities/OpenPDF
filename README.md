@@ -1,16 +1,22 @@
 # OpenPDF
 
-**Otwarty, pełnoprawny edytor PDF dla Androida** – czytanie w trybie książki, adnotacje zapisywane w standardzie PDF, podpisy, formularze i pełna praca na stronach.
+**Otwarty, pełnoprawny edytor PDF dla Androida i iOS** – czytanie w trybie książki, adnotacje zapisywane w standardzie PDF, podpisy, formularze i pełna praca na stronach.
 
-[![Build & Release APK](../../actions/workflows/android.yml/badge.svg)](../../actions/workflows/android.yml)
+[![Build & Release](../../actions/workflows/android.yml/badge.svg)](../../actions/workflows/android.yml)
 
 ## Pobieranie
 
-Najnowszy plik APK jest zawsze w **[Releases → Latest](../../releases/latest)**. Każdy merge do `main` buduje i publikuje nową wersję automatycznie, a aplikacja sama proponuje aktualizację.
+Najnowsze pliki są zawsze w **[Releases → Latest](../../releases/latest)**. Każdy merge do `main` buduje i publikuje nową wersję na obie platformy automatycznie, a aplikacja sama proponuje aktualizację.
 
+**Android**
 1. Pobierz `OpenPDF-x.y.z.apk` na telefon.
 2. Otwórz plik i zezwól na instalację z tego źródła.
 3. Wymagany Android 10 (API 29) lub nowszy.
+
+**iPhone i iPad**
+1. Pobierz `OpenPDF-x.y.z.ipa`.
+2. Zainstaluj go przez [AltStore](https://altstore.io) albo [Sideloadly](https://sideloadly.io) – plik nie jest podpisany, narzędzie podpisuje go Twoim Apple ID (przy darmowym koncie podpis trzeba odświeżać co 7 dni).
+3. Wymagany iOS / iPadOS 16.4 lub nowszy.
 
 ## Funkcje
 
@@ -42,26 +48,36 @@ Najnowszy plik APK jest zawsze w **[Releases → Latest](../../releases/latest)*
 ## Architektura
 
 ```
-app/src/main/java/com/blacksingularities/openpdf/
-├── pdf/      # PdfOps (PdfBox), AnnotationWriter, RenderSession (PdfRenderer), PageImages (kafelki), TextIndex, Geometry
-├── ui/       # PdfViewModel, PdfViewer + ViewerState (gesty, rozkładówki), ekrany, panele, okna
-├── data/     # ustawienia, ostatnie pliki, zakładki, podpisy
-└── update/   # aktualizacje z GitHub Releases
+shared/src/commonMain/   # wspólny kod: interfejs (Compose Multiplatform), PdfViewModel, PageImages, TextIndex,
+                         # Geometry, ustawienia, biblioteka; interfejsy Platform i PdfEngine
+shared/src/iosMain/      # iOS: silnik PDF na Apple PDFKit, rysowanie przez CoreGraphics, okna systemu
+shared/src/androidMain/  # drobne funkcje zależne od Androida
+app/                     # aplikacja Android: PdfOps (PdfBox), AnnotationWriter, RenderSession (PdfRenderer),
+                         # dostęp do plików, wybór plików, druk, aktualizacje
+iosApp/                  # powłoka aplikacji iOS (SwiftUI + XcodeGen)
 ```
 
-- **Kotlin · Jetpack Compose · Material 3 · PdfBox-Android · systemowy PdfRenderer**
-- Strony renderuje systemowy pdfium. Ponieważ nie rysuje on adnotacji, aplikacja tworzy kopię do wyświetlania z wtopionymi adnotacjami i wypieczonym obrotem stron – plik użytkownika zostaje nienaruszony.
+- **Kotlin Multiplatform · Compose Multiplatform · Material 3**
+- Android: **PdfBox-Android · systemowy PdfRenderer**. Ponieważ pdfium nie rysuje adnotacji, aplikacja tworzy kopię do wyświetlania z wtopionymi adnotacjami i wypieczonym obrotem stron – plik użytkownika zostaje nienaruszony.
+- iOS: **Apple PDFKit** (odczyt, zmiany, adnotacje) i **CoreGraphics** (rysowanie stron).
 
 ## Budowanie lokalnie
 
-Wymagany JDK 17 i Android SDK (API 36):
+Android – wymagany JDK 17 i Android SDK (API 36):
 
 ```bash
-gradle assembleDebug
+gradle :app:assembleDebug
+```
+
+iOS – wymagany macOS z Xcode i [XcodeGen](https://github.com/yonaskolb/XcodeGen):
+
+```bash
+gradle :shared:linkReleaseFrameworkIosArm64
+cd iosApp && xcodegen generate && open OpenPDF.xcodeproj
 ```
 
 Wydania podpisuje CI kluczem z sekretów repozytorium (`SIGNING_KEYSTORE_BASE64`, `SIGNING_STORE_PASSWORD`, `SIGNING_KEY_PASSWORD`, `SIGNING_KEY_ALIAS`).
 
 ## Licencja
 
-MIT. Wykorzystuje [PdfBox-Android](https://github.com/TomRoush/PdfBox-Android) (Apache 2.0).
+MIT. Wersja na Androida wykorzystuje [PdfBox-Android](https://github.com/TomRoush/PdfBox-Android) (Apache 2.0).

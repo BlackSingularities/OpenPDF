@@ -14,29 +14,9 @@ import com.blacksingularities.openpdf.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
-
-data class ReleaseInfo(
-    val version: String,
-    val notes: String,
-    val apkUrl: String,
-    val sizeBytes: Long,
-    val pageUrl: String,
-)
-
-sealed interface UpdateState {
-    data object Idle : UpdateState
-    data object Checking : UpdateState
-    data object UpToDate : UpdateState
-    data class Available(val info: ReleaseInfo) : UpdateState
-    data class Downloading(val info: ReleaseInfo, val progress: Float) : UpdateState
-    data class Ready(val info: ReleaseInfo, val file: File) : UpdateState
-    data class Installing(val info: ReleaseInfo) : UpdateState
-    data class Failed(val message: String) : UpdateState
-}
 
 /**
  * Aktualizacje z GitHub Releases: sprawdzenie najnowszego wydania, pobranie APK i instalacja
@@ -44,7 +24,6 @@ sealed interface UpdateState {
  * system może zaktualizować ją bez dodatkowego potwierdzenia.
  */
 object UpdateManager {
-    private const val API = "https://api.github.com/repos/" + BuildConfig.UPDATE_REPO + "/releases/latest"
     const val ACTION_STATUS = "com.blacksingularities.openpdf.UPDATE_STATUS"
     const val RESTART_KEY = "update.restart"
     private const val CHANNEL = "updates"
@@ -97,8 +76,9 @@ object UpdateManager {
 
     val currentVersion: String get() = BuildConfig.VERSION_NAME
 
-    suspend fun fetchLatest(): ReleaseInfo = withContext(Dispatchers.IO) {
-        val conn = (URL(API).openConnection() as HttpURLConnection).apply {
+    /** Zapytanie GET (GitHub API) – tekst odpowiedzi. */
+    fun httpGet(url: String): String {
+        val conn = (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 10_000
             readTimeout = 15_000
             setRequestProperty("Accept", "application/vnd.github+json")
@@ -106,42 +86,10 @@ object UpdateManager {
         }
         try {
             if (conn.responseCode != 200) error(tr("Serwer odpowiedział kodem {0}", conn.responseCode))
-            val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
-            val assets = json.getJSONArray("assets")
-            var url = ""
-            var size = 0L
-            for (i in 0 until assets.length()) {
-                val a = assets.getJSONObject(i)
-                if (a.getString("name").endsWith(".apk")) {
-                    url = a.getString("browser_download_url")
-                    size = a.optLong("size")
-                    break
-                }
-            }
-            if (url.isEmpty()) error(tr("Wydanie nie zawiera pliku APK"))
-            ReleaseInfo(
-                version = json.getString("tag_name").removePrefix("v"),
-                notes = json.optString("body").substringBefore("\n---").trim(),
-                apkUrl = url,
-                sizeBytes = size,
-                pageUrl = json.optString("html_url"),
-            )
+            return conn.inputStream.bufferedReader().use { it.readText() }
         } finally {
             conn.disconnect()
         }
-    }
-
-    /** Porównanie numeryczne wersji „1.1.12” > „1.1.9”; przyrostki typu „-dev” są pomijane. */
-    fun isNewer(remote: String, local: String = currentVersion): Boolean {
-        fun parts(v: String) = v.split('.', '-').mapNotNull { it.toIntOrNull() }
-        val r = parts(remote)
-        val l = parts(local)
-        for (i in 0 until maxOf(r.size, l.size)) {
-            val a = r.getOrElse(i) { 0 }
-            val b = l.getOrElse(i) { 0 }
-            if (a != b) return a > b
-        }
-        return false
     }
 
     suspend fun download(context: Context, info: ReleaseInfo, onProgress: (Float) -> Unit): File = withContext(Dispatchers.IO) {
@@ -149,7 +97,7 @@ object UpdateManager {
         dir.listFiles()?.forEach { it.delete() }
         val target = File(dir, "OpenPDF-${info.version}.apk")
         val part = File(dir, target.name + ".part")
-        val conn = (URL(info.apkUrl).openConnection() as HttpURLConnection).apply {
+        val conn = (URL(info.assetUrl).openConnection() as HttpURLConnection).apply {
             connectTimeout = 15_000
             readTimeout = 30_000
             instanceFollowRedirects = true

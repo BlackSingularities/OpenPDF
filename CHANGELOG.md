@@ -1,5 +1,9 @@
 # Zmiany
 
+## 1.6.0
+- Wersja na iPhone'a i iPada: ten sam interfejs i funkcje (Compose Multiplatform), silnik PDF na Apple PDFKit. Każde wydanie zawiera teraz `OpenPDF-x.y.z.apk` (Android) i `OpenPDF-x.y.z.ipa` (iOS 16.4+, instalacja przez AltStore lub Sideloadly).
+- Na iOS aktualizacja otwiera stronę wydania z nowym plikiem IPA.
+
 ## 1.5.0
 - Menu z dwiema zakładkami: Dokument i Ustawienia; ustawienia na jednej liście (Książka, Wyświetlanie, Edycja, Ogólne).
 - Na tablecie dotknięcie obok menu je zamyka.

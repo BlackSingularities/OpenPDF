@@ -342,9 +342,4 @@ internal class AnnotationWriter(
             bmp.recycle()
         }
     }
-
-    companion object {
-        const val TEXT_LEADING = 1.22f
-        const val TEXT_PAD = 2f
-    }
 }
