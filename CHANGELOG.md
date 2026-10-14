@@ -1,5 +1,9 @@
 # Zmiany
 
+## 1.6.0
+- Przycinanie marginesów w dwóch trybach: pojedyncze strony (jak dotąd) i rozkładówka książki jako całość – lewy margines przycina lewą stronę, prawy prawą, a miejsce styku przy grzbiecie zostaje nietknięte. Przełącznik „Rozkładówka jako całość” pozwala wrócić do przycinania każdej strony osobno.
+- Dokładniejsze ustawianie marginesów: przyciski −/+ co 0,5%, wartości z dokładnością do 0,1%, nowy szybki wybór 2%.
+
 ## 1.5.0
 - Menu z dwiema zakładkami: Dokument i Ustawienia; ustawienia na jednej liście (Książka, Wyświetlanie, Edycja, Ogólne).
 - Na tablecie dotknięcie obok menu je zamyka.

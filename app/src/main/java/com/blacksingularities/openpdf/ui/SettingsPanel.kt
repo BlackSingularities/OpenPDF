@@ -162,7 +162,7 @@ private fun ColumnScope.SettingsContent(vm: PdfViewModel) {
                 short = { if (it == ScrollMode.VERTICAL) tr("Ciągłe") else tr("Strony") },
             ) { v -> set { it.copy(scroll = v, autoLayout = false) } }
         }
-        CropControl(s) { l, t, r, b -> set { it.copy(cropLeft = l, cropTop = t, cropRight = r, cropBottom = b) } }
+        CropControl(s, vm.bookView, set = { t -> set(t) })
     SectionHeader(Icons.Rounded.Edit, tr("Edycja"))
         Group(null) {
             Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
@@ -266,48 +266,116 @@ private fun TileGrid(tiles: List<Tile>) {
     }
 }
 
-/** Przycinanie marginesów stron – osobno z każdej strony, z podglądem widocznej części. */
+/**
+ * Przycinanie marginesów: osobno dla pojedynczych stron i dla rozkładówki. Rozkładówka może być
+ * przycinana jako całość – lewy margines z lewej strony, prawy z prawej, bez ruszania grzbietu.
+ */
 @Composable
-private fun CropControl(s: com.blacksingularities.openpdf.data.AppSettings, onChange: (Float, Float, Float, Float) -> Unit) {
-    var l by remember(s.cropLeft) { mutableStateOf(s.cropLeft) }
-    var t by remember(s.cropTop) { mutableStateOf(s.cropTop) }
-    var r by remember(s.cropRight) { mutableStateOf(s.cropRight) }
-    var b by remember(s.cropBottom) { mutableStateOf(s.cropBottom) }
-    fun commit() = onChange(l, t, r, b)
+private fun CropControl(
+    s: com.blacksingularities.openpdf.data.AppSettings,
+    bookView: Boolean,
+    set: ((com.blacksingularities.openpdf.data.AppSettings) -> com.blacksingularities.openpdf.data.AppSettings) -> Unit,
+) {
+    var spreadTab by remember(bookView) { mutableStateOf(bookView) }
     Group(tr("Przycinanie marginesów")) {
-        Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            // Podgląd: szara strona, biały – to, co zostaje na ekranie.
-            Box(Modifier.size(width = 44.dp, height = 60.dp).clip(RoundedCornerShape(4.dp)).background(Color.White.copy(alpha = 0.18f))) {
-                androidx.compose.foundation.Canvas(Modifier.matchParentSize()) {
-                    drawRect(
-                        Color.White,
-                        androidx.compose.ui.geometry.Offset(size.width * l, size.height * t),
-                        androidx.compose.ui.geometry.Size(size.width * (1f - l - r), size.height * (1f - t - b)),
-                    )
-                }
-            }
-            Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                CropSlider(tr("Lewy"), l, { l = it }, ::commit)
-                CropSlider(tr("Górny"), t, { t = it }, ::commit)
-                CropSlider(tr("Prawy"), r, { r = it }, ::commit)
-                CropSlider(tr("Dolny"), b, { b = it }, ::commit)
+        Row(Modifier.padding(horizontal = 10.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            TabChip(Icons.Rounded.Description, tr("Strony"), !spreadTab) { spreadTab = false }
+            TabChip(Icons.AutoMirrored.Rounded.MenuBook, tr("Rozkładówka"), spreadTab) { spreadTab = true }
+        }
+        if (!spreadTab) {
+            CropEditor(
+                floatArrayOf(s.cropLeft, s.cropTop, s.cropRight, s.cropBottom),
+                spread = false,
+                labels = listOf(tr("Lewy"), tr("Górny"), tr("Prawy"), tr("Dolny")),
+            ) { (l, t, r, b) -> set { it.copy(cropLeft = l, cropTop = t, cropRight = r, cropBottom = b) } }
+        } else {
+            SwitchRow(
+                Icons.AutoMirrored.Rounded.MenuBook,
+                tr("Rozkładówka jako całość"),
+                if (s.cropSpread) tr("Lewy margines z lewej strony, prawy z prawej – grzbiet bez zmian")
+                else tr("Każda strona rozkładówki przycinana jak pojedyncza strona"),
+                s.cropSpread,
+            ) { v -> set { it.copy(cropSpread = v) } }
+            if (s.cropSpread) {
+                CropEditor(
+                    floatArrayOf(s.spreadCropLeft, s.spreadCropTop, s.spreadCropRight, s.spreadCropBottom),
+                    spread = true,
+                    labels = listOf(tr("Lewy"), tr("Górny"), tr("Prawy"), tr("Dolny")),
+                ) { (l, t, r, b) -> set { it.copy(spreadCropLeft = l, spreadCropTop = t, spreadCropRight = r, spreadCropBottom = b) } }
             }
         }
-        Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End)) {
-            listOf(tr("Brak") to 0f, "4%" to 0.04f, "8%" to 0.08f).forEach { (label, v) ->
-                Text(
-                    label,
-                    color = Color.White,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(50))
-                        .background(Color.White.copy(alpha = 0.08f))
-                        .clickable {
-                            l = v; t = v; r = v; b = v
-                            commit()
-                        }
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
+    }
+}
+
+/** Krok przycisków −/+ (0,5%) – do dokładnego dostrojenia po przybliżeniu suwakiem. */
+private const val CROP_STEP = 0.005f
+
+/** Suwaki czterech marginesów z podglądem; [spread] – podgląd dwóch stron z grzbietem. */
+@Composable
+private fun CropEditor(values: FloatArray, spread: Boolean, labels: List<String>, onChange: (FloatArray) -> Unit) {
+    val key = values.toList()
+    val v = remember(key) { androidx.compose.runtime.mutableStateListOf(*values.toTypedArray()) }
+    fun commit() = onChange(v.toFloatArray())
+    Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        CropPreview(v[0], v[1], v[2], v[3], spread)
+        Column(Modifier.weight(1f).padding(start = 8.dp)) {
+            for (i in 0 until 4) {
+                CropSlider(labels[i], v[i], { v[i] = it }, ::commit)
+            }
+        }
+    }
+    Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End)) {
+        listOf(tr("Brak") to 0f, "2%" to 0.02f, "4%" to 0.04f, "8%" to 0.08f).forEach { (label, p) ->
+            Text(
+                label,
+                color = Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(Color.White.copy(alpha = 0.08f))
+                    .clickable {
+                        for (i in 0 until 4) v[i] = p
+                        commit()
+                    }
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+            )
+        }
+    }
+}
+
+/** Podgląd: szara strona (albo rozkładówka), biały – to, co zostaje na ekranie. */
+@Composable
+private fun CropPreview(l: Float, t: Float, r: Float, b: Float, spread: Boolean) {
+    val w = if (spread) 76.dp else 44.dp
+    Box(Modifier.size(width = w, height = 60.dp).clip(RoundedCornerShape(4.dp)).background(Color.White.copy(alpha = 0.18f))) {
+        androidx.compose.foundation.Canvas(Modifier.matchParentSize()) {
+            val top = size.height * t
+            val h = size.height * (1f - t - b)
+            if (!spread) {
+                drawRect(
+                    Color.White,
+                    androidx.compose.ui.geometry.Offset(size.width * l, top),
+                    androidx.compose.ui.geometry.Size(size.width * (1f - l - r), h),
+                )
+            } else {
+                // Każda strona to połowa podglądu; przycinane są tylko krawędzie zewnętrzne.
+                val half = size.width / 2f
+                drawRect(
+                    Color.White,
+                    androidx.compose.ui.geometry.Offset(half * l, top),
+                    androidx.compose.ui.geometry.Size(half * (1f - l), h),
+                )
+                drawRect(
+                    Color.White,
+                    androidx.compose.ui.geometry.Offset(half, top),
+                    androidx.compose.ui.geometry.Size(half * (1f - r), h),
+                )
+                drawLine(
+                    Color.Black.copy(alpha = 0.35f),
+                    androidx.compose.ui.geometry.Offset(half, top),
+                    androidx.compose.ui.geometry.Offset(half, top + h),
+                    1.5f,
                 )
             }
         }
@@ -316,17 +384,45 @@ private fun CropControl(s: com.blacksingularities.openpdf.data.AppSettings, onCh
 
 @Composable
 private fun CropSlider(label: String, value: Float, onValue: (Float) -> Unit, onDone: () -> Unit) {
+    val max = com.blacksingularities.openpdf.data.MAX_CROP
+    fun nudge(d: Float) {
+        // Zaokrąglenie do kroku, żeby wartości z suwaka „wskakiwały” na równe dziesiąte procenta.
+        onValue((Math.round((value + d) / CROP_STEP) * CROP_STEP).coerceIn(0f, max))
+        onDone()
+    }
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, fontSize = 11.sp, color = Palette.TextDim, modifier = Modifier.width(48.dp))
+        Text(label, fontSize = 11.sp, color = Palette.TextDim, modifier = Modifier.width(40.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        CropNudge("−") { nudge(-CROP_STEP) }
         androidx.compose.material3.Slider(
             value = value,
-            onValueChange = onValue,
+            onValueChange = { onValue((Math.round(it * 1000f) / 1000f).coerceIn(0f, max)) },
             onValueChangeFinished = onDone,
-            valueRange = 0f..0.3f,
+            valueRange = 0f..max,
             modifier = Modifier.weight(1f).height(28.dp),
             colors = androidx.compose.material3.SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = Color.White, inactiveTrackColor = Color.White.copy(alpha = 0.15f)),
         )
-        Text("${(value * 100).roundToInt()}%", fontSize = 11.sp, color = Color.White, modifier = Modifier.width(34.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+        CropNudge("+") { nudge(CROP_STEP) }
+        Text(
+            String.format(java.util.Locale.ROOT, "%.1f%%", value * 100f),
+            fontSize = 11.sp,
+            color = Color.White,
+            modifier = Modifier.width(40.dp),
+            textAlign = androidx.compose.ui.text.style.TextAlign.End,
+        )
+    }
+}
+
+@Composable
+private fun CropNudge(sign: String, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .size(26.dp)
+            .clip(RoundedCornerShape(50))
+            .background(Color.White.copy(alpha = 0.08f))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(sign, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
     }
 }
 

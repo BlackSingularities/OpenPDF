@@ -47,11 +47,14 @@ class ViewerState(private val scope: CoroutineScope) {
 
     private var anim: Job? = null
 
-    /** Przycięcie marginesów stron: lewy, górny, prawy, dolny (ułamki). */
-    var crop: FloatArray = floatArrayOf(0f, 0f, 0f, 0f)
+    /** Przycięcie marginesów każdej strony: lewy, górny, prawy, dolny (ułamki). */
+    var crops: List<FloatArray> = emptyList()
 
-    /** Prostokąt całej strony, gdy w [visible] mieści się tylko jej przycięty fragment. */
-    fun full(visible: LRect): LRect {
+    fun cropOf(page: Int): FloatArray = crops.getOrNull(page) ?: NO_CROP
+
+    /** Prostokąt całej strony [page], gdy w [visible] mieści się tylko jej przycięty fragment. */
+    fun full(page: Int, visible: LRect): LRect {
+        val crop = cropOf(page)
         val w = visible.width / (1f - crop[0] - crop[2])
         val h = visible.height / (1f - crop[1] - crop[3])
         val left = visible.left - crop[0] * w
@@ -59,8 +62,10 @@ class ViewerState(private val scope: CoroutineScope) {
         return LRect(left, top, left + w, top + h)
     }
 
+    fun full(slot: Slot): LRect = full(slot.page, slot.rect)
+
     /** Cała strona na ekranie (z przyciętymi marginesami poza widocznym miejscem). */
-    fun pageScreen(slot: Slot): Rect = toScreen(full(slot.rect))
+    fun pageScreen(slot: Slot): Rect = toScreen(full(slot))
 
     val paged: Boolean get() = layout?.spec?.scroll == ScrollMode.PAGED
     val minScale: Float get() = if (paged) 1f else 0.35f
@@ -113,7 +118,7 @@ class ViewerState(private val scope: CoroutineScope) {
         for (row in visibleRows()) for (slot in row.slots) {
             val r = slot.rect
             if (c.x >= r.left - s && c.x <= r.right + s && c.y >= r.top - s && c.y <= r.bottom + s) {
-                val f = full(r)
+                val f = full(slot)
                 return slot to PointN((c.x - f.left) / f.width, (c.y - f.top) / f.height)
             }
         }
@@ -123,7 +128,7 @@ class ViewerState(private val scope: CoroutineScope) {
     /** Punkt ekranu względem konkretnej strony (bez ograniczania do strony). */
     fun pointIn(slot: Slot, pos: Offset): PointN {
         val c = toContent(pos)
-        val f = full(slot.rect)
+        val f = full(slot)
         return PointN((c.x - f.left) / f.width, (c.y - f.top) / f.height)
     }
 
@@ -255,7 +260,7 @@ class ViewerState(private val scope: CoroutineScope) {
             val s = if (sameRow) scale else 1f
             var o = Offset(-row.index * viewport.width * s, offset.y)
             if (region != null && s > 1.01f) {
-                val pf = full(slot.rect)
+                val pf = full(slot)
                 val cx = pf.left + region.centerX * pf.width
                 val cy = pf.top + region.centerY * pf.height
                 o = Offset(viewport.width / 2f - cx * s, viewport.height / 2f - cy * s)
@@ -268,7 +273,7 @@ class ViewerState(private val scope: CoroutineScope) {
             return
         }
         val target = if (region != null) {
-            val pf = full(slot.rect)
+            val pf = full(slot)
             val cx = pf.left + region.centerX * pf.width
             val cy = pf.top + region.centerY * pf.height
             Offset(viewport.width / 2f - cx * scale, viewport.height / 2f - cy * scale)
@@ -411,3 +416,5 @@ class ViewerState(private val scope: CoroutineScope) {
         offset = clamped(scale, Offset(offset.x, -(ch - viewport.height) * f.coerceIn(0f, 1f)))
     }
 }
+
+private val NO_CROP = floatArrayOf(0f, 0f, 0f, 0f)
