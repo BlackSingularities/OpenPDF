@@ -210,10 +210,10 @@ private fun ColumnScope.SettingsContent(vm: PdfViewModel) {
         TileGrid(
             listOfNotNull(
                 Tile(Icons.Rounded.SystemUpdate, tr("Aktualizacje"), tr("Sprawdzaj przy uruchomieniu"), s.autoUpdate) { v -> set { it.copy(autoUpdate = v) } },
-                Tile(Icons.Rounded.Vibration, tr("Wibracje"), tr("Wibracje"), s.haptics) { v -> set { it.copy(haptics = v) } },
+                Tile(Icons.Rounded.Vibration, tr("Wibracja przycisków"), tr("Lekka wibracja przy dotknięciu i przytrzymaniu przycisków"), s.haptics) { v -> set { it.copy(haptics = v) } },
                 Tile(Icons.Rounded.LightMode, tr("Ekran włączony"), tr("Nie wygaszaj ekranu"), s.keepScreenOn) { v -> set { it.copy(keepScreenOn = v) } },
                 if (vm.platform.hasVolumeKeys) {
-                    Tile(Icons.Rounded.VolumeUp, tr("Głośność"), tr("Klawisze głośności przewracają strony"), s.volumeKeys) { v -> set { it.copy(volumeKeys = v) } }
+                    Tile(Icons.Rounded.VolumeUp, tr("Strony głośnością"), tr("Klawisze głośności przewracają strony"), s.volumeKeys) { v -> set { it.copy(volumeKeys = v) } }
                 } else {
                     null
                 },

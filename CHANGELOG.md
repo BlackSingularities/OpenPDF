@@ -5,6 +5,7 @@
 - Nowy suwak „Wszystkie” przesuwa wszystkie cztery marginesy naraz, zachowując różnice między nimi.
 - W trakcie przeciągania suwaka panel ustawień znika, a strony od razu pokazują przycięcie – nad nimi tylko dymek z wartością.
 - Usunięty zbędny przełącznik „Rozkładówka jako całość” – zakładka „Rozkładówka” zawsze przycina rozkładówkę jako całość.
+- Czytelniejsze nazwy w ustawieniach: „Wibracja przycisków” (zamiast „Wibracje”) i „Strony głośnością” (zamiast „Głośność”).
 
 ## 1.6.0
 - Wersja na iPhone'a i iPada: ten sam interfejs i funkcje (Compose Multiplatform), silnik PDF na Apple PDFKit. Każde wydanie zawiera teraz `OpenPDF-x.y.z.apk` (Android) i `OpenPDF-x.y.z.ipa` (iOS 16.4+, instalacja przez AltStore lub Sideloadly).
