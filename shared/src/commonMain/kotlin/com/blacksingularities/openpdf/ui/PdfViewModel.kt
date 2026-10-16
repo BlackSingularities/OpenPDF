@@ -96,6 +96,14 @@ class PdfViewModel(val platform: Platform) : ViewModel() {
         applyLanguage()
     }
 
+    /** Zmiana ustawień tylko na ekranie, bez zapisu – np. w trakcie przeciągania suwaka. */
+    fun previewSettings(t: (AppSettings) -> AppSettings) {
+        settings = t(settings)
+    }
+
+    /** Trwające przeciąganie suwaka przycinania: nazwa marginesu i wartość; panel jest wtedy ukryty. */
+    var cropDrag by mutableStateOf<Pair<String, Float>?>(null)
+
     /** Język interfejsu: z ustawień albo systemowy (polski → polski, inne → angielski). */
     fun applyLanguage() {
         com.blacksingularities.openpdf.i18n.I18n.apply(settings.language, platform.systemLanguage())

@@ -47,6 +47,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
@@ -116,9 +117,11 @@ fun Panel(
     modifier: Modifier = Modifier,
     actions: @Composable () -> Unit = {},
     scrollable: Boolean = true,
+    hidden: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    BoxWithConstraints(Modifier.fillMaxSize()) {
+    // [hidden] – panel niewidoczny, ale dalej obsługuje trwający gest (np. przeciąganie suwaka).
+    BoxWithConstraints(Modifier.fillMaxSize().then(if (hidden) Modifier.alpha(0f) else Modifier)) {
         val wide = maxWidth >= 720.dp
         // Na tablecie panel jest boczną kolumną bez przyciemnienia; dotknięcie obok go zamyka.
         Box(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { onClose() } })
