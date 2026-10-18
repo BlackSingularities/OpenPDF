@@ -11,6 +11,7 @@ import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
 import com.blacksingularities.openpdf.BuildConfig
+import com.blacksingularities.openpdf.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -61,7 +62,7 @@ object UpdateManager {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val notification = android.app.Notification.Builder(context, CHANNEL)
-            .setSmallIcon(android.R.drawable.stat_sys_download_done)
+            .setSmallIcon(R.drawable.ic_launcher_monochrome)
             .setContentTitle(tr("OpenPDF zaktualizowany do {0}", BuildConfig.VERSION_NAME))
             .setContentText(tr("Dotknij, aby otworzyć aplikację"))
             .setContentIntent(pending)

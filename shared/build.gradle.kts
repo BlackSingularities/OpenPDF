@@ -36,6 +36,7 @@ kotlin {
             implementation("org.jetbrains.compose.animation:animation:$composeVersion")
             implementation("org.jetbrains.compose.material3:material3:1.9.0")
             implementation("org.jetbrains.compose.material:material-icons-extended:1.7.3")
+            implementation("org.jetbrains.compose.components:components-resources:$composeVersion")
             api("org.jetbrains.androidx.lifecycle:lifecycle-viewmodel:2.9.6")
             api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
             api("com.squareup.okio:okio:3.16.4")
@@ -51,6 +52,10 @@ kotlin {
             }
         }
     }
+}
+
+compose.resources {
+    packageOfResClass = "com.blacksingularities.openpdf.resources"
 }
 
 android {
