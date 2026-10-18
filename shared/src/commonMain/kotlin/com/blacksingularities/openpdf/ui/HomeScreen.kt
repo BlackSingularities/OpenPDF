@@ -51,6 +51,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.blacksingularities.openpdf.resources.Res
+import com.blacksingularities.openpdf.resources.openpdf_brand
 import com.blacksingularities.openpdf.data.RecentDoc
 import com.blacksingularities.openpdf.ui.components.DarkDialog
 import com.blacksingularities.openpdf.ui.components.PillButton
@@ -62,6 +64,7 @@ import com.blacksingularities.openpdf.ui.theme.reactive
 import com.blacksingularities.openpdf.platform.LocalPlatformUi
 import com.blacksingularities.openpdf.platform.decodeImageFile
 import com.blacksingularities.openpdf.platform.formatDate
+import org.jetbrains.compose.resources.painterResource
 
 @Composable
 fun HomeScreen(vm: PdfViewModel) {
@@ -79,6 +82,12 @@ fun HomeScreen(vm: PdfViewModel) {
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    Image(
+                        painter = painterResource(Res.drawable.openpdf_brand),
+                        contentDescription = null,
+                        modifier = Modifier.size(58.dp).clip(RoundedCornerShape(16.dp)),
+                    )
+                    Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text("OpenPDF", fontSize = 30.sp, fontWeight = FontWeight.Black, color = Color.White)
                         Text(tr("Czytaj, adnotuj, podpisuj i układaj PDF-y"), fontSize = 13.sp, color = Palette.TextDim)

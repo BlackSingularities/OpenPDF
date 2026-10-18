@@ -24,7 +24,9 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         # Pełny numer wersji (np. 1.6.0.123) – do porównania z wydaniami na GitHubie.
         OpenPDFVersion: $(OPENPDF_VERSION)
-        UILaunchScreen: {}
+        UILaunchScreen:
+          UIImageName: LaunchLogo
+          UIColorName: LaunchBackground
         UIApplicationSupportsIndirectInputEvents: true
         # Compose Multiplatform wymaga pełnej częstotliwości odświeżania (ProMotion).
         CADisableMinimumFrameDurationOnPhone: true
