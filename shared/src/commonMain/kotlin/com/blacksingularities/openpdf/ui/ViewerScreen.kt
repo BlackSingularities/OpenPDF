@@ -44,10 +44,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.automirrored.rounded.Redo
 import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.AddPhotoAlternate
+import androidx.compose.material.icons.rounded.Article
+import androidx.compose.material.icons.rounded.AutoMode
+import androidx.compose.material.icons.rounded.ImportContacts
+import androidx.compose.material.icons.rounded.ViewDay
 import androidx.compose.material.icons.rounded.AutoStories
 import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.BookmarkBorder
@@ -59,7 +62,6 @@ import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.CropSquare
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Draw
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.EditNote
@@ -78,10 +80,8 @@ import androidx.compose.material.icons.rounded.Save
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.SwapVert
 import androidx.compose.material.icons.rounded.TextFields
 import androidx.compose.material.icons.rounded.Toc
-import androidx.compose.material.icons.rounded.ViewCarousel
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -112,9 +112,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.blacksingularities.openpdf.data.BookMode
-import com.blacksingularities.openpdf.data.effectiveBookMode
-import com.blacksingularities.openpdf.data.effectiveScroll
+import com.blacksingularities.openpdf.data.ViewMode
+import com.blacksingularities.openpdf.data.resolvedView
 import com.blacksingularities.openpdf.pdf.MarkupKind
 import com.blacksingularities.openpdf.pdf.ShapeKind
 import com.blacksingularities.openpdf.ui.components.ColorDot
@@ -133,13 +132,29 @@ import com.blacksingularities.openpdf.ui.theme.glass
 import com.blacksingularities.openpdf.ui.theme.reactive
 import kotlin.math.roundToInt
 
-/** Czy pokazywać rozkładówki: ustawienie, a w trybie automatycznym – poziomy ekran lub rozłożony fold. */
-fun bookActive(mode: BookMode, widthDp: Float, heightDp: Float, smallestDp: Int, foldBook: Boolean): Boolean = when (mode) {
-    BookMode.ALWAYS -> true
-    BookMode.NEVER -> false
-    // Poziomy ekran, tablet (najkrótszy bok ≥ 600 dp) albo rozłożony fold.
-    BookMode.AUTO -> foldBook || smallestDp >= 600 || (widthDp > heightDp * 1.15f && widthDp >= 560f)
-}
+/** Tryb automatyczny pokazuje książkę: poziomy ekran, tablet (najkrótszy bok ≥ 600 dp) albo rozłożony fold. */
+fun autoBook(widthDp: Float, heightDp: Float, smallestDp: Int, foldBook: Boolean): Boolean =
+    foldBook || smallestDp >= 600 || (widthDp > heightDp * 1.15f && widthDp >= 560f)
+
+/** Ikona trybu wyświetlania. */
+val ViewMode.icon: ImageVector
+    get() = when (this) {
+        ViewMode.AUTO -> Icons.Rounded.AutoMode
+        ViewMode.CONTINUOUS -> Icons.Rounded.ViewDay
+        ViewMode.PAGES -> Icons.Rounded.Article
+        ViewMode.TWO_PAGES -> Icons.Rounded.ImportContacts
+        ViewMode.BOOK -> Icons.Rounded.AutoStories
+    }
+
+/** Krótki podpis trybu pod ikoną na liście. */
+val ViewMode.caption: String
+    get() = when (this) {
+        ViewMode.AUTO -> "Auto"
+        ViewMode.CONTINUOUS -> tr("Ciągły")
+        ViewMode.PAGES -> tr("Strony")
+        ViewMode.TWO_PAGES -> tr("2 strony")
+        ViewMode.BOOK -> tr("Książka")
+    }
 
 @Composable
 fun ViewerScreen(vm: PdfViewModel) {
@@ -148,7 +163,7 @@ fun ViewerScreen(vm: PdfViewModel) {
     val config = screenSizeDp()
     val landscape = config.width > config.height
     val compactTopBar = !landscape && config.width < 600
-    val book = bookActive(vm.settings.effectiveBookMode, config.width.toFloat(), config.height.toFloat(), config.smallest, vm.foldBook)
+    val mode = vm.settings.resolvedView(autoBook(config.width.toFloat(), config.height.toFloat(), config.smallest, vm.foldBook))
     // Nowy dokument (lub jego nowa wersja) – nowy stan widoku zachowuje stronę w PdfViewer.
     PlatformBackHandler(enabled = true) {
         when {
@@ -160,8 +175,8 @@ fun ViewerScreen(vm: PdfViewModel) {
     }
     val density = androidx.compose.ui.platform.LocalDensity.current
     Box(Modifier.fillMaxSize().background(Palette.Desk)) {
-        SideEffect { vm.bookView = book }
-        PdfViewer(vm, state, book)
+        SideEffect { vm.bookView = mode.twoUp }
+        PdfViewer(vm, state, mode)
         val showChrome = vm.chrome || vm.editing || vm.searchActive
         // Pasek główny: u góry (pionowo – z lewej, jak w OpenShot).
         AnimatedVisibility(
@@ -182,7 +197,7 @@ fun ViewerScreen(vm: PdfViewModel) {
                         .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
                 },
             ) {
-                if (vm.searchActive && !landscape) SearchBar(vm) else MainBar(vm, book, vertical = landscape, wrap = compactTopBar)
+                if (vm.searchActive && !landscape) SearchBar(vm) else MainBar(vm, mode, vertical = landscape, wrap = compactTopBar)
             }
         }
         if (vm.searchActive && landscape) {
@@ -234,34 +249,30 @@ fun ViewerScreen(vm: PdfViewModel) {
 // ------------------------------------------------------------------ pasek główny
 
 @Composable
-private fun MainBar(vm: PdfViewModel, book: Boolean, vertical: Boolean, wrap: Boolean) {
+private fun MainBar(vm: PdfViewModel, mode: ViewMode, vertical: Boolean, wrap: Boolean) {
     val s = vm.settings
     val items: @Composable () -> Unit = {
         RoundIcon(Icons.AutoMirrored.Rounded.ArrowBack, tr("Zamknij dokument"), onClick = { vm.exitToHome() })
         RoundIcon(Icons.Rounded.GridView, tr("Strony: układanie, obracanie, usuwanie"), onClick = { vm.screen = Screen.PAGES })
-        val modes = listOf(BookMode.NEVER, BookMode.ALWAYS, BookMode.AUTO)
+        // Tryb wyświetlania: ciągły, strony, dwie strony, książka albo automatycznie.
+        val modes = listOf(ViewMode.CONTINUOUS, ViewMode.PAGES, ViewMode.TWO_PAGES, ViewMode.BOOK, ViewMode.AUTO)
+        val auto = s.viewMode == ViewMode.AUTO
         RoundIcon(
-            if (book) Icons.AutoMirrored.Rounded.MenuBook else Icons.Rounded.Description,
-            when (s.effectiveBookMode) {
-                BookMode.AUTO -> if (book) tr("Tryb książki (automatycznie)") else tr("Pojedyncze strony (automatycznie)")
-                BookMode.ALWAYS -> tr("Tryb książki: dwie strony obok siebie")
-                BookMode.NEVER -> tr("Pojedyncze strony")
+            mode.icon,
+            if (auto) tr("Widok: {0} (automatycznie)", mode.label) else tr("Widok: {0}", mode.label),
+            active = mode.twoUp,
+            badge = if (auto) "A" else null,
+            options = modes.map { PickerOption(it.label, it.icon, caption = it.caption) },
+            selected = modes.indexOf(s.viewMode),
+            onPick = { i -> vm.updateSettings { it.copy(viewMode = modes[i]) } },
+            // Szybka zmiana: kolejny tryb (ciągły → strony → dwie strony → książka → ciągły).
+            onClick = {
+                val order = modes.dropLast(1)
+                val next = order[(order.indexOf(mode) + 1) % order.size]
+                vm.updateSettings { it.copy(viewMode = next) }
             },
-            active = book,
-            badge = if (s.effectiveBookMode == BookMode.AUTO) "A" else null,
-            options = listOf(
-                PickerOption(tr("Pojedyncze strony"), Icons.Rounded.Description, caption = tr("Jedna")),
-                PickerOption(tr("Tryb książki"), Icons.AutoMirrored.Rounded.MenuBook, caption = tr("Książka")),
-                PickerOption(tr("Automatycznie: poziomo i na rozłożonym foldzie"), Icons.Rounded.AutoStories, caption = "Auto"),
-            ),
-            selected = modes.indexOf(s.effectiveBookMode),
-            onPick = { i ->
-                // „Auto” z listy przywraca automatyczny układ; ręczny wybór go wyłącza.
-                vm.updateSettings { it.copy(bookMode = modes[i], autoLayout = modes[i] == BookMode.AUTO, scroll = it.effectiveScroll(book)) }
-            },
-            onClick = { vm.updateSettings { it.copy(bookMode = if (book) BookMode.NEVER else BookMode.ALWAYS, autoLayout = false, scroll = it.effectiveScroll(book)) } },
         )
-        if (book) {
+        if (mode.twoUp) {
             GlassValueButton(
                 if (s.coverAlone) "1|23" else "12|34",
                 tr("strony"),
@@ -277,23 +288,6 @@ private fun MainBar(vm: PdfViewModel, book: Boolean, vertical: Boolean, wrap: Bo
                 onClick = { vm.updateSettings { it.copy(coverAlone = !it.coverAlone) } },
             )
         }
-        val scrolls = listOf(ScrollMode.VERTICAL, ScrollMode.PAGED)
-        RoundIcon(
-            if (s.effectiveScroll(book) == ScrollMode.VERTICAL) Icons.Rounded.SwapVert else Icons.Rounded.ViewCarousel,
-            if (s.effectiveScroll(book) == ScrollMode.VERTICAL) tr("Przewijanie ciągłe w pionie") else tr("Przewracanie stron w poziomie"),
-            options = listOf(
-                PickerOption(tr("Przewijanie ciągłe"), Icons.Rounded.SwapVert, caption = tr("Ciągłe")),
-                PickerOption(tr("Przewracanie stron"), Icons.Rounded.ViewCarousel, caption = tr("Strony")),
-            ),
-            selected = scrolls.indexOf(s.effectiveScroll(book)),
-            onPick = { i -> vm.updateSettings { it.copy(scroll = scrolls[i], autoLayout = false, bookMode = if (book) BookMode.ALWAYS else BookMode.NEVER) } },
-            onClick = {
-                vm.updateSettings {
-                    val now = it.effectiveScroll(book)
-                    it.copy(scroll = if (now == ScrollMode.VERTICAL) ScrollMode.PAGED else ScrollMode.VERTICAL, autoLayout = false, bookMode = if (book) BookMode.ALWAYS else BookMode.NEVER)
-                }
-            },
-        )
         RoundIcon(Icons.Rounded.Search, tr("Szukaj w dokumencie"), active = vm.searchActive, onClick = { vm.searchActive = !vm.searchActive; if (!vm.searchActive) vm.closeSearch() })
         RoundIcon(Icons.Rounded.Toc, tr("Spis treści i zakładki"), onClick = { vm.sheet = Sheet.OUTLINE })
         RoundIcon(Icons.Rounded.Edit, if (vm.editing) tr("Zakończ edycję") else tr("Edycja: rysowanie, tekst, podpis"), active = vm.editing, onClick = { vm.changeEditing(!vm.editing) })

@@ -1,3 +1,10 @@
+## 1.7.0 — OpenDocument
+
+- Nowa nazwa: **OpenDocument** (pliki wydań `OpenDocument-x.y.z.apk` / `.ipa`).
+- Podgląd DjVu: własny dekoder w czystym Kotlinie (Android i iOS) – maska tekstu JB2 ze słownikami Djbz/INCL, tło i kolor IW44, paleta FGbz, obrót stron, pakiety wielostronicowe. Duże skany odtwarzane od razu w zmniejszonej skali, bez zapychania pamięci; postęp „strona X z Y”.
+- Otwieranie książek i dokumentów: EPUB, FB2 (także w ZIP), DOCX, ODT, RTF, Markdown, HTML, TXT, CSV – składane w strony PDF ze spisem treści.
+- Czytelne komunikaty dla nieobsługiwanych formatów (DOC, MOBI/AZW, arkusze, prezentacje).
+
 ## 1.6.2 — Transparent application icon
 
 - Use the transparent application mark in launcher, splash and existing branding surfaces.

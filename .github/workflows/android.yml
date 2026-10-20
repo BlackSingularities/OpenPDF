@@ -74,12 +74,12 @@ jobs:
         run: gradle :app:assembleRelease -PversionCode=${{ needs.version.outputs.code }} -PversionName=${{ needs.version.outputs.name }} --stacktrace
 
       - name: Przygotowanie pliku
-        run: cp app/build/outputs/apk/release/app-release.apk "OpenPDF-${{ needs.version.outputs.name }}.apk"
+        run: cp app/build/outputs/apk/release/app-release.apk "OpenDocument-${{ needs.version.outputs.name }}.apk"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: OpenPDF-${{ needs.version.outputs.name }}-android
-          path: OpenPDF-${{ needs.version.outputs.name }}.apk
+          name: OpenDocument-${{ needs.version.outputs.name }}-android
+          path: OpenDocument-${{ needs.version.outputs.name }}.apk
 
   # Aplikacja iOS: framework z Kotlina (Compose Multiplatform) i powłoka Xcode generowana przez
   # XcodeGen. Plik .ipa nie jest podpisany – instaluje się go przez AltStore lub Sideloadly.
@@ -131,12 +131,12 @@ jobs:
           APP=$(find build/derived/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' | head -1)
           mkdir -p Payload
           cp -R "$APP" Payload/
-          zip -qry "../OpenPDF-${{ needs.version.outputs.name }}.ipa" Payload
+          zip -qry "../OpenDocument-${{ needs.version.outputs.name }}.ipa" Payload
 
       - uses: actions/upload-artifact@v4
         with:
-          name: OpenPDF-${{ needs.version.outputs.name }}-ios
-          path: OpenPDF-${{ needs.version.outputs.name }}.ipa
+          name: OpenDocument-${{ needs.version.outputs.name }}-ios
+          path: OpenDocument-${{ needs.version.outputs.name }}.ipa
 
   release:
     needs: [version, android, ios]
@@ -164,9 +164,9 @@ jobs:
             LOG=$(git log -5 --pretty='- %s' "$GITHUB_SHA")
             NOTES=$(printf 'Poprawki i ulepszenia:\n\n%s' "$LOG")
           fi
-          FOOTER=$(printf -- '---\n**Android:** pobierz **OpenPDF-%s.apk** i zainstaluj go na telefonie (Android 10+).\n\n**iPhone / iPad:** pobierz **OpenPDF-%s.ipa** i zainstaluj przez AltStore lub Sideloadly (iOS 16.4+).' "$NAME" "$NAME")
-          gh release create "$TAG" "dist/OpenPDF-$NAME.apk" "dist/OpenPDF-$NAME.ipa" \
+          FOOTER=$(printf -- '---\n**Android:** pobierz **OpenDocument-%s.apk** i zainstaluj go na telefonie (Android 10+).\n\n**iPhone / iPad:** pobierz **OpenDocument-%s.ipa** i zainstaluj przez AltStore lub Sideloadly (iOS 16.4+).' "$NAME" "$NAME")
+          gh release create "$TAG" "dist/OpenDocument-$NAME.apk" "dist/OpenDocument-$NAME.ipa" \
             --target "$GITHUB_SHA" \
-            --title "OpenPDF $NAME" \
+            --title "OpenDocument $NAME" \
             --notes "$(printf '%s\n\n%s' "$NOTES" "$FOOTER")" \
             --latest

@@ -88,14 +88,14 @@ class AndroidPlatform(private val app: Application) : Platform {
 
     override fun copyToClipboard(text: String) {
         val cm = app.getSystemService(android.content.ClipboardManager::class.java)
-        cm?.setPrimaryClip(android.content.ClipData.newPlainText("OpenPDF", text))
+        cm?.setPrimaryClip(android.content.ClipData.newPlainText("OpenDocument", text))
     }
 
     override fun saveImageToGallery(image: ImageBitmap, name: String, png: Boolean) {
         val values = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, name)
             put(MediaStore.Images.Media.MIME_TYPE, if (png) "image/png" else "image/jpeg")
-            put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/OpenPDF")
+            put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/OpenDocument")
         }
         val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: error(tr("Brak dostępu do galerii"))
         val bmp = image.asAndroidBitmap()
@@ -103,9 +103,9 @@ class AndroidPlatform(private val app: Application) : Platform {
         bmp.recycle()
     }
 
-    override fun galleryDoneMessage(count: Int) = tr("Zapisano {0} obrazów w Obrazy/OpenPDF", count)
+    override fun galleryDoneMessage(count: Int) = tr("Zapisano {0} obrazów w Obrazy/OpenDocument", count)
 
-    override val aboutTitle = "OpenPDF – otwarty edytor PDF dla Androida"
+    override val aboutTitle = "OpenDocument – otwarty czytnik dokumentów i edytor PDF dla Androida"
     override val aboutLicense = "Licencja MIT · PdfBox-Android (Apache 2.0)"
 
     override val settingsExtras: (@Composable () -> Unit) = { DefaultAppRow() }

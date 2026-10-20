@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.Matrix
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
@@ -44,6 +45,7 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -60,8 +62,8 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.blacksingularities.openpdf.data.PaperTheme
+import com.blacksingularities.openpdf.data.ViewMode
 import com.blacksingularities.openpdf.data.pageCrops
-import com.blacksingularities.openpdf.data.effectiveScroll
 import com.blacksingularities.openpdf.pdf.TEXT_LEADING
 import com.blacksingularities.openpdf.pdf.TEXT_PAD
 import com.blacksingularities.openpdf.platform.drawPlainText
@@ -90,25 +92,30 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.atan2
+import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sin
+import kotlin.math.sqrt
 
 private enum class GestureMode { PENDING, PAN, DRAW, MOVE, RESIZE, SELECT_TEXT, HANDLE_START, HANDLE_END }
 
 /**
- * Widok dokumentu: strony (pojedynczo albo rozkładówkami), powiększanie i przesuwanie całości,
- * przewijanie z bezwładnością, rysowanie i zaznaczanie. [book] – czy pokazywać rozkładówki.
+ * Widok dokumentu w trybie [mode]: ciągły (strony w kolumnie), strony (po jednej, przesuwane),
+ * dwie strony obok siebie albo książka (rozkładówki z grzbietem i przewracaniem kartek).
+ * Powiększanie i przesuwanie całości, przewijanie z bezwładnością, rysowanie i zaznaczanie.
  */
 @Composable
-fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Modifier = Modifier, topInset: Float = 0f) {
+fun PdfViewer(vm: PdfViewModel, state: ViewerState, mode: ViewMode, modifier: Modifier = Modifier, topInset: Float = 0f) {
     val session = vm.render ?: return
     val settings = vm.settings
     val density = LocalDensity.current
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
+    val book = mode.twoUp
+    val bookLook = mode == ViewMode.BOOK
     val margin = if (settings.edgeToEdge) 0f else with(density) { 10.dp.toPx() }
     val gap = with(density) { if (settings.pageGap) 12.dp.toPx() else 2.dp.toPx() }
     val spec = LayoutSpec(
@@ -116,10 +123,12 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Mod
         coverAlone = settings.coverAlone,
         rtl = settings.rtl,
         fit = if (book) settings.fitBook else settings.fitSingle,
-        scroll = settings.effectiveScroll(book),
+        scroll = mode.scroll,
         margin = margin,
-        gap = if (book) gap else gap,
+        gap = gap,
         topInset = topInset,
+        // Dwie strony obok siebie – z odstępem; w książce strony stykają się w grzbiecie.
+        spreadGap = if (mode == ViewMode.TWO_PAGES) max(gap * 0.6f, with(density) { 6.dp.toPx() }) else 0f,
     )
     // Przycięcie każdej strony zależy od jej miejsca w rozkładówce (zewnętrzna krawędź czy grzbiet).
     val crops = remember(
@@ -172,17 +181,22 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Mod
                 val around = state.visibleRows(extra = max(vp.width, vp.height) * 2f)
                 val base = ArrayList<Pair<Int, Int>>()
                 val zoomBase = scale.coerceIn(0.35f, 1f)
+                // Przy powiększeniu ≥ 1 obraz strony ma dokładnie tyle pikseli, ile zajmuje na ekranie –
+                // bez przeskalowania, więc tekst jest ostry. Przy oddaleniu wystarczą zaokrąglone rozmiary.
+                val exact = zoomBase >= 0.999f
+                fun width(slot: Slot): Int {
+                    val px = state.full(slot).width * zoomBase
+                    return if (exact) ceil(px).toInt().coerceIn(64, 2560) else vm.images.bucket(px)
+                }
                 for (row in visible) for (slot in row.slots) {
-                    val w = vm.images.bucket(state.full(slot).width * zoomBase)
-                    if (base.none { it.first == slot.page }) base += slot.page to w
+                    if (base.none { it.first == slot.page }) base += slot.page to width(slot)
                 }
                 val visibleCount = base.size
                 for (row in around) for (slot in row.slots) {
-                    val w = vm.images.bucket(state.full(slot).width * zoomBase)
-                    if (base.none { it.first == slot.page }) base += slot.page to w
+                    if (base.none { it.first == slot.page }) base += slot.page to width(slot)
                 }
                 val tiles = ArrayList<TileRequest>()
-                if (!interacting && scale > 1.15f) {
+                if (!interacting && scale > 1.05f) {
                     for (row in visible) for (slot in row.slots) {
                         val cr = state.toScreen(slot.rect)
                         val sr = state.pageScreen(slot)
@@ -203,7 +217,7 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Mod
                         tiles += TileRequest(slot.page, region, pw)
                     }
                 }
-                vm.images.request(base, tiles, visibleCount)
+                vm.images.request(base, tiles, visibleCount, exact)
                 // Miniatury sąsiednich stron renderują się błyskawicznie i służą za podgląd,
                 // zanim powstanie pełny obraz strony.
                 vm.images.requestThumbs(around.flatMap { r -> r.slots.map { it.page } })
@@ -219,10 +233,16 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Mod
     }
     val textPaint = rememberTextMeasurer()
     val handleRadius = with(density) { 11.dp.toPx() }
-    val shadowOffset = with(density) { 2.dp.toPx() }
+    val lightPaper = settings.paper == PaperTheme.NORMAL || settings.paper == PaperTheme.SEPIA
+    val look = BookLook(
+        gutter = bookLook && settings.spineShadow,
+        light = lightPaper,
+        edgeStep = with(density) { 1.6.dp.toPx() },
+        edgeWidth = with(density) { 0.8.dp.toPx() },
+    )
 
     val currentBook by rememberUpdatedState(book)
-    state.flipEnabled = book && settings.pageFlip
+    state.flipEnabled = bookLook && settings.pageFlip
 
     Box(
         modifier
@@ -403,16 +423,26 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Mod
             val showFields = vm.index.fields.isNotEmpty() && vm.sheet == Sheet.FORM
             val flip = state.flip
             if (flip != null) {
-                drawFlip(vm, state, layout, flip, paperColor, paperFilter, shadowOffset)
+                drawFlip(vm, state, layout, flip, paperColor, paperFilter, look)
                 return@Canvas
             }
+            val pageCount = vm.render?.pageCount ?: 0
             for (row in state.visibleRows()) {
-                val rowRect = state.toScreen(row.rect)
+                // Książka: krawędzie bloku kartek – grubsze po stronie, gdzie zostało więcej stron.
+                if (look.gutter && row.spine != null && pageCount > 2 && row.slots.isNotEmpty()) {
+                    val leftSlot = row.slots.minBy { it.rect.left }
+                    val rightSlot = row.slots.maxBy { it.rect.right }
+                    val first = row.slots.minOf { it.page }
+                    val last = row.slots.maxOf { it.page }
+                    val read = first
+                    val left = pageCount - 1 - last
+                    val (before, after) = if (layout.spec.rtl) left to read else read to left
+                    drawPageStack(state.toScreen(leftSlot.rect), state.toScreen(rightSlot.rect), before, after, paperColor, look)
+                }
                 for (slot in row.slots) {
                     // c – widoczny (przycięty) fragment strony, r – cała strona.
                     val c = state.toScreen(slot.rect)
                     val r = state.pageScreen(slot)
-                    drawRect(Color.Black.copy(alpha = 0.35f), Offset(c.left, c.top + shadowOffset), c.size)
                     drawRect(paperColor, c.topLeft, c.size)
                     val bmp = vm.images.base(slot.page) ?: vm.images.thumb(slot.page)
                     clipRect(c.left, c.top, c.right, c.bottom) {
@@ -421,7 +451,7 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Mod
                             bmp,
                             dstOffset = IntOffset(r.left.roundToInt(), r.top.roundToInt()),
                             dstSize = IntSize(r.width.roundToInt().coerceAtLeast(1), r.height.roundToInt().coerceAtLeast(1)),
-                            filterQuality = FilterQuality.Medium,
+                            filterQuality = FilterQuality.High,
                             colorFilter = paperFilter,
                         )
                     }
@@ -432,7 +462,7 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Mod
                             t.bitmap,
                             dstOffset = IntOffset(l.roundToInt(), tp.roundToInt()),
                             dstSize = IntSize((t.region.width * r.width).roundToInt().coerceAtLeast(1), (t.region.height * r.height).roundToInt().coerceAtLeast(1)),
-                            filterQuality = FilterQuality.Medium,
+                            filterQuality = FilterQuality.High,
                             colorFilter = paperFilter,
                         )
                     }
@@ -488,21 +518,12 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Mod
                         }
                     }
                 }
-                // Cień grzbietu otwartej książki.
+                // Grzbiet otwartej książki: strony zaginają się ku niemu i ciemnieją.
                 val spine = row.spine
-                if (spine != null && row.slots.size == 2 && settings.spineShadow) {
+                if (spine != null && look.gutter) {
                     val x = spine * state.scale + state.offset.x
-                    val w = rowRect.width * 0.045f
-                    drawRect(
-                        Brush.horizontalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.20f)), startX = x - w, endX = x),
-                        Offset(x - w, rowRect.top),
-                        Size(w, rowRect.height),
-                    )
-                    drawRect(
-                        Brush.horizontalGradient(listOf(Color.Black.copy(alpha = 0.26f), Color.Transparent), startX = x, endX = x + w * 0.8f),
-                        Offset(x, rowRect.top),
-                        Size(w * 0.8f, rowRect.height),
-                    )
+                    val rects = row.slots.map { state.toScreen(it.rect) }
+                    drawGutter(x, rects.firstOrNull { it.center.x < x }, rects.firstOrNull { it.center.x >= x }, 1f, look)
                 }
             }
         }
@@ -510,30 +531,121 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, book: Boolean, modifier: Mod
     }
 }
 
-/** Strona narysowana w dowolnym prostokącie (podstawowa bitmapa, bez kafelków). */
+/** Wygląd książki: cień grzbietu, jasny papier (odblask), krawędzie bloku kartek. */
+private class BookLook(val gutter: Boolean, val light: Boolean, val edgeStep: Float, val edgeWidth: Float)
+
+private fun black(a: Float) = Color.Black.copy(alpha = a.coerceIn(0f, 1f))
+
+/**
+ * Cień w zgięciu książki. Strona po lewej [left] ciemnieje szeroko i miękko, po prawej [right]
+ * – węziej i mocniej przy samym grzbiecie (krzywizna papieru); na jasnym papierze tuż za cieniem
+ * jest delikatny odblask, a zewnętrzne krawędzie stron lekko się zaokrąglają.
+ */
+private fun DrawScope.drawGutter(x: Float, left: Rect?, right: Rect?, strength: Float, look: BookLook) {
+    if (strength <= 0.01f) return
+    val k = strength
+    if (left != null) {
+        val w = left.width * 0.11f
+        drawRect(
+            Brush.horizontalGradient(
+                0f to Color.Transparent,
+                0.35f to black(0.018f * k),
+                0.62f to black(0.055f * k),
+                0.82f to black(0.12f * k),
+                0.94f to black(0.21f * k),
+                1f to black(0.32f * k),
+                startX = x - w,
+                endX = x,
+            ),
+            Offset(x - w, left.top),
+            Size(w, left.height),
+        )
+        val e = left.width * 0.022f
+        drawRect(Brush.horizontalGradient(0f to black(0.07f * k), 1f to Color.Transparent, startX = left.left, endX = left.left + e), Offset(left.left, left.top), Size(e, left.height))
+    }
+    if (right != null) {
+        val w = right.width * 0.085f
+        drawRect(
+            Brush.horizontalGradient(
+                0f to black(0.36f * k),
+                0.06f to black(0.24f * k),
+                0.2f to black(0.12f * k),
+                0.45f to black(0.045f * k),
+                0.75f to black(0.012f * k),
+                1f to Color.Transparent,
+                startX = x,
+                endX = x + w,
+            ),
+            Offset(x, right.top),
+            Size(w, right.height),
+        )
+        if (look.light) {
+            val h0 = x + w * 0.7f
+            val hw = w * 0.9f
+            drawRect(
+                Brush.horizontalGradient(0f to Color.Transparent, 0.5f to Color.White.copy(alpha = 0.10f * k), 1f to Color.Transparent, startX = h0, endX = h0 + hw),
+                Offset(h0, right.top),
+                Size(hw, right.height),
+            )
+        }
+        val e = right.width * 0.022f
+        drawRect(Brush.horizontalGradient(0f to Color.Transparent, 1f to black(0.07f * k), startX = right.right - e, endX = right.right), Offset(right.right - e, right.top), Size(e, right.height))
+    }
+    val top = minOf(left?.top ?: Float.MAX_VALUE, right?.top ?: Float.MAX_VALUE)
+    val bottom = maxOf(left?.bottom ?: 0f, right?.bottom ?: 0f)
+    if (bottom > top) drawLine(black(0.22f * k), Offset(x, top), Offset(x, bottom), 1f)
+}
+
+/**
+ * Krawędzie bloku kartek po bokach rozkładówki: kilka cienkich linii w kolorze papieru –
+ * po lewej tyle, ile stron już przeczytano, po prawej – ile zostało.
+ */
+private fun DrawScope.drawPageStack(left: Rect, right: Rect, before: Int, after: Int, paper: Color, look: BookLook) {
+    fun lines(pages: Int) = when {
+        pages <= 0 -> 0
+        pages < 8 -> 1
+        pages < 40 -> 2
+        pages < 150 -> 3
+        else -> 4
+    }
+    for (i in 1..lines(before)) {
+        val x = left.left - i * look.edgeStep
+        val inset = i * look.edgeStep * 0.6f
+        drawLine(paper.copy(alpha = 0.55f - i * 0.1f), Offset(x, left.top + inset), Offset(x, left.bottom - inset), look.edgeWidth)
+    }
+    for (i in 1..lines(after)) {
+        val x = right.right + i * look.edgeStep
+        val inset = i * look.edgeStep * 0.6f
+        drawLine(paper.copy(alpha = 0.55f - i * 0.1f), Offset(x, right.top + inset), Offset(x, right.bottom - inset), look.edgeWidth)
+    }
+}
+
+/** Strona narysowana w dowolnym prostokącie (podstawowa bitmapa, bez kafelków), z przyciętymi marginesami. */
 private fun DrawScope.drawPageInto(vm: PdfViewModel, page: Int, box: Rect, paper: Color, filter: ColorFilter?, crop: FloatArray) {
     if (box.width < 0.5f) return
     drawRect(paper, box.topLeft, box.size)
     val bmp = vm.images.base(page) ?: vm.images.thumb(page) ?: return
-    // Przycięte marginesy wychodzą poza widoczne pole i są obcinane.
-    val w = box.width / (1f - crop[0] - crop[2])
-    val h = box.height / (1f - crop[1] - crop[3])
-    val r = Rect(box.left - crop[0] * w, box.top - crop[1] * h, box.left - crop[0] * w + w, box.top - crop[1] * h + h)
-    clipRect(box.left, box.top, box.right, box.bottom) {
-        drawImage(
-            bmp,
-            dstOffset = IntOffset(r.left.roundToInt(), r.top.roundToInt()),
-            dstSize = IntSize(r.width.roundToInt().coerceAtLeast(1), r.height.roundToInt().coerceAtLeast(1)),
-            filterQuality = FilterQuality.Medium,
-            colorFilter = filter,
-        )
-    }
+    // Przycięcie przez wybór fragmentu obrazu – bez obcinania płótna (działa też w perspektywie).
+    val sx = (crop[0] * bmp.width).roundToInt().coerceIn(0, bmp.width - 1)
+    val sy = (crop[1] * bmp.height).roundToInt().coerceIn(0, bmp.height - 1)
+    val sw = ((1f - crop[0] - crop[2]) * bmp.width).roundToInt().coerceIn(1, bmp.width - sx)
+    val sh = ((1f - crop[1] - crop[3]) * bmp.height).roundToInt().coerceIn(1, bmp.height - sy)
+    drawImage(
+        bmp,
+        srcOffset = IntOffset(sx, sy),
+        srcSize = IntSize(sw, sh),
+        dstOffset = IntOffset(box.left.roundToInt(), box.top.roundToInt()),
+        dstSize = IntSize(box.width.roundToInt().coerceAtLeast(1), box.height.roundToInt().coerceAtLeast(1)),
+        filterQuality = FilterQuality.High,
+        colorFilter = filter,
+    )
 }
 
 /**
- * Przewracanie kartki jak w książce: kartka obraca się wokół grzbietu – w pierwszej połowie
- * zwęża się bieżąca strona, w drugiej rozwija się strona z kolejnej rozkładówki.
- * Pod spodem widać już stronę z rozkładówki docelowej; cienie podkreślają głębię.
+ * Przewracanie kartki jak w książce. Kartka obraca się w przestrzeni wokół grzbietu, z perspektywą:
+ * unosząc się, rośnie ku patrzącemu, a za połową obrotu widać jej drugą stronę (lewą stronę
+ * następnej rozkładówki). Kartka ustawiona bokiem do światła ciemnieje, a pod spodem rzuca
+ * miękki cień na stronę, nad którą przechodzi.
  */
 private fun DrawScope.drawFlip(
     vm: PdfViewModel,
@@ -542,7 +654,7 @@ private fun DrawScope.drawFlip(
     flip: ViewerState.Flip,
     paper: Color,
     filter: ColorFilter?,
-    shadow: Float,
+    look: BookLook,
 ) {
     val from = layout.rows.getOrNull(flip.from) ?: return
     val to = layout.rows.getOrNull(flip.to) ?: return
@@ -558,36 +670,90 @@ private fun DrawScope.drawFlip(
     // Kartka odchodzi od prawej krawędzi (do przodu) albo od lewej (wstecz); w RTL odwrotnie.
     val fromRight = flip.forward != layout.spec.rtl
     val t = flip.progress.coerceIn(0f, 1f)
-    val c = cos(PI * t).toFloat()
+    val theta = PI.toFloat() * t
     val staticSide = side(from, left = fromRight)
     val revealed = side(to, left = !fromRight)
-    for ((page, r) in listOfNotNull(staticSide, revealed)) {
-        drawRect(Color.Black.copy(alpha = 0.35f), Offset(r.left, r.top + shadow), r.size)
-        drawPageInto(vm, page, r, paper, filter, state.cropOf(page))
-    }
-    revealed?.let { (_, r) ->
-        drawRect(Color.Black.copy(alpha = 0.32f * (1f - kotlin.math.abs(c))), r.topLeft, r.size)
+    val front = side(from, left = !fromRight)
+    val back = side(to, left = fromRight)
+    val flats = listOfNotNull(staticSide, revealed)
+    for ((page, r) in flats) drawPageInto(vm, page, r, paper, filter, state.cropOf(page))
+    if (look.gutter) {
+        drawGutter(spine, flats.firstOrNull { it.second.center.x < spine }?.second, flats.firstOrNull { it.second.center.x >= spine }?.second, 1f, look)
     }
     val firstHalf = t < 0.5f
-    val leaf = if (firstHalf) side(from, left = !fromRight) else side(to, left = fromRight)
-    if (leaf != null) {
-        val r = leaf.second
-        val w = r.width * kotlin.math.abs(c)
-        // Kartka zawsze przylega do grzbietu: przed połową po stronie odejścia, potem po przeciwnej.
-        val onRight = firstHalf == fromRight
-        val box = if (onRight) Rect(spine, r.top, spine + w, r.bottom) else Rect(spine - w, r.top, spine, r.bottom)
-        drawPageInto(vm, leaf.first, box, paper, filter, state.cropOf(leaf.first))
-        val dark = Color.Black.copy(alpha = 0.28f * (1f - kotlin.math.abs(c)))
-        val light = Color.Black.copy(alpha = 0.04f)
-        drawRect(
-            Brush.horizontalGradient(if (onRight) listOf(dark, light) else listOf(light, dark), startX = box.left, endX = box.right),
-            box.topLeft,
-            box.size,
-        )
+    val leaf = (if (firstHalf) front else back) ?: return
+    val (leafPage, flat) = leaf
+    val s = if (flat.center.x >= spine) 1f else -1f
+    // Kąt kartki od jej płaskiego położenia: 0 – leży, π/2 – stoi pionowo.
+    val a = if (firstHalf) theta else PI.toFloat() - theta
+    val cosA = cos(a)
+    val sinA = sin(a)
+    val w = flat.width
+    val camera = w * 5f
+    val k = sinA / camera
+    // Rzut zewnętrznej krawędzi kartki na ekran.
+    val edgeX = spine + s * w * cosA / (1f - w * k)
+    // Strona pod kartką dostaje miękki cień – tym szerszy i mocniejszy, im wyżej uniesiona kartka.
+    val beneath = if (firstHalf) revealed else staticSide
+    if (beneath != null) {
+        val b = beneath.second
+        val shadowW = w * (0.05f + 0.32f * sinA)
+        val alpha = 0.42f * sqrt(sinA)
+        val x1 = edgeX + s * shadowW
+        val l = min(edgeX, x1).coerceIn(b.left, b.right)
+        val r = max(edgeX, x1).coerceIn(b.left, b.right)
+        if (r > l && alpha > 0.005f) {
+            drawRect(
+                Brush.horizontalGradient(
+                    0f to black(alpha),
+                    0.25f to black(alpha * 0.55f),
+                    0.55f to black(alpha * 0.2f),
+                    1f to Color.Transparent,
+                    startX = edgeX,
+                    endX = x1,
+                ),
+                Offset(l, b.top),
+                Size(r - l, b.height),
+            )
+        }
     }
-    val top = minOf(from.rect.top, to.rect.top) + oy
-    val h = maxOf(from.rect.height, to.rect.height)
-    drawLine(Color.Black.copy(alpha = 0.25f), Offset(spine, top), Offset(spine, top + h), 1.5f)
+    // Kartka w perspektywie: punkt (x, y) płaskiej strony (względem grzbietu i środka wysokości)
+    // trafia w (x·cos a, y) / w, gdzie w = 1 − d·sin a / D (d – odległość od grzbietu, D – kamera).
+    val cy = flat.center.y
+    val local = Rect(flat.left - spine, flat.top - cy, flat.right - spine, flat.bottom - cy)
+    val m = Matrix(
+        floatArrayOf(
+            cosA, 0f, 0f, -s * k,
+            0f, 1f, 0f, 0f,
+            0f, 0f, 1f, 0f,
+            0f, 0f, 0f, 1f,
+        ),
+    )
+    withTransform({
+        translate(spine, cy)
+        transform(m)
+    }) {
+        drawPageInto(vm, leafPage, local, paper, filter, state.cropOf(leafPage))
+        // Światło: kartka ustawiona bokiem ciemnieje, mocniej przy zewnętrznej krawędzi.
+        val shade = 0.36f * (1f - cosA)
+        val fold = shade * 0.45f + 0.05f * sinA
+        drawRect(
+            Brush.horizontalGradient(0f to black(fold), 0.35f to black(shade * 0.75f), 1f to black(shade), startX = 0f, endX = s * w),
+            local.topLeft,
+            local.size,
+        )
+        // Zagięcie przy grzbiecie, póki kartka prawie leży.
+        if (look.gutter && cosA > 0.6f) {
+            val gw = w * 0.09f
+            drawRect(
+                Brush.horizontalGradient(0f to black(0.3f * cosA), 1f to Color.Transparent, startX = 0f, endX = s * gw),
+                Offset(if (s > 0) 0f else -gw, local.top),
+                Size(gw, local.height),
+            )
+        }
+        // Cienka krawędź kartki – oddziela ją od strony pod spodem.
+        drawLine(black(0.18f), Offset(s * w, local.top), Offset(s * w, local.bottom), 1.2f)
+    }
 }
 
 private fun Offset.isSpecified() = !x.isNaN() && !y.isNaN()

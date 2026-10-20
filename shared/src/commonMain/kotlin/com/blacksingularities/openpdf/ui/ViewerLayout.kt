@@ -36,6 +36,8 @@ data class LayoutSpec(
     val gap: Float,
     /** Miejsce pod przypiętym paskiem u góry (początek treści, nie przesuwa widoku). */
     val topInset: Float = 0f,
+    /** Odstęp między dwiema stronami rzędu (tryb „Dwie strony”; w książce strony stykają się w grzbiecie). */
+    val spreadGap: Float = 0f,
 )
 
 /** Kompletny układ dokumentu w pikselach treści. */
@@ -108,9 +110,10 @@ class DocLayout(
                 val fallback = real.firstOrNull()?.let { aspects[it] } ?: 0.707f
                 val slotAspects = g.map { p -> p?.let { aspects[it] } ?: fallback }
                 val rowAspect = slotAspects.sum()
-                val fitW = availW / rowAspect
+                val sg = if (g.size == 2) spec.spreadGap else 0f
+                val fitW = max(1f, availW - sg) / rowAspect
                 val rowH = if (vertical && spec.fit == FitMode.WIDTH) fitW else min(fitW, availH)
-                val rowW = rowH * rowAspect
+                val rowW = rowH * rowAspect + sg
                 val left: Float
                 val top: Float
                 if (vertical) {
@@ -129,9 +132,9 @@ class DocLayout(
                         slots += Slot(p, LRect(x, top, x + w, top + rowH))
                         pageRow[p] = ri
                     }
-                    x += w
+                    x += w + sg
                 }
-                val spine = if (g.size == 2) left + rowH * slotAspects[0] else null
+                val spine = if (g.size == 2) left + rowH * slotAspects[0] + sg / 2f else null
                 rows += Row(ri, LRect(left, top, left + rowW, top + rowH), slots, spine)
             }
             val width: Float

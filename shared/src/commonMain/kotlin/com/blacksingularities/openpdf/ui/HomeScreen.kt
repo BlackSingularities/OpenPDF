@@ -89,8 +89,8 @@ fun HomeScreen(vm: PdfViewModel) {
                     )
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("OpenPDF", fontSize = 30.sp, fontWeight = FontWeight.Black, color = Color.White)
-                        Text(tr("Czytaj, adnotuj, podpisuj i układaj PDF-y"), fontSize = 13.sp, color = Palette.TextDim)
+                        Text("OpenDocument", fontSize = 30.sp, fontWeight = FontWeight.Black, color = Color.White)
+                        Text(tr("Czytaj PDF, EPUB, DOCX i inne dokumenty"), fontSize = 13.sp, color = Palette.TextDim)
                     }
                     RoundIcon(Icons.Rounded.Settings, tr("Ustawienia"), badge = if (vm.updatePending) "1" else null, onClick = { vm.sheet = Sheet.SETTINGS })
                 }
@@ -105,14 +105,14 @@ fun HomeScreen(vm: PdfViewModel) {
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(22.dp))
                             .background(Color.White)
-                            .reactive(tr("Otwórz plik PDF")) { ui.openPdf() }
+                            .reactive(tr("Otwórz dokument: PDF, EPUB, DOCX, ODT, FB2, TXT…")) { ui.openPdf() }
                             .padding(horizontal = 20.dp, vertical = 18.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(Icons.Rounded.FolderOpen, null, tint = Palette.Ink, modifier = Modifier.size(28.dp))
                         Spacer(Modifier.width(14.dp))
                         Column {
-                            Text(tr("Otwórz PDF"), color = Palette.Ink, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                            Text(tr("Otwórz dokument"), color = Palette.Ink, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                             Text(tr("Z telefonu, karty lub chmury"), color = Palette.Ink.copy(alpha = 0.6f), fontSize = 12.sp)
                         }
                     }

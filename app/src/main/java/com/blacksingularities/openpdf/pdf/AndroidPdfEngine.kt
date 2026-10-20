@@ -1,6 +1,7 @@
 package com.blacksingularities.openpdf.pdf
 
 import android.graphics.Bitmap
+import com.blacksingularities.openpdf.doc.TextDocument
 import com.blacksingularities.openpdf.platform.PageRenderer
 import com.blacksingularities.openpdf.platform.PageTextSource
 import com.blacksingularities.openpdf.platform.PasswordRequiredException
@@ -10,6 +11,8 @@ import com.tom_roush.pdfbox.pdmodel.common.PDRectangle
 import com.tom_roush.pdfbox.pdmodel.encryption.InvalidPasswordException
 import com.tom_roush.pdfbox.text.PDFTextStripper
 import com.tom_roush.pdfbox.text.TextPosition
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okio.Path
 import java.io.File
 import java.io.StringWriter
@@ -61,7 +64,14 @@ class AndroidPdfEngine : PdfEngine {
 
     override fun createFromImages(images: List<Path>, out: Path) = PdfOps.createFromImages(images.map { it.f }, out.f)
 
+    override suspend fun createFromImageSequence(count: Int, out: Path, page: suspend (Int) -> Path?, onProgress: (Float) -> Unit) =
+        PdfOps.createFromImageSequence(count, out.f, { i -> page(i)?.f }, onProgress)
+
     override fun createBlank(out: Path, pages: Int, widthPt: Float, heightPt: Float) = PdfOps.createBlank(out.f, pages, PDRectangle(widthPt, heightPt))
+
+    override suspend fun createFromDocument(doc: TextDocument, out: Path) = withContext(Dispatchers.IO) {
+        DocPdfWriter(doc).write(out.f)
+    }
 
     override fun fillFields(file: Path, edits: List<FieldEdit>) = PdfOps.fillFields(file.f, edits)
 

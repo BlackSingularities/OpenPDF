@@ -16,6 +16,11 @@ import com.blacksingularities.openpdf.data.RecentDoc
 import com.blacksingularities.openpdf.data.SavedSignature
 import com.blacksingularities.openpdf.data.SettingsStore
 import com.blacksingularities.openpdf.data.UserBookmark
+import com.blacksingularities.openpdf.doc.DocFormat
+import com.blacksingularities.openpdf.doc.DocumentReader
+import com.blacksingularities.openpdf.doc.djvu.DjvuDocument
+import com.blacksingularities.openpdf.doc.djvu.writeBmp
+import com.blacksingularities.openpdf.doc.imageMime
 import com.blacksingularities.openpdf.pdf.AnnotInfo
 import com.blacksingularities.openpdf.pdf.DocIndex
 import com.blacksingularities.openpdf.pdf.FieldEdit
@@ -301,8 +306,15 @@ class PdfViewModel(val platform: Platform) : ViewModel() {
                 name = meta.name
                 val original = dir / "original.pdf"
                 withContext(ioDispatcher) { platform.copyFromUri(uri, original) }
-                val writable = withContext(ioDispatcher) { checkWritable(uri) }
-                openPrepared(dir, original, password, OpenDoc(uri, name, dir, dir / "work.pdf", writable), meta.size)
+                val format = withContext(ioDispatcher) { detectFormat(original, name) }
+                if (format.converted) {
+                    // EPUB, DOCX, ODT, FB2, TXT… – składanie w strony PDF; oryginał zostaje nietknięty.
+                    val pdf = convertToPdf(dir, original, format, name)
+                    openPrepared(dir, pdf, null, OpenDoc(uri, name, dir, dir / "work.pdf", writable = false, converted = true), meta.size)
+                } else {
+                    val writable = withContext(ioDispatcher) { checkWritable(uri) }
+                    openPrepared(dir, original, password, OpenDoc(uri, name, dir, dir / "work.pdf", writable), meta.size)
+                }
             } catch (e: PasswordRequiredException) {
                 dir.deleteRecursively()
                 passwordRequest = PasswordRequest(uri, null, name, password != null, PasswordPurpose.OPEN)
@@ -313,6 +325,52 @@ class PdfViewModel(val platform: Platform) : ViewModel() {
                 busy = null
             }
         }
+    }
+
+    private fun detectFormat(file: Path, name: String): DocFormat {
+        val head = fileSystem.read(file) { readByteArray(minOf(4096L, fileSystem.metadataOrNull(file)?.size ?: 0L)) }
+        return DocumentReader.detect(name, head, fileSystem, file)
+    }
+
+    /** Dokument tekstowy albo obraz → plik PDF w katalogu sesji. */
+    private suspend fun convertToPdf(dir: Path, file: Path, format: DocFormat, name: String): Path {
+        val out = dir / "converted.pdf"
+        busy = Busy(tr("Składanie stron: {0}", name))
+        if (format == DocFormat.IMAGE) {
+            withContext(ioDispatcher) {
+                // Dekodery obrazów kierują się rozszerzeniem – plik dostaje właściwe.
+                val head = fileSystem.read(file) { readByteArray(minOf(16L, fileSystem.metadataOrNull(file)?.size ?: 0L)) }
+                val ext = imageMime(head)?.substringAfter('/') ?: "jpg"
+                val img = dir / "image.$ext"
+                file.copyTo(img)
+                engine.createFromImages(listOf(img), out)
+                img.delete()
+            }
+        } else if (format == DocFormat.DJVU) {
+            // Strony DjVu dekodowane po kolei do obrazów i od razu osadzane w PDF.
+            val djvu = withContext(ioDispatcher) { DjvuDocument(fileSystem.read(file) { readByteArray() }) }
+            val n = djvu.pageCount
+            busy = Busy(tr("Dekodowanie DjVu: strona {0} z {1}", 1, n), 0f)
+            withContext(ioDispatcher) {
+                engine.createFromImageSequence(n, out, { i ->
+                    runCatching {
+                        val raster = djvu.render(i)
+                        val img = dir / "page-$i.bmp"
+                        fileSystem.write(img) { writeBmp(raster, this) }
+                        img
+                    }.getOrNull()
+                }) { p ->
+                    val done = (p * n).toInt().coerceIn(1, n)
+                    busy = Busy(tr("Dekodowanie DjVu: strona {0} z {1}", minOf(n, done + 1), n), p)
+                }
+            }
+        } else {
+            val text = withContext(ioDispatcher) { DocumentReader.read(fileSystem, file, format, name) }
+            if (text.blocks.isEmpty()) error(tr("Dokument jest pusty"))
+            engine.createFromDocument(text, out)
+        }
+        file.delete()
+        return out
     }
 
     /** Otwiera plik utworzony w aplikacji (nowy dokument, z obrazów) – zapis wymaga wskazania miejsca. */
@@ -1260,7 +1318,7 @@ class PdfViewModel(val platform: Platform) : ViewModel() {
                         engine.extractPages(d.source, pages, out)
                     }
                 }
-                val base = d.name.removeSuffix(".pdf").removeSuffix(".PDF")
+                val base = baseName(d.name)
                 val sorted = pages.sorted()
                 val label = if (sorted.size == 1) tr("strona {0}", sorted[0] + 1) else tr("strony {0}-{1}", sorted.first() + 1, sorted.last() + 1)
                 requestSave(SaveTarget.FileCopy(out, "application/pdf"), "$base ($label).pdf", "application/pdf")
@@ -1356,8 +1414,7 @@ class PdfViewModel(val platform: Platform) : ViewModel() {
 
     fun saveAs() {
         val d = doc ?: return
-        val name = if (d.name.endsWith(".pdf", ignoreCase = true)) d.name else d.name + ".pdf"
-        requestSave(SaveTarget.Document, name, "application/pdf")
+        requestSave(SaveTarget.Document, pdfFileName(d.name), "application/pdf")
     }
 
     /** Wynik wyboru miejsca zapisu. */
@@ -1432,8 +1489,7 @@ class PdfViewModel(val platform: Platform) : ViewModel() {
         if (marks.isNotEmpty() && !mutate(tr("Zapisywanie adnotacji")) { }) return null
         val dir = (platform.cacheDir / "share").mkdirs()
         dir.listFiles()?.forEach { it.delete() }
-        val name = d.name.let { if (it.endsWith(".pdf", true)) it else "$it.pdf" }
-        val out = dir / name
+        val out = dir / pdfFileName(d.name)
         busy = Busy(tr("Przygotowywanie…"))
         return try {
             withContext(ioDispatcher) { engine.export(d.source, out, protection?.user, protection?.owner) }
@@ -1459,12 +1515,12 @@ class PdfViewModel(val platform: Platform) : ViewModel() {
         }
     }
 
-    /** Eksport stron jako obrazy do galerii (Obrazy/OpenPDF). */
+    /** Eksport stron jako obrazy do galerii (Obrazy/OpenDocument). */
     fun exportImages(pages: List<Int>, dpi: Int, png: Boolean) {
         val s = render ?: return
         val d = doc ?: return
         viewModelScope.launch {
-            val base = d.name.removeSuffix(".pdf").removeSuffix(".PDF").take(60)
+            val base = baseName(d.name).take(60)
             var saved = 0
             try {
                 for ((i, p) in pages.withIndex()) {
@@ -1503,7 +1559,7 @@ class PdfViewModel(val platform: Platform) : ViewModel() {
 
     fun saveExtractedText() {
         val t = extractedText ?: return
-        val name = (doc?.name?.removeSuffix(".pdf")?.removeSuffix(".PDF") ?: tr("tekst")) + ".txt"
+        val name = (doc?.name?.let { baseName(it) } ?: tr("tekst")) + ".txt"
         requestSave(SaveTarget.Text(t), name, "text/plain")
     }
 

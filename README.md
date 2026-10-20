@@ -1,6 +1,6 @@
-# OpenPDF
+# OpenDocument
 
-**Otwarty, pełnoprawny edytor PDF dla Androida i iOS** – czytanie w trybie książki, adnotacje zapisywane w standardzie PDF, podpisy, formularze i pełna praca na stronach.
+**Otwarty czytnik dokumentów i pełnoprawny edytor PDF dla Androida i iOS** – PDF, DjVu, EPUB, FB2, DOCX, ODT, RTF, Markdown, HTML i tekst; czytanie w trybie książki, adnotacje zapisywane w standardzie PDF, podpisy, formularze i pełna praca na stronach.
 
 [![Build & Release](../../actions/workflows/android.yml/badge.svg)](../../actions/workflows/android.yml)
 
@@ -9,14 +9,27 @@
 Najnowsze pliki są zawsze w **[Releases → Latest](../../releases/latest)**. Każdy merge do `main` buduje i publikuje nową wersję na obie platformy automatycznie, a aplikacja sama proponuje aktualizację.
 
 **Android**
-1. Pobierz `OpenPDF-x.y.z.apk` na telefon.
+1. Pobierz `OpenDocument-x.y.z.apk` na telefon.
 2. Otwórz plik i zezwól na instalację z tego źródła.
 3. Wymagany Android 10 (API 29) lub nowszy.
 
 **iPhone i iPad**
-1. Pobierz `OpenPDF-x.y.z.ipa`.
+1. Pobierz `OpenDocument-x.y.z.ipa`.
 2. Zainstaluj go przez [AltStore](https://altstore.io) albo [Sideloadly](https://sideloadly.io) – plik nie jest podpisany, narzędzie podpisuje go Twoim Apple ID (przy darmowym koncie podpis trzeba odświeżać co 7 dni).
 3. Wymagany iOS / iPadOS 16.4 lub nowszy.
+
+## Obsługiwane formaty
+
+| Format | Jak jest otwierany |
+|---|---|
+| **PDF** | Bezpośrednio – pełna edycja, adnotacje, formularze, podpisy. |
+| **DjVu** (`.djvu`, `.djv`) | Własny dekoder (JB2, IW44, paleta FGbz, wspólne słowniki kształtów, obrót stron) – strony składane w PDF z wygładzonym tekstem. Pliki wielostronicowe w postaci pakietu („bundled”). |
+| **EPUB, FB2** | Książki składane w strony PDF: rozdziały, spis treści, obrazy, dzielenie wyrazów. |
+| **DOCX, ODT, RTF** | Dokumenty tekstowe z nagłówkami, listami, tabelami i obrazami. |
+| **Markdown, HTML, TXT, CSV** | Tekst z formatowaniem, tabele, kod pismem o stałej szerokości. |
+| **Obrazy** | JPG, PNG, WebP, GIF, BMP – jako strony PDF. |
+
+Oryginał pozostaje nietknięty; po zmianach dokument zapisuje się jako nowy PDF.
 
 ## Funkcje
 

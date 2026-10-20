@@ -19,7 +19,7 @@ targets:
     info:
       path: OpenPDF/Info.plist
       properties:
-        CFBundleDisplayName: OpenPDF
+        CFBundleDisplayName: OpenDocument
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         # Pełny numer wersji (np. 1.6.0.123) – do porównania z wydaniami na GitHubie.
@@ -35,12 +35,23 @@ targets:
         UIStatusBarStyle: UIStatusBarStyleLightContent
         LSSupportsOpeningDocumentsInPlace: true
         UISupportsDocumentBrowser: false
-        NSPhotoLibraryAddUsageDescription: OpenPDF zapisuje wyeksportowane strony w Zdjęciach.
+        NSPhotoLibraryAddUsageDescription: OpenDocument zapisuje wyeksportowane strony w Zdjęciach.
+        UTImportedTypeDeclarations:
+          - UTTypeIdentifier: com.lizardtech.djvu
+            UTTypeDescription: DjVu
+            UTTypeConformsTo: [public.data, public.image]
+            UTTypeTagSpecification:
+              public.filename-extension: [djvu, djv]
+              public.mime-type: [image/vnd.djvu, image/x-djvu]
         CFBundleDocumentTypes:
           - CFBundleTypeName: PDF
             CFBundleTypeRole: Editor
             LSHandlerRank: Alternate
             LSItemContentTypes: [com.adobe.pdf]
+          - CFBundleTypeName: Dokumenty i książki
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes: [org.idpf.epub-container, org.openxmlformats.wordprocessingml.document, org.oasis-open.opendocument.text, public.rtf, public.plain-text, public.html, net.daringfireball.markdown, public.comma-separated-values-text, com.lizardtech.djvu]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.blacksingularities.openpdf
