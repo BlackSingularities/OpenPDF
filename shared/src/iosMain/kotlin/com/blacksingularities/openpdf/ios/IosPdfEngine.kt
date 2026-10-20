@@ -1,5 +1,7 @@
 package com.blacksingularities.openpdf.ios
 
+import com.blacksingularities.openpdf.doc.DocHtml
+import com.blacksingularities.openpdf.doc.TextDocument
 import com.blacksingularities.openpdf.i18n.tr
 import com.blacksingularities.openpdf.pdf.AnnotInfo
 import com.blacksingularities.openpdf.pdf.DocIndex
@@ -38,6 +40,8 @@ import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.useContents
 import kotlinx.cinterop.value
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okio.FileSystem
 import okio.Path
 import okio.Path.Companion.toPath
@@ -421,8 +425,54 @@ class IosPdfEngine : PdfEngine {
         write(d, out)
     }
 
+    override suspend fun createFromImageSequence(count: Int, out: Path, page: suspend (Int) -> Path?, onProgress: (Float) -> Unit) {
+        val d = PDFDocument()
+        var k = 0
+        for (i in 0 until count) {
+            val f = page(i)
+            if (f != null) {
+                try {
+                    imagePage(f)?.let { d.insertPage(it, atIndex = (k++).toULong()) }
+                } finally {
+                    runCatching { FileSystem.SYSTEM.delete(f) }
+                }
+            }
+            onProgress((i + 1).toFloat() / count)
+        }
+        require(k > 0) { tr("Nie udało się odczytać żadnej strony") }
+        write(d, out)
+    }
+
     override fun createBlank(out: Path, pages: Int, widthPt: Float, heightPt: Float) {
         write(blankPages(pages, widthPt.toDouble(), heightPt.toDouble()), out)
+    }
+
+    /**
+     * Dokument tekstowy → HTML ze stylami do druku → strony PDF składane przez system drukowania
+     * (dzielenie wyrazów, justowanie, łamanie stron jak w Safari). UIKit wymaga wątku głównego.
+     */
+    override suspend fun createFromDocument(doc: TextDocument, out: Path) = withContext(Dispatchers.Main) {
+        val st = doc.style
+        val w = st.widthPt.toDouble()
+        val h = st.heightPt.toDouble()
+        val paper = CGRectMake(0.0, 0.0, w, h)
+        val printable = CGRectMake(st.marginX.toDouble(), st.marginTop.toDouble(), w - 2.0 * st.marginX, h - st.marginTop.toDouble() - st.marginBottom.toDouble())
+        val formatter = UIMarkupTextPrintFormatter(markupText = DocHtml.render(doc))
+        val pages = UIPrintPageRenderer()
+        pages.addPrintFormatter(formatter, startingAtPageAtIndex = 0)
+        pages.setValue(NSValue.valueWithCGRect(paper), forKey = "paperRect")
+        pages.setValue(NSValue.valueWithCGRect(printable), forKey = "printableRect")
+        val count = pages.numberOfPages.toInt()
+        val renderer = UIGraphicsPDFRenderer(bounds = paper, format = UIGraphicsPDFRendererFormat())
+        val data = renderer.PDFDataWithActions { ctx ->
+            if (count > 0) pages.prepareForDrawingPages(NSMakeRange(0u, count.toULong()))
+            for (i in 0 until count) {
+                ctx?.beginPage()
+                pages.drawPageAtIndex(i.toLong(), inRect = paper)
+            }
+            if (count == 0) ctx?.beginPage()
+        }
+        if (!data.writeToFile(out.toString(), atomically = true)) error(tr("Nie można zapisać pliku {0}", out.name))
     }
 
     // ------------------------------------------------------------------ formularze, metadane, ochrona
@@ -476,7 +526,7 @@ class IosPdfEngine : PdfEngine {
         val d = load(file)
         val attrs = HashMap<Any?, Any?>()
         d.documentAttributes?.forEach { (k, v) -> attrs[k] = v }
-        attrs[PDFDocumentProducerAttribute] = "OpenPDF"
+        attrs[PDFDocumentProducerAttribute] = "OpenDocument"
         d.documentAttributes = attrs
         if (userPassword.isNullOrEmpty() && ownerPassword.isNullOrEmpty()) {
             write(d, out)

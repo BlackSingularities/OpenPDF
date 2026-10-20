@@ -76,7 +76,8 @@ private class AndroidPlatformUi(private val context: Context, private val vm: Pd
         }
     }
 
-    override fun openPdf() = launch(tr("Brak aplikacji do wyboru pliku")) { openLauncher.launch(arrayOf("application/pdf")) }
+    /** PDF, książki (EPUB, FB2), dokumenty (DOCX, ODT, RTF), tekst, HTML, Markdown i obrazy. */
+    override fun openPdf() = launch(tr("Brak aplikacji do wyboru pliku")) { openLauncher.launch(DOCUMENT_TYPES) }
 
     override fun createFromImages() = launch(tr("Brak aplikacji do wyboru obrazu")) { imagesLauncher.launch("image/*") }
 
@@ -153,3 +154,23 @@ private class FilePrintAdapter(private val file: File, private val name: String)
         }
     }
 }
+
+private val DOCUMENT_TYPES = arrayOf(
+    "application/pdf",
+    "application/epub+zip",
+    "image/vnd.djvu",
+    "image/x-djvu",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.oasis.opendocument.text",
+    "application/x-fictionbook+xml",
+    "application/x-fictionbook",
+    "application/rtf",
+    "text/*",
+    "application/xhtml+xml",
+    "application/json",
+    "application/xml",
+    "application/zip",
+    "image/*",
+    // Część menedżerów plików nie zna typów EPUB/FB2/MD i podaje je jako „dowolny plik”.
+    "application/octet-stream",
+)

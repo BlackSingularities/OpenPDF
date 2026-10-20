@@ -37,14 +37,37 @@ data class ToolStyle(val color: Int, val width: Float, val fill: Boolean = false
 
 enum class Sheet { OUTLINE, ANNOTATIONS, FORM, INFO, SECURITY, COMPRESS, EXPORT, MORE, SETTINGS, TEXT, SIGNATURES }
 
-/** Otwarty dokument: plik roboczy w katalogu sesji i miejsce, z którego pochodzi. */
+/**
+ * Otwarty dokument: plik roboczy w katalogu sesji i miejsce, z którego pochodzi. [converted] –
+ * dokument tekstowy (EPUB, DOCX…) złożony w strony PDF; zapis tworzy wtedy nowy plik PDF.
+ */
 class OpenDoc(
     val uri: String?,
     val name: String,
     val dir: Path,
     val source: Path,
     val writable: Boolean,
+    val converted: Boolean = false,
 )
+
+private val DOC_EXTENSIONS = setOf(
+    "pdf", "epub", "fb2", "docx", "odt", "rtf", "txt", "text", "md", "markdown", "html", "htm", "xhtml", "csv", "tsv",
+    "log", "json", "xml", "jpg", "jpeg", "png", "webp", "gif", "bmp", "zip",
+)
+
+/** Nazwa pliku bez rozszerzenia dokumentu („Książka.epub” → „Książka”). */
+fun baseName(name: String): String {
+    var n = name
+    // „ksiazka.fb2.zip” – dwa rozszerzenia.
+    repeat(2) {
+        val ext = n.substringAfterLast('.', "")
+        if (ext.isNotEmpty() && ext.lowercase() in DOC_EXTENSIONS && n.length > ext.length + 1) n = n.dropLast(ext.length + 1)
+    }
+    return n
+}
+
+/** Nazwa pliku PDF dla dokumentu („Raport.docx” → „Raport.pdf”). */
+fun pdfFileName(name: String): String = if (name.endsWith(".pdf", ignoreCase = true)) name else baseName(name) + ".pdf"
 
 data class Busy(val label: String, val progress: Float? = null)
 

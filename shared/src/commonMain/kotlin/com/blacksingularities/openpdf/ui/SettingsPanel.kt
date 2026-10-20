@@ -5,8 +5,7 @@ package com.blacksingularities.openpdf.ui
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.Icon
-import com.blacksingularities.openpdf.data.effectiveBookMode
-import com.blacksingularities.openpdf.data.effectiveScroll
+import com.blacksingularities.openpdf.data.ViewMode
 import com.blacksingularities.openpdf.ui.theme.reactive
 import com.blacksingularities.openpdf.i18n.tr
 import androidx.compose.foundation.background
@@ -60,7 +59,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.blacksingularities.openpdf.data.BookMode
 import com.blacksingularities.openpdf.data.PaperTheme
 import com.blacksingularities.openpdf.ui.components.ActionRow
 import com.blacksingularities.openpdf.ui.components.CompactChoice
@@ -113,10 +111,21 @@ fun SettingsPanel(vm: PdfViewModel, startOnDocument: Boolean = false) {
 private fun ColumnScope.SettingsContent(vm: PdfViewModel) {
     val s = vm.settings
     fun set(t: (com.blacksingularities.openpdf.data.AppSettings) -> com.blacksingularities.openpdf.data.AppSettings) = vm.updateSettings(t)
-    SectionHeader(Icons.AutoMirrored.Rounded.MenuBook, tr("Książka"))
+    SectionHeader(Icons.AutoMirrored.Rounded.MenuBook, tr("Widok i książka"))
+        Group(null) {
+            CompactChoice(
+                s.viewMode.icon,
+                tr("Tryb widoku"),
+                ViewMode.entries,
+                s.viewMode,
+                { it.label },
+                icon = { it.icon },
+                short = { it.caption },
+                hint = s.viewMode.hint,
+            ) { v -> set { it.copy(viewMode = v) } }
+        }
         TileGrid(
             listOf(
-                Tile(Icons.Rounded.AutoStories, tr("Auto-układ"), tr("Telefon w pionie: jedna strona, przewijanie w dół. Poziomo, tablet i rozłożony fold: dwie strony jak w książce, z przewracaniem kartek."), s.autoLayout) { v -> set { it.copy(autoLayout = v) } },
                 Tile(Icons.AutoMirrored.Rounded.MenuBook, tr("Okładka osobno"), if (s.coverAlone) tr("Pierwsza strona sama, dalej 2–3, 4–5… (jak w książce)") else tr("Rozkładówki od pierwszej strony: 1–2, 3–4…"), s.coverAlone) { v -> set { it.copy(coverAlone = v) } },
                 Tile(Icons.Rounded.FormatTextdirectionRToL, tr("Od prawej"), tr("Kolejność stron w rozkładówce jak w mandze i językach RTL"), s.rtl) { v -> set { it.copy(rtl = v) } },
                 Tile(Icons.Rounded.Flip, tr("Kartki"), tr("Animacja jak w książce przy przewracaniu stron w poziomie"), s.pageFlip) { v -> set { it.copy(pageFlip = v) } },
@@ -124,14 +133,6 @@ private fun ColumnScope.SettingsContent(vm: PdfViewModel) {
             ),
         )
         Group(null) {
-            CompactChoice(
-                Icons.AutoMirrored.Rounded.MenuBook,
-                tr("Dwie strony obok siebie"),
-                BookMode.entries,
-                s.effectiveBookMode,
-                { it.label },
-                short = { when (it) { BookMode.AUTO -> "Auto"; BookMode.ALWAYS -> "2"; BookMode.NEVER -> "1" } },
-            ) { v -> set { it.copy(bookMode = v, autoLayout = v == BookMode.AUTO && it.autoLayout) } }
             CompactChoice(
                 Icons.Rounded.FitScreen,
                 tr("Dopasowanie rozkładówki"),
@@ -166,14 +167,6 @@ private fun ColumnScope.SettingsContent(vm: PdfViewModel) {
                 s.paper,
                 { it.label },
             ) { v -> set { it.copy(paper = v) } }
-            CompactChoice(
-                Icons.Rounded.SwapVert,
-                tr("Przewijanie"),
-                ScrollMode.entries,
-                s.effectiveScroll(false),
-                { if (it == ScrollMode.VERTICAL) tr("Ciągłe w pionie") else tr("Przewracanie stron w poziomie") },
-                short = { if (it == ScrollMode.VERTICAL) tr("Ciągłe") else tr("Strony") },
-            ) { v -> set { it.copy(scroll = v, autoLayout = false) } }
         }
         CropControl(vm)
     SectionHeader(Icons.Rounded.Edit, tr("Edycja"))
@@ -583,7 +576,7 @@ private fun UpdateRow(vm: PdfViewModel) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             RowIcon(Icons.Rounded.SystemUpdate)
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                Text("OpenPDF ${vm.platform.appVersion}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text("OpenDocument ${vm.platform.appVersion}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 Text(status, fontSize = 12.sp, color = Palette.TextDim, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             if (action != null) {

@@ -1,6 +1,7 @@
 package com.blacksingularities.openpdf.platform
 
 import androidx.compose.ui.graphics.ImageBitmap
+import com.blacksingularities.openpdf.doc.TextDocument
 import com.blacksingularities.openpdf.pdf.AnnotInfo
 import com.blacksingularities.openpdf.pdf.DocIndex
 import com.blacksingularities.openpdf.pdf.FieldEdit
@@ -103,6 +104,18 @@ interface PdfEngine {
     fun insertImages(file: Path, images: List<Path>, at: Int)
     fun createFromImages(images: List<Path>, out: Path)
     fun createBlank(out: Path, pages: Int, widthPt: Float, heightPt: Float)
+
+    /**
+     * Składa dokument tekstowy (EPUB, DOCX, ODT, FB2…) w strony PDF zapisane w [out]: łamanie
+     * wierszy, dzielenie wyrazów, obrazy, tabele, spis treści z nagłówków.
+     */
+    suspend fun createFromDocument(doc: TextDocument, out: Path)
+
+    /**
+     * Składa PDF z [count] stron-obrazów (np. DjVu) podawanych kolejno przez [page]; plik obrazu jest
+     * usuwany zaraz po osadzeniu, więc na dysku leży naraz tylko jedna strona.
+     */
+    suspend fun createFromImageSequence(count: Int, out: Path, page: suspend (Int) -> Path?, onProgress: (Float) -> Unit)
 
     /** Zwraca listę pól, których nie udało się wypełnić. */
     fun fillFields(file: Path, edits: List<FieldEdit>): List<String>

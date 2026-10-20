@@ -143,7 +143,7 @@ class IosPlatform : Platform {
 
     override val hasVolumeKeys = false
 
-    override val aboutTitle = "OpenPDF – otwarty edytor PDF dla iPhone’a i iPada"
+    override val aboutTitle = "OpenDocument – otwarty czytnik dokumentów i edytor PDF dla iPhone’a i iPada"
     override val aboutLicense = "Licencja MIT · Apple PDFKit"
 
     // ------------------------------------------------------------------ aktualizacje

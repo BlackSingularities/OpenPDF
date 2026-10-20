@@ -6,13 +6,25 @@ import com.blacksingularities.openpdf.i18n.tr
 import com.blacksingularities.openpdf.ui.FitMode
 import com.blacksingularities.openpdf.ui.ScrollMode
 
-enum class BookMode(private val pl: String) {
-    AUTO("Automatycznie"),
-    ALWAYS("Zawsze"),
-    NEVER("Nigdy"),
+/**
+ * Sposób wyświetlania dokumentu. [AUTO] – telefon w pionie: przewijanie ciągłe; poziomo,
+ * na tablecie i rozłożonym foldzie – książka.
+ */
+enum class ViewMode(private val pl: String, private val plHint: String) {
+    AUTO("Automatycznie", "Ciągły w pionie, książka poziomo, na tablecie i rozłożonym foldzie"),
+    CONTINUOUS("Ciągły", "Jedna kolumna stron przewijana w pionie"),
+    PAGES("Strony", "Po jednej stronie, przesuwanie w bok"),
+    TWO_PAGES("Dwie strony", "Dwie strony obok siebie, przesuwanie w bok"),
+    BOOK("Książka", "Rozkładówki z grzbietem i przewracaniem kartek"),
     ;
 
     val label: String get() = tr(pl)
+    val hint: String get() = tr(plHint)
+
+    /** Dwie strony w rzędzie. */
+    val twoUp: Boolean get() = this == TWO_PAGES || this == BOOK
+
+    val scroll: ScrollMode get() = if (this == CONTINUOUS) ScrollMode.VERTICAL else ScrollMode.PAGED
 }
 
 enum class PaperTheme(private val pl: String) {
@@ -27,17 +39,11 @@ enum class PaperTheme(private val pl: String) {
 
 /** Ustawienia aplikacji. */
 data class AppSettings(
-    /**
-     * Automatyczny układ: telefon w pionie – pojedyncze strony przewijane w pionie; w poziomie,
-     * na tablecie i rozłożonym foldzie – książka z rozkładówkami i przewracaniem kartek.
-     */
-    val autoLayout: Boolean = true,
-    val bookMode: BookMode = BookMode.AUTO,
+    val viewMode: ViewMode = ViewMode.AUTO,
     val coverAlone: Boolean = true,
     val rtl: Boolean = false,
     val spineShadow: Boolean = true,
     val pageFlip: Boolean = true,
-    val scroll: ScrollMode = ScrollMode.VERTICAL,
     val fitSingle: FitMode = FitMode.WIDTH,
     val fitBook: FitMode = FitMode.PAGE,
     val pageGap: Boolean = true,
@@ -62,7 +68,7 @@ data class AppSettings(
     val tapZones: Boolean = true,
     val haptics: Boolean = true,
     val stylusOnly: Boolean = false,
-    val author: String = "OpenPDF",
+    val author: String = "OpenDocument",
     val autoUpdate: Boolean = true,
     val language: AppLanguage = AppLanguage.SYSTEM,
 )
@@ -71,13 +77,11 @@ class SettingsStore(private val prefs: KeyValueStore) {
     fun load(): AppSettings {
         val d = AppSettings()
         return AppSettings(
-            autoLayout = prefs.getBoolean("autoLayout", d.autoLayout),
-            bookMode = enumOr(prefs.getString("bookMode"), d.bookMode),
+            viewMode = enumOr(prefs.getString("viewMode"), legacyViewMode()),
             coverAlone = prefs.getBoolean("coverAlone", d.coverAlone),
             rtl = prefs.getBoolean("rtl", d.rtl),
             spineShadow = prefs.getBoolean("spineShadow", d.spineShadow),
             pageFlip = prefs.getBoolean("pageFlip", d.pageFlip),
-            scroll = enumOr(prefs.getString("scroll"), d.scroll),
             fitSingle = enumOr(prefs.getString("fitSingle"), d.fitSingle),
             fitBook = enumOr(prefs.getString("fitBook"), d.fitBook),
             pageGap = prefs.getBoolean("pageGap", d.pageGap),
@@ -105,13 +109,11 @@ class SettingsStore(private val prefs: KeyValueStore) {
 
     fun save(s: AppSettings) {
         prefs.edit {
-            putBoolean("autoLayout", s.autoLayout)
-            putString("bookMode", s.bookMode.name)
+            putString("viewMode", s.viewMode.name)
             putBoolean("coverAlone", s.coverAlone)
             putBoolean("rtl", s.rtl)
             putBoolean("spineShadow", s.spineShadow)
             putBoolean("pageFlip", s.pageFlip)
-            putString("scroll", s.scroll.name)
             putString("fitSingle", s.fitSingle.name)
             putString("fitBook", s.fitBook.name)
             putBoolean("pageGap", s.pageGap)
@@ -137,15 +139,24 @@ class SettingsStore(private val prefs: KeyValueStore) {
         }
     }
 
+    /** Tryb z ustawień sprzed wersji 1.7 (auto-układ, tryb książki, przewijanie). */
+    private fun legacyViewMode(): ViewMode {
+        if (prefs.getBoolean("autoLayout", true)) return ViewMode.AUTO
+        val paged = prefs.getString("scroll") == ScrollMode.PAGED.name
+        return when (prefs.getString("bookMode")) {
+            "ALWAYS" -> if (paged) ViewMode.BOOK else ViewMode.TWO_PAGES
+            "NEVER" -> if (paged) ViewMode.PAGES else ViewMode.CONTINUOUS
+            else -> ViewMode.AUTO
+        }
+    }
+
     private inline fun <reified T : Enum<T>> enumOr(name: String?, default: T): T =
         name?.let { n -> enumValues<T>().firstOrNull { it.name == n } } ?: default
 }
 
-/** Tryb książki w użyciu (przy automatycznym układzie zawsze „Automatycznie”). */
-val AppSettings.effectiveBookMode: BookMode get() = if (autoLayout) BookMode.AUTO else bookMode
-
-/** Przewijanie w użyciu: przy automatycznym układzie książka przewraca kartki, pojedyncze strony płyną w pionie. */
-fun AppSettings.effectiveScroll(book: Boolean): ScrollMode = if (autoLayout) (if (book) ScrollMode.PAGED else ScrollMode.VERTICAL) else scroll
+/** Tryb w użyciu: „Automatycznie” zamienia się w książkę ([autoBook]) albo widok ciągły. */
+fun AppSettings.resolvedView(autoBook: Boolean): ViewMode =
+    if (viewMode == ViewMode.AUTO) (if (autoBook) ViewMode.BOOK else ViewMode.CONTINUOUS) else viewMode
 
 /** Najwięcej, ile można przyciąć z jednej krawędzi strony. */
 const val MAX_CROP = 0.3f

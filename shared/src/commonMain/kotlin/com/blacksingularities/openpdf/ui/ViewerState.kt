@@ -3,6 +3,7 @@ package com.blacksingularities.openpdf.ui
 import androidx.compose.animation.core.FloatExponentialDecaySpec
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateDecay
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -19,7 +20,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.acos
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.max
@@ -358,12 +361,19 @@ class ViewerState(private val scope: CoroutineScope) {
         return Flip(pagedRow, target, forward).also { flip = it }
     }
 
+    /**
+     * Dokończenie obrotu kartki sprężyną bez odbicia – zachowuje prędkość palca, więc szybkie
+     * machnięcie przewraca kartkę szybko, a spokojne puszczenie – miękko.
+     */
     private fun completeFlip(f: Flip, velocity: Float = 0f) {
         stop()
         anim = scope.launch {
-            val remaining = 1f - f.progress
-            animate(f.progress, 1f, initialVelocity = velocity, animationSpec = tween((520 * remaining).toInt().coerceAtLeast(120))) { v, _ ->
-                f.progress = v
+            animate(
+                f.progress, 1f,
+                initialVelocity = velocity.coerceAtLeast(if (f.progress < 0.05f) 1.4f else 0f),
+                animationSpec = spring(dampingRatio = 1f, stiffness = 170f, visibilityThreshold = 0.002f),
+            ) { v, _ ->
+                f.progress = v.coerceIn(0f, 1f)
             }
             pagedRow = f.to
             offset = clamped(1f, Offset(-f.to * viewport.width, offset.y))
@@ -371,10 +381,14 @@ class ViewerState(private val scope: CoroutineScope) {
         }
     }
 
-    private fun cancelFlip(f: Flip) {
+    private fun cancelFlip(f: Flip, velocity: Float = 0f) {
         stop()
         anim = scope.launch {
-            animate(f.progress, 0f, animationSpec = tween((380 * f.progress).toInt().coerceAtLeast(100))) { v, _ -> f.progress = v }
+            animate(
+                f.progress, 0f,
+                initialVelocity = velocity.coerceAtMost(0f),
+                animationSpec = spring(dampingRatio = 1f, stiffness = 260f, visibilityThreshold = 0.002f),
+            ) { v, _ -> f.progress = v.coerceIn(0f, 1f) }
             flip = null
         }
     }
@@ -390,14 +404,23 @@ class ViewerState(private val scope: CoroutineScope) {
             f = startFlip(forward) ?: return
         }
         val towards = if (f.forward != rtl) -dx else dx
-        f.progress = (towards / (viewport.width * 0.75f)).coerceIn(0f, 1f)
+        // Krawędź kartki idzie za palcem: jej rzut na ekran to cos(π·postęp) szerokości strony.
+        val l = layout
+        val row = l?.rows?.getOrNull(f.from)
+        val pageW = row?.let { r ->
+            val sp = r.spine ?: r.rect.centerX
+            max(sp - r.rect.left, r.rect.right - sp)
+        }?.takeIf { it > 1f } ?: (viewport.width / 2f)
+        val edge = (1f - towards / pageW * 0.95f).coerceIn(-1f, 1f)
+        f.progress = (acos(edge) / PI).toFloat()
     }
 
     fun flipRelease(vx: Float) {
         val f = flip ?: return
         val rtl = layout?.spec?.rtl == true
         val v = if (f.forward != rtl) -vx else vx
-        if (f.progress > 0.33f || v > 800f) completeFlip(f, (v / viewport.width).coerceIn(0f, 6f)) else cancelFlip(f)
+        val pv = v / viewport.width
+        if ((f.progress > 0.33f && v > -500f) || v > 800f) completeFlip(f, pv.coerceIn(0f, 6f)) else cancelFlip(f, pv.coerceIn(-6f, 0f))
     }
 
     /** Pionowy suwak szybkiego przewijania: 0..1. */

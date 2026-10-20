@@ -63,7 +63,7 @@ object UpdateManager {
         )
         val notification = android.app.Notification.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_launcher_monochrome)
-            .setContentTitle(tr("OpenPDF zaktualizowany do {0}", BuildConfig.VERSION_NAME))
+            .setContentTitle(tr("OpenDocument zaktualizowany do {0}", BuildConfig.VERSION_NAME))
             .setContentText(tr("Dotknij, aby otworzyć aplikację"))
             .setContentIntent(pending)
             .setAutoCancel(true)
@@ -83,7 +83,7 @@ object UpdateManager {
             connectTimeout = 10_000
             readTimeout = 15_000
             setRequestProperty("Accept", "application/vnd.github+json")
-            setRequestProperty("User-Agent", "OpenPDF/" + BuildConfig.VERSION_NAME)
+            setRequestProperty("User-Agent", "OpenDocument/" + BuildConfig.VERSION_NAME)
         }
         try {
             if (conn.responseCode != 200) error(tr("Serwer odpowiedział kodem {0}", conn.responseCode))
@@ -96,13 +96,13 @@ object UpdateManager {
     suspend fun download(context: Context, info: ReleaseInfo, onProgress: (Float) -> Unit): File = withContext(Dispatchers.IO) {
         val dir = File(context.cacheDir, "updates").apply { mkdirs() }
         dir.listFiles()?.forEach { it.delete() }
-        val target = File(dir, "OpenPDF-${info.version}.apk")
+        val target = File(dir, "OpenDocument-${info.version}.apk")
         val part = File(dir, target.name + ".part")
         val conn = (URL(info.assetUrl).openConnection() as HttpURLConnection).apply {
             connectTimeout = 15_000
             readTimeout = 30_000
             instanceFollowRedirects = true
-            setRequestProperty("User-Agent", "OpenPDF/" + BuildConfig.VERSION_NAME)
+            setRequestProperty("User-Agent", "OpenDocument/" + BuildConfig.VERSION_NAME)
         }
         try {
             if (conn.responseCode !in 200..299) error(tr("Pobieranie nie powiodło się ({0})", conn.responseCode))

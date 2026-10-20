@@ -76,9 +76,16 @@ class PageImages(private val scope: CoroutineScope) {
     /** Zlecenia dla widocznego obszaru (w kolejności ważności). */
     private var visibleBase = Int.MAX_VALUE
 
-    /** [visibleCount] – ile pierwszych pozycji [baseWanted] jest teraz na ekranie. */
-    fun request(baseWanted: List<Pair<Int, Int>>, tileWanted: List<TileRequest>, visibleCount: Int = baseWanted.size) {
+    /** Czy szerokości w zleceniach są dokładne (obraz 1:1 z ekranem), a nie zaokrąglone. */
+    private var exactBase = false
+
+    /**
+     * [visibleCount] – ile pierwszych pozycji [baseWanted] jest teraz na ekranie; [exact] – obraz
+     * ma mieć dokładnie zadaną szerokość (ostry tekst bez przeskalowania).
+     */
+    fun request(baseWanted: List<Pair<Int, Int>>, tileWanted: List<TileRequest>, visibleCount: Int = baseWanted.size, exact: Boolean = false) {
         visibleBase = visibleCount
+        exactBase = exact
         wantedBase = baseWanted
         wantedTiles = tileWanted
         // Kafelki niepotrzebne już na ekranie – zwalniamy.
@@ -142,7 +149,7 @@ class PageImages(private val scope: CoroutineScope) {
     private suspend fun renderBase(s: PageRenderer, list: List<Pair<Int, Int>>): Boolean {
         for ((page, width) in list) {
             val have = base.get(page)
-            if (have != null && have.width >= width * 0.9f) continue
+            if (have != null && (if (exactBase) have.width in width - 1..width + 1 else have.width >= width * 0.9f)) continue
             val key = "b$page:$width"
             if (key in failed) continue
             val bmp = s.renderPage(page, width)

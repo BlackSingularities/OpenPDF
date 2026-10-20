@@ -16,7 +16,14 @@ import platform.PhotosUI.PHPickerResult
 import platform.PhotosUI.PHPickerViewController
 import platform.PhotosUI.PHPickerViewControllerDelegateProtocol
 import platform.UIKit.*
+import platform.UniformTypeIdentifiers.UTType
+import platform.UniformTypeIdentifiers.UTTypeHTML
+import platform.UniformTypeIdentifiers.UTTypeImage
 import platform.UniformTypeIdentifiers.UTTypePDF
+import platform.UniformTypeIdentifiers.UTTypePlainText
+import platform.UniformTypeIdentifiers.UTTypeRTF
+import platform.UniformTypeIdentifiers.UTTypeText
+import platform.UniformTypeIdentifiers.UTTypeZIP
 import platform.darwin.NSObject
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
@@ -47,8 +54,17 @@ class IosPlatformUi(private val vm: PdfViewModel) : PlatformUi {
 
     // ------------------------------------------------------------------ pliki PDF
 
-    private fun pickPdfs(multiple: Boolean, done: (List<String>) -> Unit) {
-        val picker = UIDocumentPickerViewController(forOpeningContentTypes = listOf(UTTypePDF), asCopy = false)
+    private fun pickPdfs(multiple: Boolean, done: (List<String>) -> Unit) = pick(listOfNotNull(UTTypePDF), multiple, done)
+
+    /** PDF, książki (EPUB, FB2, DjVu), dokumenty (DOCX, ODT, RTF), tekst, HTML, Markdown i obrazy. */
+    private fun documentTypes(): List<UTType> {
+        val byExt = listOf("epub", "djvu", "djv", "docx", "odt", "fb2", "rtf", "md", "markdown", "html", "htm", "xhtml", "txt", "csv", "json", "xml", "log")
+            .mapNotNull { UTType.typeWithFilenameExtension(it) }
+        return (listOfNotNull(UTTypePDF, UTTypePlainText, UTTypeText, UTTypeHTML, UTTypeRTF, UTTypeImage, UTTypeZIP) + byExt).distinct()
+    }
+
+    private fun pick(types: List<UTType>, multiple: Boolean, done: (List<String>) -> Unit) {
+        val picker = UIDocumentPickerViewController(forOpeningContentTypes = types, asCopy = false)
         picker.allowsMultipleSelection = multiple
         val d = DocDelegate { urls ->
             keep = null
@@ -59,7 +75,7 @@ class IosPlatformUi(private val vm: PdfViewModel) : PlatformUi {
         present(picker)
     }
 
-    override fun openPdf() = pickPdfs(false) { it.firstOrNull()?.let { u -> vm.open(u) } }
+    override fun openPdf() = pick(documentTypes(), false) { it.firstOrNull()?.let { u -> vm.open(u) } }
 
     override fun mergePdfs() = pickPdfs(true) { if (it.isNotEmpty()) vm.mergeFiles(it) }
 

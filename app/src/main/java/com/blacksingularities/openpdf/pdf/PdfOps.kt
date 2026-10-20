@@ -532,6 +532,24 @@ object PdfOps {
         }
     }
 
+    suspend fun createFromImageSequence(count: Int, out: File, page: suspend (Int) -> File?, onProgress: (Float) -> Unit) {
+        PDDocument(memory).use { doc ->
+            for (i in 0 until count) {
+                val f = page(i)
+                if (f != null) {
+                    try {
+                        imagePage(doc, f)?.let { doc.addPage(it) }
+                    } finally {
+                        f.delete()
+                    }
+                }
+                onProgress((i + 1).toFloat() / count)
+            }
+            require(doc.numberOfPages > 0) { tr("Nie udało się odczytać żadnej strony") }
+            doc.save(out)
+        }
+    }
+
     fun createBlank(out: File, pages: Int, size: PDRectangle) {
         PDDocument(memory).use { doc ->
             repeat(pages.coerceAtLeast(1)) { doc.addPage(PDPage(PDRectangle(size.width, size.height))) }
@@ -615,7 +633,7 @@ object PdfOps {
     /** Zapisuje dokument do [out], opcjonalnie szyfrując go hasłem (AES-256). */
     fun export(file: File, out: File, userPassword: String?, ownerPassword: String?) {
         load(file).use { doc ->
-            doc.documentInformation.producer = "OpenPDF"
+            doc.documentInformation.producer = "OpenDocument"
             if (!userPassword.isNullOrEmpty() || !ownerPassword.isNullOrEmpty()) {
                 val owner = ownerPassword?.takeIf { it.isNotEmpty() } ?: userPassword!!
                 val policy = StandardProtectionPolicy(owner, userPassword ?: "", AccessPermission())

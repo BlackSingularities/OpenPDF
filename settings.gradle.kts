@@ -12,7 +12,7 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "OpenPDF"
+rootProject.name = "OpenDocument"
 include(":app")
 // Wspólny kod (interfejs, logika) dla Androida i iOS.
 include(":shared")
