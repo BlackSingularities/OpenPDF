@@ -49,6 +49,9 @@ interface Platform {
     /** Czy działają klawisze głośności (przewracanie stron). */
     val hasVolumeKeys: Boolean get() = true
 
+    /** Czy pokazywać przycisk „Postaw kawę” (App Store nie pozwala na zewnętrzne wpłaty). */
+    val showsDonation: Boolean get() = true
+
     /** Teksty „O aplikacji” (polskie klucze tłumaczeń). */
     val aboutTitle: String
     val aboutLicense: String

@@ -626,7 +626,7 @@ private fun About(vm: PdfViewModel) {
                 .padding(horizontal = 8.dp, vertical = 4.dp),
         )
         Text(
-            tr("Pomysł i wykonanie: redzikowski.com"),
+            tr("Projekt i wykonanie: redzikowski.com"),
             fontSize = 12.sp,
             color = Palette.TextDim,
             modifier = Modifier
@@ -634,6 +634,20 @@ private fun About(vm: PdfViewModel) {
                 .clickable { runCatching { uri.openUri("https://redzikowski.com") } }
                 .padding(horizontal = 8.dp, vertical = 4.dp),
         )
+        if (vm.platform.showsDonation) {
+            Text(
+                "☕  " + tr("Postaw kawę"),
+                fontSize = 13.sp,
+                color = Palette.Ink,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(Color.White)
+                    .clickable { runCatching { uri.openUri("https://buycoffee.to/adamredzikowski") } }
+                    .padding(horizontal = 18.dp, vertical = 10.dp),
+            )
+        }
     }
 }
 

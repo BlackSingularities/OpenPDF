@@ -142,6 +142,7 @@ class IosPlatform : Platform {
     override fun galleryDoneMessage(count: Int) = tr("Zapisano {0} obrazów w Zdjęciach", count)
 
     override val hasVolumeKeys = false
+    override val showsDonation = false
 
     override val aboutTitle = "OpenDocument – otwarty czytnik dokumentów i edytor PDF dla iPhone’a i iPada"
     override val aboutLicense = "Licencja MIT · Apple PDFKit"

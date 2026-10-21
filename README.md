@@ -94,3 +94,9 @@ Wydania podpisuje CI kluczem z sekretów repozytorium (`SIGNING_KEYSTORE_BASE64`
 ## Licencja
 
 MIT. Wersja na Androida wykorzystuje [PdfBox-Android](https://github.com/TomRoush/PdfBox-Android) (Apache 2.0).
+
+---
+
+**Projekt i wykonanie: [redzikowski.com](https://redzikowski.com)**
+
+<a href="https://buycoffee.to/adamredzikowski" target="_blank"><img src="https://buycoffee.to/static/img/share/share-button-dark--pl.png" style="width: 351px; height: 92px" width="351" height="92" alt="Postaw kawę dla adamredzikowski na buycoffee.to"></a>
