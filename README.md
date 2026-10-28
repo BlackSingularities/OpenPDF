@@ -6,7 +6,7 @@
 
 ## Pobieranie
 
-Najnowsze pliki są zawsze w **[Releases → Latest](../../releases/latest)**. Każdy merge do `main` buduje i publikuje nową wersję na obie platformy automatycznie, a aplikacja sama proponuje aktualizację.
+Najnowsze pliki są zawsze w **[Releases → Latest](../../releases/latest)**. Każdy wypchnięty tag `vX.Y.Z` buduje i publikuje nową wersję na obie platformy automatycznie, a aplikacja sama proponuje aktualizację.
 
 **Android**
 1. Pobierz `OpenDocument-x.y.z.apk` na telefon.

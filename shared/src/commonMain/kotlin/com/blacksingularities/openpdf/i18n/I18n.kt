@@ -336,7 +336,7 @@ private val En: Map<String, String> = hashMapOf(
     "Licencja MIT · PdfBox-Android (Apache 2.0)" to "MIT License · PdfBox-Android (Apache 2.0)",
     "OpenDocument – otwarty czytnik dokumentów i edytor PDF dla iPhone’a i iPada" to "OpenDocument – an open-source document reader and PDF editor for iPhone and iPad",
     "Licencja MIT · Apple PDFKit" to "MIT License · Apple PDFKit",
-    "Projekt i wykonanie: redzikowski.com" to "Design and development: redzikowski.com",
+    "Pomysł i wykonanie: Adam Rędzikowski · redzikowski.com" to "Idea and development: Adam Rędzikowski · redzikowski.com",
     "Postaw kawę" to "Buy me a coffee",
     "Automatycznie" to "Automatic",
     "Zawsze" to "Always",
