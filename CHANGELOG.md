@@ -1,3 +1,9 @@
+## 1.7.1
+
+- Nowa strona aplikacji z opisem funkcji.
+- Jednolita informacja o autorze (Adam Rędzikowski · redzikowski.com) i przycisk „Postaw kawę”.
+- Usunięte odnośniki do repozytorium z interfejsu.
+
 ## 1.7.0 — OpenDocument
 
 - Nowa nazwa: **OpenDocument** (pliki wydań `OpenDocument-x.y.z.apk` / `.ipa`).
