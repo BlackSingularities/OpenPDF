@@ -98,7 +98,6 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sin
-import kotlin.math.sqrt
 
 private enum class GestureMode { PENDING, PAN, DRAW, MOVE, RESIZE, SELECT_TEXT, HANDLE_START, HANDLE_END }
 
@@ -256,6 +255,8 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, mode: ViewMode, modifier: Mo
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     state.stop()
+                    // Kartka jeszcze opada: dotknięcie kończy ją od razu, żeby można było szybko kartkować dalej.
+                    state.settleFlip()
                     state.interacting = true
                     val tool = vm.tool
                     val slop = viewConfiguration.touchSlop
@@ -428,16 +429,8 @@ fun PdfViewer(vm: PdfViewModel, state: ViewerState, mode: ViewMode, modifier: Mo
             }
             val pageCount = vm.render?.pageCount ?: 0
             for (row in state.visibleRows()) {
-                // Książka: krawędzie bloku kartek – grubsze po stronie, gdzie zostało więcej stron.
-                if (look.gutter && row.spine != null && pageCount > 2 && row.slots.isNotEmpty()) {
-                    val leftSlot = row.slots.minBy { it.rect.left }
-                    val rightSlot = row.slots.maxBy { it.rect.right }
-                    val first = row.slots.minOf { it.page }
-                    val last = row.slots.maxOf { it.page }
-                    val read = first
-                    val left = pageCount - 1 - last
-                    val (before, after) = if (layout.spec.rtl) left to read else read to left
-                    drawPageStack(state.toScreen(leftSlot.rect), state.toScreen(rightSlot.rect), before, after, paperColor, look)
+                if (look.gutter && row.spine != null && row.slots.isNotEmpty()) {
+                    drawBookFrame(row.slots.map { it.page to state.toScreen(it.rect) }, pageCount, layout.spec.rtl, paperColor, look)
                 }
                 for (slot in row.slots) {
                     // c – widoczny (przycięty) fragment strony, r – cała strona.
@@ -543,9 +536,23 @@ private fun black(a: Float) = Color.Black.copy(alpha = a.coerceIn(0f, 1f))
  */
 private fun DrawScope.drawGutter(x: Float, left: Rect?, right: Rect?, strength: Float, look: BookLook) {
     if (strength <= 0.01f) return
-    val k = strength
-    if (left != null) {
-        val w = left.width * 0.11f
+    if (left != null) gutterSide(x, left, leftSide = true, k = strength, look = look)
+    if (right != null) gutterSide(x, right, leftSide = false, k = strength, look = look)
+    val top = minOf(left?.top ?: Float.MAX_VALUE, right?.top ?: Float.MAX_VALUE)
+    val bottom = maxOf(left?.bottom ?: 0f, right?.bottom ?: 0f)
+    if (bottom > top) drawLine(black(0.22f * strength), Offset(x, top), Offset(x, bottom), 1f)
+}
+
+/**
+ * Cieniowanie jednej strony rozkładówki przy grzbiecie [x] (oraz zaokrąglenie jej zewnętrznej krawędzi).
+ * Ta sama funkcja maluje kartkę w trakcie przewracania, więc chwycona lub odłożona kartka wygląda
+ * dokładnie jak leżąca – cień nie pojawia się ani nie znika skokowo.
+ */
+private fun DrawScope.gutterSide(x: Float, page: Rect, leftSide: Boolean, k: Float, look: BookLook) {
+    if (k <= 0.005f) return
+    val e = page.width * 0.022f
+    if (leftSide) {
+        val w = page.width * 0.11f
         drawRect(
             Brush.horizontalGradient(
                 0f to Color.Transparent,
@@ -557,14 +564,12 @@ private fun DrawScope.drawGutter(x: Float, left: Rect?, right: Rect?, strength: 
                 startX = x - w,
                 endX = x,
             ),
-            Offset(x - w, left.top),
-            Size(w, left.height),
+            Offset(x - w, page.top),
+            Size(w, page.height),
         )
-        val e = left.width * 0.022f
-        drawRect(Brush.horizontalGradient(0f to black(0.07f * k), 1f to Color.Transparent, startX = left.left, endX = left.left + e), Offset(left.left, left.top), Size(e, left.height))
-    }
-    if (right != null) {
-        val w = right.width * 0.085f
+        drawRect(Brush.horizontalGradient(0f to black(0.07f * k), 1f to Color.Transparent, startX = page.left, endX = page.left + e), Offset(page.left, page.top), Size(e, page.height))
+    } else {
+        val w = page.width * 0.085f
         drawRect(
             Brush.horizontalGradient(
                 0f to black(0.36f * k),
@@ -576,24 +581,40 @@ private fun DrawScope.drawGutter(x: Float, left: Rect?, right: Rect?, strength: 
                 startX = x,
                 endX = x + w,
             ),
-            Offset(x, right.top),
-            Size(w, right.height),
+            Offset(x, page.top),
+            Size(w, page.height),
         )
         if (look.light) {
             val h0 = x + w * 0.7f
             val hw = w * 0.9f
             drawRect(
                 Brush.horizontalGradient(0f to Color.Transparent, 0.5f to Color.White.copy(alpha = 0.10f * k), 1f to Color.Transparent, startX = h0, endX = h0 + hw),
-                Offset(h0, right.top),
-                Size(hw, right.height),
+                Offset(h0, page.top),
+                Size(hw, page.height),
             )
         }
-        val e = right.width * 0.022f
-        drawRect(Brush.horizontalGradient(0f to Color.Transparent, 1f to black(0.07f * k), startX = right.right - e, endX = right.right), Offset(right.right - e, right.top), Size(e, right.height))
+        drawRect(Brush.horizontalGradient(0f to Color.Transparent, 1f to black(0.07f * k), startX = page.right - e, endX = page.right), Offset(page.right - e, page.top), Size(e, page.height))
     }
-    val top = minOf(left?.top ?: Float.MAX_VALUE, right?.top ?: Float.MAX_VALUE)
-    val bottom = maxOf(left?.bottom ?: 0f, right?.bottom ?: 0f)
-    if (bottom > top) drawLine(black(0.22f * k), Offset(x, top), Offset(x, bottom), 1f)
+}
+
+/**
+ * Miękki cień pod całą otwartą książką – książka leży na stole, a nie jest wklejona w tło.
+ * Rysowany tak samo w spoczynku i podczas przewracania, więc nie miga.
+ */
+private fun DrawScope.drawBookShadow(book: Rect, look: BookLook) {
+    if (book.width < 1f) return
+    val r = look.edgeStep * 9f
+    val layers = 6
+    for (i in layers downTo 1) {
+        val f = i / layers.toFloat()
+        val grow = r * f
+        drawRoundRect(
+            black(0.035f * (1f - f) + 0.012f),
+            Offset(book.left - grow * 0.6f, book.top - grow * 0.25f + r * 0.18f),
+            Size(book.width + grow * 1.2f, book.height + grow * 0.7f),
+            CornerRadius(grow, grow),
+        )
+    }
 }
 
 /**
@@ -618,6 +639,22 @@ private fun DrawScope.drawPageStack(left: Rect, right: Rect, before: Int, after:
         val inset = i * look.edgeStep * 0.6f
         drawLine(paper.copy(alpha = 0.55f - i * 0.1f), Offset(x, right.top + inset), Offset(x, right.bottom - inset), look.edgeWidth)
     }
+}
+
+/**
+ * Oprawa otwartej książki: cień pod nią i krawędzie bloku kartek – grubsze po stronie,
+ * gdzie zostało więcej stron. Wspólna dla spoczynku i przewracania kartki.
+ */
+private fun DrawScope.drawBookFrame(pages: List<Pair<Int, Rect>>, pageCount: Int, rtl: Boolean, paper: Color, look: BookLook) {
+    if (pages.isEmpty()) return
+    val left = pages.minBy { it.second.left }.second
+    val right = pages.maxBy { it.second.right }.second
+    drawBookShadow(Rect(left.left, minOf(left.top, right.top), right.right, maxOf(left.bottom, right.bottom)), look)
+    if (pageCount <= 2) return
+    val read = pages.minOf { it.first }
+    val remaining = pageCount - 1 - pages.maxOf { it.first }
+    val (before, after) = if (rtl) remaining to read else read to remaining
+    drawPageStack(left, right, before, after, paper, look)
 }
 
 /** Strona narysowana w dowolnym prostokącie (podstawowa bitmapa, bez kafelków), z przyciętymi marginesami. */
@@ -676,6 +713,7 @@ private fun DrawScope.drawFlip(
     val front = side(from, left = !fromRight)
     val back = side(to, left = fromRight)
     val flats = listOfNotNull(staticSide, revealed)
+    if (look.gutter) drawBookFrame(from.slots.map { it.page to screen(from, it) }, vm.render?.pageCount ?: 0, layout.spec.rtl, paper, look)
     for ((page, r) in flats) drawPageInto(vm, page, r, paper, filter, state.cropOf(page))
     if (look.gutter) {
         drawGutter(spine, flats.firstOrNull { it.second.center.x < spine }?.second, flats.firstOrNull { it.second.center.x >= spine }?.second, 1f, look)
@@ -698,7 +736,8 @@ private fun DrawScope.drawFlip(
     if (beneath != null) {
         val b = beneath.second
         val shadowW = w * (0.05f + 0.32f * sinA)
-        val alpha = 0.42f * sqrt(sinA)
+        // Cień narasta gładko od zera (bez pierwiastka, który dawał skok przy chwyceniu kartki).
+        val alpha = 0.38f * sinA * (2f - sinA)
         val x1 = edgeX + s * shadowW
         val l = min(edgeX, x1).coerceIn(b.left, b.right)
         val r = max(edgeX, x1).coerceIn(b.left, b.right)
@@ -742,17 +781,11 @@ private fun DrawScope.drawFlip(
             local.topLeft,
             local.size,
         )
-        // Zagięcie przy grzbiecie, póki kartka prawie leży.
-        if (look.gutter && cosA > 0.6f) {
-            val gw = w * 0.09f
-            drawRect(
-                Brush.horizontalGradient(0f to black(0.3f * cosA), 1f to Color.Transparent, startX = 0f, endX = s * gw),
-                Offset(if (s > 0) 0f else -gw, local.top),
-                Size(gw, local.height),
-            )
-        }
+        // Cieniowanie przy grzbiecie takie samo jak u leżącej strony, wygaszane płynnie wraz z
+        // uniesieniem – w chwili chwycenia i odłożenia kartka wygląda identycznie jak w spoczynku.
+        if (look.gutter) gutterSide(0f, local, leftSide = s < 0f, k = cosA * cosA, look = look)
         // Cienka krawędź kartki – oddziela ją od strony pod spodem.
-        drawLine(black(0.18f), Offset(s * w, local.top), Offset(s * w, local.bottom), 1.2f)
+        drawLine(black(0.2f * sinA), Offset(s * w, local.top), Offset(s * w, local.bottom), 1.2f)
     }
 }
 

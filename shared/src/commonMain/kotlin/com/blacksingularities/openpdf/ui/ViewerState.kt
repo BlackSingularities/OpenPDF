@@ -295,6 +295,7 @@ class ViewerState(private val scope: CoroutineScope) {
         val l = layout ?: return
         if (l.rows.isEmpty()) return
         if (canFlip()) {
+            settleFlip()
             if (flip == null) startFlip(direction > 0)?.let { completeFlip(it) }
             return
         }
@@ -338,6 +339,9 @@ class ViewerState(private val scope: CoroutineScope) {
     @Stable
     class Flip(val from: Int, val to: Int, val forward: Boolean) {
         var progress by mutableFloatStateOf(0f)
+
+        /** Kartka puszczona i dokańczana animacją: true – przewraca się, false – wraca; null – pod palcem. */
+        var settling: Boolean? = null
     }
 
     var flip by mutableStateOf<Flip?>(null)
@@ -367,6 +371,7 @@ class ViewerState(private val scope: CoroutineScope) {
      */
     private fun completeFlip(f: Flip, velocity: Float = 0f) {
         stop()
+        f.settling = true
         anim = scope.launch {
             animate(
                 f.progress, 1f,
@@ -383,6 +388,7 @@ class ViewerState(private val scope: CoroutineScope) {
 
     private fun cancelFlip(f: Flip, velocity: Float = 0f) {
         stop()
+        f.settling = false
         anim = scope.launch {
             animate(
                 f.progress, 0f,
@@ -393,10 +399,27 @@ class ViewerState(private val scope: CoroutineScope) {
         }
     }
 
+    /** Natychmiastowe dokończenie animowanej kartki – kolejne przewrócenie zaczyna się od razu od następnej. */
+    fun settleFlip() {
+        flip?.let { if (it.settling != null) settleNow(it) }
+    }
+
+    private fun settleNow(f: Flip) {
+        stop()
+        if (f.settling == true) pagedRow = f.to
+        offset = clamped(1f, Offset(-pagedRow * viewport.width, offset.y))
+        flip = null
+    }
+
     /** Przeciąganie palcem: [dx] – przesunięcie od początku gestu (w pikselach). */
     fun flipDrag(dx: Float) {
         val rtl = layout?.spec?.rtl == true
         var f = flip
+        // Nowy gest w trakcie animacji poprzedniej kartki: dokończ ją i przewracaj następną.
+        if (f != null && f.settling != null) {
+            settleNow(f)
+            f = null
+        }
         if (f == null) {
             if (abs(dx) < 4f) return
             // Przesunięcie w lewo = dalej (w kolejności od prawej do lewej – odwrotnie).
@@ -417,6 +440,8 @@ class ViewerState(private val scope: CoroutineScope) {
 
     fun flipRelease(vx: Float) {
         val f = flip ?: return
+        // Dotknięcie zatrzymało animowaną kartkę, ale gest jej nie przejął – dokończ ją od razu.
+        if (f.settling != null) return settleNow(f)
         val rtl = layout?.spec?.rtl == true
         val v = if (f.forward != rtl) -vx else vx
         val pv = v / viewport.width
