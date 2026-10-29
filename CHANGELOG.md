@@ -1,5 +1,9 @@
 ## 1.7.2
 
+## 1.7.4
+
+- Dopasowane kolorystycznie tła ikon aplikacji i spójne zasoby graficzne.
+
 - Przewracanie kartek: cień przy grzbiecie i pod kartką narasta i gaśnie płynnie – nie pojawia się nagle przy chwyceniu, puszczeniu ani na końcu animacji.
 - Szybkie kartkowanie: przesunięcie palcem w trakcie animacji od razu kończy poprzednią kartkę i przewraca następną (zamiast cofać poprzednią).
 - Dopracowany wygląd książki: miękki cień pod otwartą książką, krawędzie bloku kartek widoczne także podczas przewracania.
