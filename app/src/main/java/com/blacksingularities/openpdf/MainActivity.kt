@@ -24,7 +24,11 @@ import com.blacksingularities.openpdf.ui.PdfViewModel
 import com.blacksingularities.openpdf.ui.Screen
 import com.blacksingularities.openpdf.ui.theme.OpenPdfTheme
 import com.blacksingularities.openpdf.update.UpdateManager
+import android.widget.Toast
+import java.io.File
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     private val vm: PdfViewModel by viewModels {
@@ -98,7 +102,59 @@ class MainActivity : ComponentActivity() {
             }
             else -> null
         }
-        if (uri != null) vm.open(uri.toString())
+        if (uri == null) return
+        if (uri.scheme == "http" || uri.scheme == "https") openRemote(uri) else vm.open(uri.toString())
+    }
+
+    /** Pobiera dokument z linku do cache i otwiera go jak zwykły plik. */
+    private fun openRemote(uri: Uri) {
+        lifecycleScope.launch {
+            val file = withContext(Dispatchers.IO) {
+                runCatching {
+                    var url = java.net.URL(uri.toString())
+                    var conn: java.net.HttpURLConnection
+                    var hops = 0
+                    while (true) {
+                        conn = url.openConnection() as java.net.HttpURLConnection
+                        conn.instanceFollowRedirects = true
+                        conn.connectTimeout = 15000
+                        conn.readTimeout = 30000
+                        val code = conn.responseCode
+                        // Przekierowania między http a https nie są obsługiwane automatycznie.
+                        if (code in 300..399 && hops++ < 5) {
+                            val loc = conn.getHeaderField("Location") ?: break
+                            url = java.net.URL(url, loc)
+                            conn.disconnect()
+                            continue
+                        }
+                        if (code !in 200..299) error("HTTP $code")
+                        break
+                    }
+                    val name = fileName(conn, url)
+                    val dir = File(cacheDir, "downloads").apply { mkdirs() }
+                    val out = File(dir, name)
+                    conn.inputStream.use { input -> out.outputStream().use { input.copyTo(it) } }
+                    conn.disconnect()
+                    out
+                }.getOrNull()
+            }
+            if (file != null) vm.open(Uri.fromFile(file).toString())
+            else Toast.makeText(this@MainActivity, "Nie udało się pobrać pliku", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun fileName(conn: java.net.HttpURLConnection, url: java.net.URL): String {
+        val cd = conn.getHeaderField("Content-Disposition")
+        val fromHeader = cd?.let { Regex("filename\\*?=(?:UTF-8'')?\"?([^\";]+)").find(it)?.groupValues?.get(1) }
+            ?.let { runCatching { java.net.URLDecoder.decode(it, "UTF-8") }.getOrDefault(it) }
+        var name = (fromHeader ?: url.path.substringAfterLast('/')).replace(Regex("[\\\\/:*?\"<>|]"), "_")
+        if (name.isBlank()) name = "dokument"
+        if (!name.contains('.')) {
+            val ext = android.webkit.MimeTypeMap.getSingleton()
+                .getExtensionFromMimeType(conn.contentType?.substringBefore(';')?.trim()) ?: "pdf"
+            name += ".$ext"
+        }
+        return name
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {

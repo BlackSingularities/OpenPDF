@@ -1,3 +1,7 @@
+## 1.7.5
+
+- Otwieranie dokumentów z linków (np. faktura PDF z maila): aplikacja pojawia się na liście „Otwórz za pomocą”, pobiera plik i od razu go otwiera.
+
 ## 1.7.2
 
 ## 1.7.4
