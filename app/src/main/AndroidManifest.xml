@@ -60,6 +60,10 @@
                 <data android:mimeType="text/html" />
                 <data android:mimeType="application/xhtml+xml" />
                 <data android:mimeType="text/csv" />
+                <data android:mimeType="application/x-mobipocket-ebook" />
+                <data android:mimeType="application/vnd.amazon.ebook" />
+                <data android:mimeType="application/vnd.comicbook+zip" />
+                <data android:mimeType="application/x-cbz" />
             </intent-filter>
             <!-- Linki http(s) do dokumentów (np. faktura z maila) – plik pobierany do cache. -->
             <intent-filter>
@@ -107,6 +111,10 @@
                 <data android:mimeType="text/html" />
                 <data android:mimeType="application/xhtml+xml" />
                 <data android:mimeType="text/csv" />
+                <data android:mimeType="application/x-mobipocket-ebook" />
+                <data android:mimeType="application/vnd.amazon.ebook" />
+                <data android:mimeType="application/vnd.comicbook+zip" />
+                <data android:mimeType="application/x-cbz" />
             </intent-filter>
         </activity>
 

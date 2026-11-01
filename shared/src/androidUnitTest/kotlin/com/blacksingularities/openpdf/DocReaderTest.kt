@@ -17,6 +17,7 @@ import com.blacksingularities.openpdf.ui.pdfFileName
 import okio.FileSystem
 import okio.Path
 import okio.Path.Companion.toOkioPath
+import okio.openZip
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -248,5 +249,58 @@ class DocReaderTest {
         assertEquals("plik.pdf", pdfFileName("plik.pdf"))
         assertEquals("lalka", baseName("lalka.fb2.zip"))
         assertEquals("v1.2 notatki", baseName("v1.2 notatki.md"))
+    }
+
+    /** Minimalny plik MOBI: rekord 0 (PalmDOC + nagłówek MOBI + tytuł), tekst, obraz. */
+    private fun mobi(text: ByteArray, compression: Int, title: String): ByteArray {
+        val name = title.toByteArray()
+        val rec0 = ByteArray(16 + 232 + name.size)
+        fun put16(b: ByteArray, o: Int, v: Int) { b[o] = (v shr 8).toByte(); b[o + 1] = v.toByte() }
+        fun put32(b: ByteArray, o: Int, v: Int) { put16(b, o, v ushr 16); put16(b, o + 2, v and 0xFFFF) }
+        put16(rec0, 0, compression)
+        put32(rec0, 4, text.size)
+        put16(rec0, 8, 1)
+        put16(rec0, 10, 4096)
+        "MOBI".toByteArray().copyInto(rec0, 16)
+        put32(rec0, 20, 232)
+        put32(rec0, 28, 65001)
+        put32(rec0, 84, 248)
+        put32(rec0, 88, name.size)
+        put32(rec0, 108, 2)
+        name.copyInto(rec0, 248)
+        val records = listOf(rec0, text, png)
+        val header = ByteArray(78 + records.size * 8 + 2)
+        "BOOKMOBI".toByteArray().copyInto(header, 60)
+        put16(header, 76, records.size)
+        var off = header.size
+        records.forEachIndexed { k, r -> put32(header, 78 + k * 8, off); off += r.size }
+        return header + records.reduce { a, b -> a + b }
+    }
+
+    @Test
+    fun mobiTextTitleAndImages() {
+        val html = """<html><body><h1>Rozdział</h1><p>Zażółć gęślą jaźń</p><img recindex="00001"/></body></html>"""
+        val (format, doc) = open(file(".mobi", mobi(html.toByteArray(), 1, "Książka")), "k.mobi")
+        assertEquals(DocFormat.MOBI, format)
+        assertEquals("Książka", doc.title)
+        assertTrue(doc.paras().any { it.text == "Zażółć gęślą jaźń" })
+        assertTrue(doc.blocks.any { it is Picture })
+    }
+
+    @Test
+    fun mobiPalmDocCompression() {
+        // „<p>abc” + odwołanie wstecz (odległość 3, długość 6) → „abcabcabc”.
+        val packed = "<p>abc".toByteArray() + byteArrayOf(0x80.toByte(), 0x1B) + "</p>".toByteArray()
+        val (_, doc) = open(file(".azw3", mobi(packed, 2, "T")), "t.azw3")
+        assertEquals("abcabcabc", doc.paras().first().text)
+    }
+
+    @Test
+    fun cbzComicPagesInNaturalOrder() {
+        val path = zip(".cbz", linkedMapOf("p10.png" to png, "p2.png" to png, "p1.png" to png, "info.txt" to "x".toByteArray()))
+        val head = fs.read(path) { readByteArray(4) }
+        assertEquals(DocFormat.COMIC, DocumentReader.detect("komiks.cbz", head, fs, path))
+        val pages = DocumentReader.comicPages(okio.FileSystem.SYSTEM.openZip(path)).map { it.name }
+        assertEquals(listOf("p1.png", "p2.png", "p10.png"), pages)
     }
 }

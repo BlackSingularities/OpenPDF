@@ -1,3 +1,10 @@
+## 1.8.0
+
+- Biblioteka: wyszukiwanie po nazwie, sortowanie (ostatnio otwarte, nazwa, postęp czytania), ulubione z gwiazdką zawsze na początku listy, etykieta formatu na okładce.
+- Książki Kindle bez DRM: MOBI, AZW i AZW3 – tekst, tytuł i ilustracje.
+- Komiksy CBZ: każdy obraz z archiwum jako osobna strona, kolejność według numerów w nazwach.
+- CBR (RAR) i CB7 (7z): czytelny komunikat z prośbą o zapis jako CBZ.
+
 ## 1.7.5
 
 - Otwieranie dokumentów z linków (np. faktura PDF z maila): aplikacja pojawia się na liście „Otwórz za pomocą”, pobiera plik i od razu go otwiera.

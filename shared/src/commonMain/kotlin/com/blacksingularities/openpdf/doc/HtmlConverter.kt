@@ -280,7 +280,7 @@ internal class HtmlConverter(private val image: (String) -> ByteArray?, private 
     }
 
     private fun picture(e: XElement) {
-        val src = e.attr("src") ?: e.attr("href") ?: return
+        val src = e.attr("src") ?: e.attr("href") ?: e.attr("recindex")?.let { "rec:$it" } ?: return
         val bytes = runCatching { image(src) }.getOrNull() ?: return
         if (imageMime(bytes) == null) return
         // Małe obrazki w tekście (ozdobniki, ikony) zostają w akapicie jako znak – pomijamy je.

@@ -170,6 +170,10 @@ private val DOCUMENT_TYPES = arrayOf(
     "application/json",
     "application/xml",
     "application/zip",
+    "application/x-mobipocket-ebook",
+    "application/vnd.amazon.ebook",
+    "application/vnd.comicbook+zip",
+    "application/x-cbz",
     "image/*",
     // Część menedżerów plików nie zna typów EPUB/FB2/MD i podaje je jako „dowolny plik”.
     "application/octet-stream",

@@ -77,6 +77,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okio.Path
+import okio.openZip
 import okio.Path.Companion.toPath
 import kotlin.math.PI
 import kotlin.math.abs
@@ -364,6 +365,24 @@ class PdfViewModel(val platform: Platform) : ViewModel() {
                     busy = Busy(tr("Dekodowanie DjVu: strona {0} z {1}", minOf(n, done + 1), n), p)
                 }
             }
+        } else if (format == DocFormat.COMIC) {
+            // Komiks CBZ: obrazy z archiwum wypakowywane po kolei, każdy na osobną stronę.
+            val zip = withContext(ioDispatcher) { fileSystem.openZip(file) }
+            val pages = withContext(ioDispatcher) { DocumentReader.comicPages(zip) }
+            if (pages.isEmpty()) error(tr("Archiwum nie zawiera obrazów"))
+            val n = pages.size
+            busy = Busy(tr("Składanie stron: {0}", name), 0f)
+            withContext(ioDispatcher) {
+                engine.createFromImageSequence(n, out, { i ->
+                    runCatching {
+                        val bytes = zip.read(pages[i]) { readByteArray() }
+                        val ext = imageMime(bytes)?.substringAfter('/') ?: return@runCatching null
+                        val img = dir / "page-$i.$ext"
+                        fileSystem.write(img) { write(bytes) }
+                        img
+                    }.getOrNull()
+                }) { p -> busy = Busy(tr("Składanie stron: {0}", name), p) }
+            }
         } else {
             val text = withContext(ioDispatcher) { DocumentReader.read(fileSystem, file, format, name) }
             if (text.blocks.isEmpty()) error(tr("Dokument jest pusty"))
@@ -463,10 +482,19 @@ class PdfViewModel(val platform: Platform) : ViewModel() {
     var recentsThumbVersion by mutableIntStateOf(0)
         private set
 
+    var favorites by mutableStateOf(library.favorites())
+        private set
+
+    fun toggleFavorite(uri: String) {
+        library.setFavorite(uri, uri !in favorites)
+        favorites = library.favorites()
+    }
+
     fun forgetRecent(uri: String) {
         library.remove(uri)
         runCatching { platform.releaseUri(uri) }
         recents = library.recents()
+        favorites = library.favorites()
     }
 
     fun clearRecents() {

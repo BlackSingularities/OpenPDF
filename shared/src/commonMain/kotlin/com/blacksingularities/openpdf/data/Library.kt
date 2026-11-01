@@ -69,7 +69,9 @@ class Library(private val prefs: KeyValueStore, filesDir: Path) {
 
     fun touch(doc: RecentDoc) {
         val list = listOf(doc) + recents().filter { it.uri != doc.uri }
-        saveRecents(list.take(60))
+        // Ulubione nie wypadają z listy przy limicie.
+        val fav = favorites()
+        saveRecents(list.filterIndexed { i, r -> i < 60 || r.uri in fav })
     }
 
     fun updateLastPage(uri: String, page: Int) {
@@ -79,12 +81,23 @@ class Library(private val prefs: KeyValueStore, filesDir: Path) {
 
     fun remove(uri: String) {
         saveRecents(recents().filter { it.uri != uri })
+        setFavorite(uri, false)
         runCatching { fileSystem.delete(thumbFile(uri)) }
     }
 
     fun clearRecents() {
         saveRecents(emptyList())
         runCatching { fileSystem.list(thumbDir).forEach { fileSystem.delete(it) } }
+    }
+
+    // ------------------------------------------------------------------ ulubione
+
+    fun favorites(): Set<String> =
+        array(prefs.getString("favorites")).mapNotNull { (it as? JsonPrimitive)?.content }.toSet()
+
+    fun setFavorite(uri: String, on: Boolean) {
+        val set = if (on) favorites() + uri else favorites() - uri
+        prefs.edit { putString("favorites", buildJsonArray { set.forEach { add(JsonPrimitive(it)) } }.toString()) }
     }
 
     fun thumbFile(uri: String): Path = thumbDir / (RecentDoc.keyOf(uri) + ".png")

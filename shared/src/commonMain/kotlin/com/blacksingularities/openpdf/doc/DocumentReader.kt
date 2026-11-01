@@ -8,7 +8,7 @@ import okio.openZip
 
 /** Rodzaj otwieranego pliku. */
 enum class DocFormat {
-    PDF, IMAGE, DJVU, EPUB, FB2, DOCX, ODT, RTF, HTML, MARKDOWN, TEXT, CSV, PLAIN;
+    PDF, IMAGE, DJVU, COMIC, MOBI, EPUB, FB2, DOCX, ODT, RTF, HTML, MARKDOWN, TEXT, CSV, PLAIN;
 
     /** Czy plik trzeba przed otwarciem złożyć w strony PDF. */
     val converted: Boolean get() = this != PDF
@@ -35,8 +35,11 @@ object DocumentReader {
             at(0) == 'A'.code && at(1) == 'T'.code && at(2) == '&'.code && at(3) == 'T'.code && at(4) == 'F'.code -> return DocFormat.DJVU
             at(0) == 0xD0 && at(1) == 0xCF && at(2) == 0x11 && at(3) == 0xE0 ->
                 throw UnsupportedFormatException(tr("Stary format Worda (.doc) nie jest obsługiwany – zapisz plik jako DOCX"))
-            head.size > 68 && head.copyOfRange(60, 68).decodeToString() == "BOOKMOBI" ->
-                throw UnsupportedFormatException(tr("Pliki MOBI/AZW nie są obsługiwane – przekonwertuj książkę do EPUB"))
+            Mobi.isMobi(head) -> return DocFormat.MOBI
+            at(0) == 'R'.code && at(1) == 'a'.code && at(2) == 'r'.code && at(3) == '!'.code ->
+                throw UnsupportedFormatException(tr("Archiwa RAR (CBR) nie są obsługiwane – zapisz komiks jako CBZ (ZIP)"))
+            at(0) == '7'.code && at(1) == 'z'.code && at(2) == 0xBC && at(3) == 0xAF ->
+                throw UnsupportedFormatException(tr("Archiwa 7z (CB7) nie są obsługiwane – zapisz komiks jako CBZ (ZIP)"))
             at(0) == 'P'.code && at(1) == 'K'.code -> return zipFormat(fs, file, ext)
             start.startsWith("{\\rtf") -> return DocFormat.RTF
         }
@@ -81,9 +84,39 @@ object DocumentReader {
             zip.exists("/xl/workbook.xml".toPath()) || zip.exists("/ppt/presentation.xml".toPath()) ->
                 throw UnsupportedFormatException(tr("Arkusze i prezentacje nie są obsługiwane – tylko dokumenty tekstowe"))
             ext == "epub" -> DocFormat.EPUB
+            ext == "cbz" || comicPages(zip).isNotEmpty() -> DocFormat.COMIC
             fb2InZip(zip) != null -> DocFormat.FB2
             else -> throw UnsupportedFormatException(tr("Nieobsługiwany format pliku"))
         }
+    }
+
+    private val IMAGE_EXT = setOf("jpg", "jpeg", "png", "gif", "webp", "bmp")
+
+    /** Strony komiksu (CBZ): obrazy z całego archiwum w kolejności naturalnej nazw („2” przed „10”). */
+    fun comicPages(zip: FileSystem): List<Path> {
+        val all = runCatching { zip.listRecursively("/".toPath()).toList() }.getOrDefault(emptyList())
+        val images = all.filter { p ->
+            p.name.substringAfterLast('.', "").lowercase() in IMAGE_EXT && !p.toString().contains("__MACOSX") && !p.name.startsWith(".")
+        }
+        // Archiwum z pojedynczą okładką i tekstem to nie komiks.
+        if (images.size < 2 || images.size * 2 < all.count { zip.metadataOrNull(it)?.isRegularFile == true }) return emptyList()
+        return images.sortedWith { a, b -> naturalCompare(a.toString().lowercase(), b.toString().lowercase()) }
+    }
+
+    private fun naturalCompare(a: String, b: String): Int {
+        val re = Regex("""\d+|\D+""")
+        val x = re.findAll(a).map { it.value }.toList()
+        val y = re.findAll(b).map { it.value }.toList()
+        for (k in 0 until minOf(x.size, y.size)) {
+            val p = x[k]
+            val q = y[k]
+            val c = if (p[0].isDigit() && q[0].isDigit()) {
+                val d = p.trimStart('0').length - q.trimStart('0').length
+                if (d != 0) d else p.trimStart('0').compareTo(q.trimStart('0'))
+            } else p.compareTo(q)
+            if (c != 0) return c
+        }
+        return x.size - y.size
     }
 
     private fun fb2InZip(zip: FileSystem): Path? =
@@ -118,7 +151,8 @@ object DocumentReader {
             DocFormat.CSV -> csv(decodeText(fs.read(file) { readByteArray() }), base, tab = name.endsWith(".tsv", true))
             DocFormat.PLAIN -> plain(decodeText(fs.read(file) { readByteArray() }), base)
             DocFormat.TEXT -> text(decodeText(fs.read(file) { readByteArray() }), base)
-            DocFormat.PDF, DocFormat.IMAGE, DocFormat.DJVU -> error("Plik nie wymaga składania")
+            DocFormat.MOBI -> Mobi.read(fs.read(file) { readByteArray() }, base)
+            DocFormat.PDF, DocFormat.IMAGE, DocFormat.DJVU, DocFormat.COMIC -> error("Plik nie wymaga składania")
         }
     }
 
