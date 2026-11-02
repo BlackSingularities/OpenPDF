@@ -37,5 +37,5 @@ fun openUrl(url: NSURL) {
 /** Powrót aplikacji na pierwszy plan. */
 fun onResume() {
     IosApp.vm.applyLanguage()
-    IosApp.vm.checkUpdateIfDue()
+    IosApp.vm.updates.checkUpdateIfDue()
 }

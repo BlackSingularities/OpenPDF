@@ -310,7 +310,7 @@ class PdfViewModel(val platform: Platform) : ViewModel() {
                 val format = withContext(ioDispatcher) { detectFormat(original, name) }
                 if (format.converted) {
                     // EPUB, DOCX, ODT, FB2, TXT… – składanie w strony PDF; oryginał zostaje nietknięty.
-                    val pdf = convertToPdf(dir, original, format, name)
+                    val pdf = convertToPdf(engine, dir, original, format, name) { busy = it }
                     openPrepared(dir, pdf, null, OpenDoc(uri, name, dir, dir / "work.pdf", writable = false, converted = true), meta.size)
                 } else {
                     val writable = withContext(ioDispatcher) { checkWritable(uri) }
@@ -326,70 +326,6 @@ class PdfViewModel(val platform: Platform) : ViewModel() {
                 busy = null
             }
         }
-    }
-
-    private fun detectFormat(file: Path, name: String): DocFormat {
-        val head = fileSystem.read(file) { readByteArray(minOf(4096L, fileSystem.metadataOrNull(file)?.size ?: 0L)) }
-        return DocumentReader.detect(name, head, fileSystem, file)
-    }
-
-    /** Dokument tekstowy albo obraz → plik PDF w katalogu sesji. */
-    private suspend fun convertToPdf(dir: Path, file: Path, format: DocFormat, name: String): Path {
-        val out = dir / "converted.pdf"
-        busy = Busy(tr("Składanie stron: {0}", name))
-        if (format == DocFormat.IMAGE) {
-            withContext(ioDispatcher) {
-                // Dekodery obrazów kierują się rozszerzeniem – plik dostaje właściwe.
-                val head = fileSystem.read(file) { readByteArray(minOf(16L, fileSystem.metadataOrNull(file)?.size ?: 0L)) }
-                val ext = imageMime(head)?.substringAfter('/') ?: "jpg"
-                val img = dir / "image.$ext"
-                file.copyTo(img)
-                engine.createFromImages(listOf(img), out)
-                img.delete()
-            }
-        } else if (format == DocFormat.DJVU) {
-            // Strony DjVu dekodowane po kolei do obrazów i od razu osadzane w PDF.
-            val djvu = withContext(ioDispatcher) { DjvuDocument(fileSystem.read(file) { readByteArray() }) }
-            val n = djvu.pageCount
-            busy = Busy(tr("Dekodowanie DjVu: strona {0} z {1}", 1, n), 0f)
-            withContext(ioDispatcher) {
-                engine.createFromImageSequence(n, out, { i ->
-                    runCatching {
-                        val raster = djvu.render(i)
-                        val img = dir / "page-$i.bmp"
-                        fileSystem.write(img) { writeBmp(raster, this) }
-                        img
-                    }.getOrNull()
-                }) { p ->
-                    val done = (p * n).toInt().coerceIn(1, n)
-                    busy = Busy(tr("Dekodowanie DjVu: strona {0} z {1}", minOf(n, done + 1), n), p)
-                }
-            }
-        } else if (format == DocFormat.COMIC) {
-            // Komiks CBZ: obrazy z archiwum wypakowywane po kolei, każdy na osobną stronę.
-            val zip = withContext(ioDispatcher) { fileSystem.openZip(file) }
-            val pages = withContext(ioDispatcher) { DocumentReader.comicPages(zip) }
-            if (pages.isEmpty()) error(tr("Archiwum nie zawiera obrazów"))
-            val n = pages.size
-            busy = Busy(tr("Składanie stron: {0}", name), 0f)
-            withContext(ioDispatcher) {
-                engine.createFromImageSequence(n, out, { i ->
-                    runCatching {
-                        val bytes = zip.read(pages[i]) { readByteArray() }
-                        val ext = imageMime(bytes)?.substringAfter('/') ?: return@runCatching null
-                        val img = dir / "page-$i.$ext"
-                        fileSystem.write(img) { write(bytes) }
-                        img
-                    }.getOrNull()
-                }) { p -> busy = Busy(tr("Składanie stron: {0}", name), p) }
-            }
-        } else {
-            val text = withContext(ioDispatcher) { DocumentReader.read(fileSystem, file, format, name) }
-            if (text.blocks.isEmpty()) error(tr("Dokument jest pusty"))
-            engine.createFromDocument(text, out)
-        }
-        file.delete()
-        return out
     }
 
     /** Otwiera plik utworzony w aplikacji (nowy dokument, z obrazów) – zapis wymaga wskazania miejsca. */
@@ -1591,94 +1527,14 @@ class PdfViewModel(val platform: Platform) : ViewModel() {
         requestSave(SaveTarget.Text(t), name, "text/plain")
     }
 
-    // ------------------------------------------------------------------ aktualizacje
-
-    var update by mutableStateOf<UpdateState>(UpdateState.Idle)
-        private set
-    private var updateJob: Job? = null
-
-    fun checkUpdate(silent: Boolean = false) {
-        if (updateJob?.isActive == true) return
-        updateJob = viewModelScope.launch {
-            update = UpdateState.Checking
-            update = try {
-                val info = withContext(ioDispatcher) { parseRelease(platform.httpGet(UPDATE_API), platform.updateAsset) }
-                if (isNewer(info.version, platform.appVersion)) UpdateState.Available(info) else UpdateState.UpToDate
-            } catch (e: Throwable) {
-                if (silent) UpdateState.Idle else UpdateState.Failed(e.message ?: tr("Brak połączenia"))
-            }
-        }
-    }
-
-    fun downloadUpdate(installAfter: Boolean = false) {
-        val info = (update as? UpdateState.Available)?.info ?: return
-        updateJob = viewModelScope.launch {
-            update = UpdateState.Downloading(info, 0f)
-            update = try {
-                val file = platform.downloadUpdate(info) { p ->
-                    viewModelScope.launch { if (update is UpdateState.Downloading) update = UpdateState.Downloading(info, p) }
-                }
-                UpdateState.Ready(info, file)
-            } catch (e: Throwable) {
-                UpdateState.Failed(e.message ?: tr("Pobieranie nie powiodło się"))
-            }
-            if (installAfter && update is UpdateState.Ready) installUpdate()
-        }
-    }
-
-    /** Jednym dotknięciem: pobranie nowej wersji z GitHuba i instalacja. */
-    fun updateNow() {
-        val u = update
-        if (!platform.canSelfUpdate && u is UpdateState.Available) {
-            // iOS: nową wersję instaluje się ręcznie – strona wydania z plikiem IPA.
-            platform.openUrl(u.info.pageUrl)
-            return
-        }
-        when (u) {
-            is UpdateState.Available -> downloadUpdate(installAfter = true)
-            is UpdateState.Ready -> installUpdate()
-            is UpdateState.Failed, UpdateState.Idle, UpdateState.UpToDate -> checkUpdate()
-            else -> Unit
-        }
-    }
-
-    /** Baner nowej wersji ukryty przez użytkownika (do następnego uruchomienia). */
-    var updateBannerHidden by mutableStateOf(false)
-
-    private var lastUpdateCheck = 0L
-
-    /** Ponowne sprawdzenie po powrocie do aplikacji – najwyżej co 6 godzin. */
-    fun checkUpdateIfDue() {
-        if (!settings.autoUpdate) return
-        val now = nowMillis()
-        if (now - lastUpdateCheck < 6 * 3600_000L) return
-        if (update is UpdateState.Downloading || update is UpdateState.Ready || update is UpdateState.Installing) return
-        lastUpdateCheck = now
-        checkUpdate(silent = true)
-    }
-
-    fun installUpdate() {
-        val ready = update as? UpdateState.Ready ?: return
-        if (!platform.canInstallUpdates()) {
-            platform.openInstallPermissionSettings()
-            return
-        }
-        viewModelScope.launch {
-            update = UpdateState.Installing(ready.info)
-            try {
-                platform.installUpdate(ready.file)
-            } catch (e: Throwable) {
-                update = UpdateState.Failed(e.message ?: tr("Instalacja nie powiodła się"))
-            }
-        }
-    }
+    val updates = UpdateController(platform, viewModelScope) { settings.autoUpdate }
 
     // Na końcu klasy – wszystkie pola stanu są już utworzone.
     init {
         applyLanguage()
         // Pozostałości poprzednich uruchomień.
         runCatching { sessionsRoot.listFiles()?.forEach { it.deleteRecursively() } }
-        checkUpdateIfDue()
+        updates.checkUpdateIfDue()
     }
 
     override fun onCleared() {
@@ -1715,26 +1571,5 @@ class PdfViewModel(val platform: Platform) : ViewModel() {
             else -> subtype
         }
 
-        @Suppress("unused")
-        val DEFAULT_MARKER = Palette.MarkerColors.first()
     }
 }
-
-// ------------------------------------------------------------------ pliki (okio)
-
-private fun Path.delete(): Boolean = runCatching { fileSystem.delete(this) }.isSuccess
-
-private fun Path.copyTo(target: Path): Path {
-    fileSystem.copy(this, target)
-    return target
-}
-
-private fun Path.length(): Long = fileSystem.metadataOrNull(this)?.size ?: 0L
-
-private fun Path.deleteRecursively() = runCatching { fileSystem.deleteRecursively(this) }
-
-private fun Path.mkdirs(): Path = also { fileSystem.createDirectories(it) }
-
-private fun Path.renameTo(target: Path): Boolean = runCatching { fileSystem.atomicMove(this, target) }.isSuccess
-
-private fun Path.listFiles(): List<Path>? = fileSystem.listOrNull(this)

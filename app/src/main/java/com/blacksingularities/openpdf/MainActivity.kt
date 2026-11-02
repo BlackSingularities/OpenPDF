@@ -82,7 +82,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        vm.checkUpdateIfDue()
+        vm.updates.checkUpdateIfDue()
     }
 
     override fun onNewIntent(intent: Intent) {

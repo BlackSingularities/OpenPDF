@@ -35,7 +35,7 @@ import kotlin.math.roundToInt
 
 /** Czy jest coś do pokazania o aktualizacji (nowa wersja, pobieranie, gotowa do instalacji). */
 val PdfViewModel.updatePending: Boolean
-    get() = update is UpdateState.Available || update is UpdateState.Downloading || update is UpdateState.Ready || update is UpdateState.Installing
+    get() = updates.update is UpdateState.Available || updates.update is UpdateState.Downloading || updates.update is UpdateState.Ready || updates.update is UpdateState.Installing
 
 /**
  * Baner nowej wersji: jednym dotknięciem aplikacja pobiera APK z GitHub Releases i instaluje go
@@ -43,8 +43,8 @@ val PdfViewModel.updatePending: Boolean
  */
 @Composable
 fun UpdateBanner(vm: PdfViewModel, modifier: Modifier = Modifier) {
-    val u = vm.update
-    AnimatedVisibility(visible = vm.updatePending && !vm.updateBannerHidden, modifier = modifier) {
+    val u = vm.updates.update
+    AnimatedVisibility(visible = vm.updatePending && !vm.updates.updateBannerHidden, modifier = modifier) {
         val (title, action) = when (u) {
             is UpdateState.Available -> tr("Nowa wersja {0}", u.info.version) to (if (vm.platform.canSelfUpdate) tr("Aktualizuj") else tr("Pobierz"))
             is UpdateState.Downloading -> tr("Pobieranie {0} · {1}%", u.info.version, (u.progress * 100).roundToInt()) to null
@@ -83,7 +83,7 @@ fun UpdateBanner(vm: PdfViewModel, modifier: Modifier = Modifier) {
                         modifier = Modifier
                             .clip(RoundedCornerShape(50))
                             .background(Color.White)
-                            .clickable { vm.updateNow() }
+                            .clickable { vm.updates.updateNow() }
                             .padding(horizontal = 14.dp, vertical = 8.dp),
                     )
                 }
@@ -92,7 +92,7 @@ fun UpdateBanner(vm: PdfViewModel, modifier: Modifier = Modifier) {
                         Icons.Rounded.Close,
                         tr("Później"),
                         tint = Palette.TextDim,
-                        modifier = Modifier.padding(start = 6.dp).size(32.dp).clip(RoundedCornerShape(50)).clickable { vm.updateBannerHidden = true }.padding(6.dp),
+                        modifier = Modifier.padding(start = 6.dp).size(32.dp).clip(RoundedCornerShape(50)).clickable { vm.updates.updateBannerHidden = true }.padding(6.dp),
                     )
                 }
             }

@@ -561,16 +561,16 @@ private fun CropDragHud(label: String, value: Float, modifier: Modifier) {
 
 @Composable
 private fun UpdateRow(vm: PdfViewModel) {
-    val update = vm.update
+    val update = vm.updates.update
     val (status, action, handler) = when (update) {
-        UpdateState.Idle -> Triple(tr("Wersja {0}", vm.platform.appVersion), tr("Sprawdź"), { vm.checkUpdate() })
+        UpdateState.Idle -> Triple(tr("Wersja {0}", vm.platform.appVersion), tr("Sprawdź"), { vm.updates.checkUpdate() })
         UpdateState.Checking -> Triple(tr("Sprawdzanie…"), null, {})
-        UpdateState.UpToDate -> Triple(tr("Wersja {0} jest najnowsza", vm.platform.appVersion), tr("Sprawdź"), { vm.checkUpdate() })
-        is UpdateState.Available -> Triple(tr("Dostępna wersja {0}", update.info.version), if (vm.platform.canSelfUpdate) tr("Aktualizuj") else tr("Pobierz"), { vm.updateNow() })
+        UpdateState.UpToDate -> Triple(tr("Wersja {0} jest najnowsza", vm.platform.appVersion), tr("Sprawdź"), { vm.updates.checkUpdate() })
+        is UpdateState.Available -> Triple(tr("Dostępna wersja {0}", update.info.version), if (vm.platform.canSelfUpdate) tr("Aktualizuj") else tr("Pobierz"), { vm.updates.updateNow() })
         is UpdateState.Downloading -> Triple(tr("Pobieranie {0} · {1}%", update.info.version, (update.progress * 100).roundToInt()), null, {})
-        is UpdateState.Ready -> Triple(tr("Wersja {0} gotowa", update.info.version), tr("Zainstaluj"), { vm.installUpdate() })
+        is UpdateState.Ready -> Triple(tr("Wersja {0} gotowa", update.info.version), tr("Zainstaluj"), { vm.updates.installUpdate() })
         is UpdateState.Installing -> Triple(tr("Instalowanie {0}…", update.info.version), null, {})
-        is UpdateState.Failed -> Triple(update.message, tr("Ponów"), { vm.checkUpdate() })
+        is UpdateState.Failed -> Triple(update.message, tr("Ponów"), { vm.updates.checkUpdate() })
     }
     Column(Modifier.padding(horizontal = 10.dp, vertical = 10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
