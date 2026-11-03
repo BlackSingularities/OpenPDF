@@ -20,8 +20,8 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.blacksingularities.openpdf.desktop.ui.AppContent
 import com.blacksingularities.openpdf.desktop.ui.AppTheme
-import com.blacksingularities.openpdf.desktop.ui.Tool
 import com.blacksingularities.openpdf.desktop.ui.ViewerHandle
+import com.blacksingularities.openpdf.desktop.ui.targets
 import com.blacksingularities.openpdf.desktop.ui.copyToClipboard
 import com.blacksingularities.openpdf.desktop.ui.palette
 import com.blacksingularities.openpdf.desktop.ui.print
@@ -69,11 +69,19 @@ fun main(args: Array<String>) {
         val handles = remember { HashMap<Int, ViewerHandle>() }
         val frame = remember { arrayOfNulls<Frame>(1) }
         val title = app.active?.let { "${it.name} – OpenDocument" } ?: "OpenDocument"
-        val quit = {
+        val exit = {
             saveWindow(app, state)
             app.persist()
             app.tabs.toList().forEach { it.close() }
             exitApplication()
+        }
+        // Zamknięcie okna: najpierw pytanie o niezapisane zmiany.
+        val quit: () -> Unit = {
+            if (app.tabs.none { it.unsaved }) exit()
+            else {
+                app.persist()
+                app.requestCloseMany(app.tabs.toList()) { exit() }
+            }
         }
         // Okno bez systemowej ramki: karty leżą w jednym pasku z przyciskami okna.
         Window(
@@ -86,13 +94,14 @@ fun main(args: Array<String>) {
         ) {
             val win = window
             frame[0] = win
+            app.window = win
             LaunchedEffect(Unit) {
                 win.minimumSize = java.awt.Dimension(900, 560)
                 WindowsChrome.install(win)
                 installDrop(app, win)
             }
-            LaunchedEffect(app.settings.theme) {
-                val p = palette(app.settings.theme)
+            LaunchedEffect(app.settings.theme, app.settings.accent) {
+                val p = palette(app.settings.theme, app.settings.accent)
                 win.background = java.awt.Color(p.bg.toArgb())
             }
             // Pełny ekran i prezentacja.
@@ -111,7 +120,7 @@ fun main(args: Array<String>) {
                     win.requestFocus()
                 }
             }
-            AppTheme(app.settings.theme) {
+            AppTheme(app.settings.theme, app.settings.accent) {
                 AppContent(app, this, state, handles, onClose = quit)
             }
         }
@@ -170,15 +179,29 @@ private fun handleKey(app: AppState, handles: Map<Int, ViewerHandle>, e: KeyEven
     // Okna dialogowe: tylko Esc.
     if (app.dialog != Dialog.NONE) {
         if (e.key == Key.Escape) {
-            app.dialog = Dialog.NONE
+            when (app.dialog) {
+                Dialog.UNSAVED -> app.resolveClosing(null)
+                Dialog.INPUT -> {
+                    app.input = null
+                    app.dialog = Dialog.NONE
+                }
+                else -> app.dialog = Dialog.NONE
+            }
             return true
         }
         return false
     }
     if (ctrl) {
         when (e.key) {
-            Key.O -> { app.pickFiles(window); return true }
-            Key.W, Key.F4 -> { tab?.let { app.close(it) }; return true }
+            Key.O -> {
+                if (shift) {
+                    if (ready && tab != null) tab.organize = !tab.organize
+                } else {
+                    app.pickFiles(window)
+                }
+                return true
+            }
+            Key.W, Key.F4 -> { tab?.let { app.requestClose(it) }; return true }
             Key.Tab -> { app.cycleTab(if (shift) -1 else 1); return true }
             Key.Comma -> { app.dialog = Dialog.SETTINGS; return true }
         }
@@ -188,20 +211,27 @@ private fun handleKey(app: AppState, handles: Map<Int, ViewerHandle>, e: KeyEven
             return true
         }
         if (!ready || tab == null) return false
+        if (app.typing && e.key in setOf(Key.A, Key.C, Key.Z, Key.Y, Key.DirectionLeft, Key.DirectionRight)) return false
         when (e.key) {
+            Key.S -> if (shift) app.saveAs(tab) else app.save(tab)
+            Key.Z -> if (shift) tab.redo() else tab.undo()
+            Key.Y -> tab.redo()
             Key.Equals, Key.Plus, Key.NumPadAdd -> zoomStep(tab, 1)
             Key.Minus, Key.NumPadSubtract -> zoomStep(tab, -1)
             Key.Zero, Key.NumPad0 -> { tab.zoomMode = ZoomMode.CUSTOM; tab.zoom = 1f }
             Key.One, Key.NumPad1 -> tab.zoomMode = ZoomMode.FIT_PAGE
             Key.Two, Key.NumPad2 -> tab.zoomMode = ZoomMode.FIT_WIDTH
-            Key.F -> { app.settings.sidebar = true; app.settings.sideTab = SideTab.SEARCH; app.focusSearch++ }
-            Key.G -> app.focusPage++
+            Key.F -> { tab.organize = false; app.settings.sidebar = true; app.settings.sideTab = SideTab.SEARCH; app.focusSearch++ }
+            Key.G -> { tab.organize = false; app.focusPage++ }
             Key.B -> { app.settings.sidebar = !app.settings.sidebar; app.saveSoon() }
+            Key.D -> tab.toggleBookmark()
             Key.P -> print(app, tab)
-            Key.D -> app.dialog = Dialog.PROPERTIES
+            Key.I -> app.dialog = Dialog.PROPERTIES
             Key.R -> tab.rotation = (tab.rotation + if (shift) 270 else 90) % 360
             Key.MoveHome -> tab.goTo(0)
             Key.MoveEnd -> tab.goTo(tab.pageCount - 1)
+            Key.DirectionLeft -> if (tab.organize) tab.shiftPages(tab.targets(), -1) else return false
+            Key.DirectionRight -> if (tab.organize) tab.shiftPages(tab.targets(), 1) else return false
             Key.C -> {
                 val sel = tab.selection ?: return false
                 val t = tab.pageTexts[sel.page] ?: return false
@@ -209,7 +239,11 @@ private fun handleKey(app: AppState, handles: Map<Int, ViewerHandle>, e: KeyEven
                 app.showToast(com.blacksingularities.openpdf.desktop.ui.L("Skopiowano tekst", "Text copied"))
             }
             Key.A -> {
-                if (app.typing) return false
+                if (tab.organize) {
+                    tab.picked.clear()
+                    tab.picked.addAll(0 until tab.pageCount)
+                    return true
+                }
                 val p = tab.page
                 tab.scope.launch {
                     val t = tab.pageText(p) ?: return@launch
@@ -230,8 +264,16 @@ private fun handleKey(app: AppState, handles: Map<Int, ViewerHandle>, e: KeyEven
                 app.fullscreen = false
                 return true
             }
+            if (tab?.organize == true) {
+                tab.organize = false
+                return true
+            }
             if (tab?.selection != null) {
                 tab.selection = null
+                return true
+            }
+            if (app.tool != Tool.SELECT) {
+                app.tool = Tool.SELECT
                 return true
             }
             return false
@@ -243,6 +285,15 @@ private fun handleKey(app: AppState, handles: Map<Int, ViewerHandle>, e: KeyEven
         return true
     }
     if (app.typing) return false
+    if (tab.organize) {
+        when (e.key) {
+            Key.Delete -> tab.deletePages(tab.targets())
+            Key.DirectionRight, Key.DirectionDown -> tab.page = (tab.page + 1).coerceAtMost(tab.pageCount - 1).also { tab.picked.clear(); tab.picked.add(it) }
+            Key.DirectionLeft, Key.DirectionUp -> tab.page = (tab.page - 1).coerceAtLeast(0).also { tab.picked.clear(); tab.picked.add(it) }
+            else -> return false
+        }
+        return true
+    }
     val paged = tab.flow == Flow.PAGED || app.presentation
     val vh = handle?.viewportH ?: 600f
     val smooth = app.settings.smoothScroll
@@ -276,11 +327,29 @@ private fun handleKey(app: AppState, handles: Map<Int, ViewerHandle>, e: KeyEven
             app.settings.paper = Paper.entries[(app.settings.paper.ordinal + 1) % Paper.entries.size]
             app.saveSoon()
         }
-        Key.V -> handle?.tool = Tool.SELECT
-        Key.H -> handle?.tool = Tool.HAND
-        else -> return false
+        Key.Delete -> {
+            // Usuwa ostatni niezapisany element.
+            val last = tab.marks.lastOrNull() ?: return false
+            tab.removeMark(last.id)
+        }
+        else -> {
+            val t = Tool.entries.firstOrNull { keyOf(it) == e.key } ?: return false
+            app.tool = t
+        }
     }
     return true
+}
+
+private fun keyOf(t: Tool): Key = when (t) {
+    Tool.SELECT -> Key.V
+    Tool.HAND -> Key.H
+    Tool.MARKUP -> Key.U
+    Tool.PEN -> Key.P
+    Tool.MARKER -> Key.M
+    Tool.SHAPE -> Key.S
+    Tool.TEXT -> Key.T
+    Tool.NOTE -> Key.K
+    Tool.ERASER -> Key.E
 }
 
 private fun digitOf(k: Key): Int? = when (k) {

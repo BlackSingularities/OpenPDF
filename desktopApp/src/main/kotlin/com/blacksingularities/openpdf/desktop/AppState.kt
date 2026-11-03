@@ -5,9 +5,13 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.blacksingularities.openpdf.desktop.engine.DesktopPdfEngine
+import com.blacksingularities.openpdf.desktop.engine.PdfOps
 import com.blacksingularities.openpdf.desktop.ui.L
 import com.blacksingularities.openpdf.i18n.AppLanguage
 import com.blacksingularities.openpdf.i18n.I18n
+import com.blacksingularities.openpdf.pdf.MarkupKind
+import com.blacksingularities.openpdf.pdf.ShapeKind
+import com.blacksingularities.openpdf.ui.baseName
 import com.blacksingularities.openpdf.update.ReleaseInfo
 import com.blacksingularities.openpdf.update.UPDATE_API
 import com.blacksingularities.openpdf.update.isNewer
@@ -19,6 +23,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okio.Path.Companion.toOkioPath
+import org.apache.pdfbox.pdmodel.common.PDRectangle
 import java.awt.FileDialog
 import java.awt.Frame
 import java.io.File
@@ -28,8 +34,80 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
 import java.util.Locale
+import javax.imageio.ImageIO
 
-enum class Dialog { NONE, SETTINGS, SHORTCUTS, ABOUT, PROPERTIES, UPDATE }
+enum class Dialog { NONE, SETTINGS, SHORTCUTS, ABOUT, PROPERTIES, UPDATE, EXPORT_IMAGES, COMPRESS, SECURITY, TEXT, NEW_DOC, UNSAVED, INPUT }
+
+/** Narzędzie w widoku dokumentu. */
+enum class Tool {
+    SELECT, HAND, MARKUP, PEN, MARKER, SHAPE, TEXT, NOTE, ERASER;
+
+    val label: String
+        get() = when (this) {
+            SELECT -> L("Zaznaczanie tekstu", "Select text")
+            HAND -> L("Rączka", "Hand")
+            MARKUP -> L("Wyróżnianie tekstu", "Text markup")
+            PEN -> L("Pióro", "Pen")
+            MARKER -> L("Zakreślacz", "Highlighter")
+            SHAPE -> L("Kształty", "Shapes")
+            TEXT -> L("Pole tekstowe", "Text box")
+            NOTE -> L("Notatka", "Note")
+            ERASER -> L("Gumka", "Eraser")
+        }
+
+    val key: String
+        get() = when (this) {
+            SELECT -> "V"
+            HAND -> "H"
+            MARKUP -> "U"
+            PEN -> "P"
+            MARKER -> "M"
+            SHAPE -> "S"
+            TEXT -> "T"
+            NOTE -> "K"
+            ERASER -> "E"
+        }
+
+    /** Narzędzia zmieniające dokument (działają tylko na gotowej karcie). */
+    val annotates: Boolean get() = this != SELECT && this != HAND
+}
+
+/** Kolory narzędzi (ARGB). */
+val INK_COLORS = listOf(
+    0xFF111111.toInt(), 0xFFE53935.toInt(), 0xFF1E88E5.toInt(), 0xFF43A047.toInt(),
+    0xFFFB8C00.toInt(), 0xFF8E24AA.toInt(), 0xFFFFFFFF.toInt(), 0xFF757575.toInt(),
+)
+val MARKER_COLORS = listOf(
+    0xFFFFEB3B.toInt(), 0xFF76FF03.toInt(), 0xFF40C4FF.toInt(), 0xFFFF80AB.toInt(), 0xFFFFAB40.toInt(), 0xFFB388FF.toInt(),
+)
+
+/** Ustawienia narzędzi rysowania (wspólne dla kart). */
+class ToolStyles {
+    var penColor by mutableStateOf(INK_COLORS[2])
+    var penWidth by mutableStateOf(2f)
+    var markerColor by mutableStateOf(MARKER_COLORS[0])
+    var markerWidth by mutableStateOf(12f)
+    var markupKind by mutableStateOf(MarkupKind.HIGHLIGHT)
+    var markupColor by mutableStateOf(MARKER_COLORS[0])
+    var shapeKind by mutableStateOf(ShapeKind.RECT)
+    var shapeColor by mutableStateOf(INK_COLORS[1])
+    var shapeWidth by mutableStateOf(2f)
+    var shapeFill by mutableStateOf(false)
+    var textColor by mutableStateOf(INK_COLORS[0])
+    var textSize by mutableStateOf(12f)
+    var textBackground by mutableStateOf(false)
+    var noteColor by mutableStateOf(0xFFFFD54F.toInt())
+}
+
+/** Prośba o tekst od użytkownika (pole tekstowe, notatka, nazwa zakładki…). */
+data class InputRequest(
+    val title: String,
+    val initial: String = "",
+    val multiline: Boolean = false,
+    val hint: String = "",
+    val confirm: String = "",
+    val onDone: (String) -> Unit,
+)
 
 sealed interface UpdateStatus {
     data object Idle : UpdateStatus
@@ -47,6 +125,8 @@ val SUPPORTED_EXTENSIONS = listOf(
     "pdf", "djvu", "djv", "epub", "fb2", "mobi", "azw", "azw3", "prc", "cbz", "docx", "odt", "rtf",
     "md", "markdown", "html", "htm", "xhtml", "txt", "csv", "tsv", "jpg", "jpeg", "png", "webp", "gif", "bmp",
 )
+
+val IMAGE_EXTENSIONS = listOf("jpg", "jpeg", "png", "webp", "gif", "bmp")
 
 class AppState {
     val settings = Settings.load()
@@ -69,6 +149,22 @@ class AppState {
     var focusPage by mutableStateOf(0)
     /** Prośba o przywrócenie okna na wierzch (np. plik z drugiego uruchomienia). */
     var raise by mutableStateOf(0)
+    /** Okno programu (rodzic okien systemowych). */
+    var window: Frame? = null
+
+    var tool by mutableStateOf(Tool.SELECT)
+    val styles = ToolStyles()
+    /** Pole formularza kliknięte na stronie – panel formularza przewija się do niego. */
+    var focusField by mutableStateOf<String?>(null)
+    var input by mutableStateOf<InputRequest?>(null)
+    /** Karty do zamknięcia mimo niezapisanych zmian i dalszy krok (zamknięcie programu). */
+    var closing by mutableStateOf<List<DocTab>>(emptyList())
+    private var afterClosing: (() -> Unit)? = null
+    /** Wyodrębniony tekst dokumentu (okno „Tekst dokumentu”). */
+    var extracted by mutableStateOf<String?>(null)
+    /** Trwająca operacja programu (scalanie, eksport…) – pasek postępu na dole okna. */
+    var work by mutableStateOf<String?>(null)
+    var workProgress by mutableStateOf<Float?>(null)
 
     private var saveJob: Job? = null
 
@@ -115,6 +211,11 @@ class AppState {
         }
     }
 
+    fun ask(req: InputRequest) {
+        input = req
+        dialog = Dialog.INPUT
+    }
+
     // ------------------------------------------------------------------ karty
 
     fun open(files: List<File>, activate: Boolean = true) {
@@ -139,6 +240,56 @@ class AppState {
         saveSoon()
     }
 
+    /** Zamyka kartę; gdy ma niezapisane zmiany – najpierw pyta. */
+    fun requestClose(tab: DocTab) {
+        if (tab.unsaved) {
+            closing = listOf(tab)
+            afterClosing = null
+            active = tab
+            dialog = Dialog.UNSAVED
+        } else {
+            close(tab)
+        }
+    }
+
+    fun requestCloseMany(list: List<DocTab>, then: (() -> Unit)? = null) {
+        val dirty = list.filter { it.unsaved }
+        list.filter { !it.unsaved }.forEach { close(it) }
+        if (dirty.isEmpty()) {
+            then?.invoke()
+            return
+        }
+        closing = dirty
+        afterClosing = then
+        dialog = Dialog.UNSAVED
+    }
+
+    /** Odpowiedź z okna niezapisanych zmian: zapisać, odrzucić albo anulować (null). */
+    fun resolveClosing(save: Boolean?) {
+        val list = closing
+        val then = afterClosing
+        closing = emptyList()
+        afterClosing = null
+        dialog = Dialog.NONE
+        if (save == null) return
+        if (!save) {
+            list.forEach { close(it) }
+            then?.invoke()
+            return
+        }
+        scope.launch {
+            for (t in list) {
+                val ok = if (t.savesInPlace) t.saveTo(t.file) else {
+                    val target = chooseSaveBlocking(t) ?: return@launch
+                    t.saveTo(target)
+                }
+                if (!ok) return@launch
+                close(t)
+            }
+            then?.invoke()
+        }
+    }
+
     fun close(tab: DocTab) {
         val i = tabs.indexOf(tab)
         if (i < 0) return
@@ -155,9 +306,9 @@ class AppState {
         saveSoon()
     }
 
-    fun closeOthers(tab: DocTab) = tabs.filter { it != tab }.forEach { close(it) }
+    fun closeOthers(tab: DocTab) = requestCloseMany(tabs.filter { it != tab })
 
-    fun closeAll() = tabs.toList().forEach { close(it) }
+    fun closeAll() = requestCloseMany(tabs.toList())
 
     fun cycleTab(dir: Int) {
         if (tabs.size < 2) return
@@ -179,15 +330,21 @@ class AppState {
         active = tabs.getOrNull(settings.activeInSession) ?: tabs.firstOrNull()
     }
 
+    fun removeRecent(path: String) {
+        settings.recents.removeAll { it.path == path }
+        runCatching { DocTab.thumbFile(path).delete() }
+        saveSoon()
+    }
+
+    // ------------------------------------------------------------------ okna plików
+
     private var picking = false
 
-    /** Okno wyboru plików Windows (w osobnym wątku, interfejs działa dalej); zapasowo – okno AWT. */
-    fun pickFiles(window: Frame?) {
-        if (picking) return
-        picking = true
-        val folder = settings.recents.firstOrNull()?.let { File(it.path).parentFile }
-        val title = L("Otwórz dokumenty", "Open documents")
-        val filters = listOf(
+    private val lastFolder: File?
+        get() = (active?.file ?: settings.recents.firstOrNull()?.let { File(it.path) })?.parentFile?.takeIf { it.isDirectory }
+
+    private val openFilters
+        get() = listOf(
             NativeFileDialog.Filter(L("Wszystkie obsługiwane", "All supported"), SUPPORTED_EXTENSIONS.map { "*.$it" }),
             NativeFileDialog.Filter("PDF", listOf("*.pdf")),
             NativeFileDialog.Filter(L("Książki (EPUB, FB2, MOBI, DjVu)", "Books (EPUB, FB2, MOBI, DjVu)"), listOf("*.epub", "*.fb2", "*.mobi", "*.azw", "*.azw3", "*.prc", "*.djvu", "*.djv")),
@@ -195,29 +352,245 @@ class AppState {
             NativeFileDialog.Filter(L("Komiksy i obrazy", "Comics and images"), listOf("*.cbz", "*.jpg", "*.jpeg", "*.png", "*.webp", "*.gif", "*.bmp")),
             NativeFileDialog.Filter(L("Wszystkie pliki", "All files"), listOf("*.*")),
         )
+
+    val pdfFilter get() = listOf(NativeFileDialog.Filter("PDF", listOf("*.pdf")))
+    val imageFilter get() = listOf(NativeFileDialog.Filter(L("Obrazy", "Images"), IMAGE_EXTENSIONS.map { "*.$it" }))
+
+    /** Wybór plików w osobnym wątku (interfejs działa dalej); zapasowo – okno AWT. */
+    fun chooseFiles(title: String, filters: List<NativeFileDialog.Filter>, onPicked: (List<File>) -> Unit) {
+        if (picking) return
+        picking = true
+        val folder = lastFolder
+        val win = window
         Thread({
-            val files = NativeFileDialog.open(window, title, filters, folder)
+            val files = NativeFileDialog.open(win, title, filters, folder)
             javax.swing.SwingUtilities.invokeLater {
                 picking = false
-                if (files == null) pickFilesAwt(window) else if (files.isNotEmpty()) scope.launch { open(files) }
+                val result = files ?: awtOpen(title, filters)
+                if (result.isNotEmpty()) scope.launch { onPicked(result) }
             }
         }, "file-dialog").apply { isDaemon = true }.start()
     }
 
-    private fun pickFilesAwt(window: Frame?) {
-        val d = FileDialog(window, L("Otwórz dokumenty", "Open documents"), FileDialog.LOAD)
+    private fun awtOpen(title: String, filters: List<NativeFileDialog.Filter>): List<File> {
+        val d = FileDialog(window, title, FileDialog.LOAD)
         d.isMultipleMode = true
-        d.file = SUPPORTED_EXTENSIONS.joinToString(";") { "*.$it" }
-        settings.recents.firstOrNull()?.let { r -> File(r.path).parentFile?.takeIf { it.isDirectory }?.let { d.directory = it.absolutePath } }
+        filters.firstOrNull()?.let { f -> d.file = f.patterns.joinToString(";") }
+        lastFolder?.let { d.directory = it.absolutePath }
         d.isVisible = true
-        val files = d.files?.toList().orEmpty()
-        if (files.isNotEmpty()) open(files)
+        return d.files?.toList().orEmpty()
     }
 
-    fun removeRecent(path: String) {
-        settings.recents.removeAll { it.path == path }
-        runCatching { DocTab.thumbFile(path).delete() }
-        saveSoon()
+    fun pickFiles(window: Frame? = this.window) {
+        if (window != null) this.window = window
+        chooseFiles(L("Otwórz dokumenty", "Open documents"), openFilters) { open(it) }
+    }
+
+    /** Okno „Zapisz jako”; [onPicked] dostaje plik z rozszerzeniem [ext]. */
+    fun chooseSave(title: String, name: String, ext: String, filters: List<NativeFileDialog.Filter>, onPicked: (File) -> Unit) {
+        if (picking) return
+        picking = true
+        val folder = lastFolder
+        val win = window
+        Thread({
+            val r = NativeFileDialog.save(win, title, filters, folder, name, ext)
+            javax.swing.SwingUtilities.invokeLater {
+                picking = false
+                val f = if (r == null) awtSave(title, name, folder) else r.firstOrNull()
+                if (f != null) scope.launch { onPicked(withExtension(f, ext)) }
+            }
+        }, "file-dialog").apply { isDaemon = true }.start()
+    }
+
+    private fun withExtension(f: File, ext: String) = if (f.extension.equals(ext, ignoreCase = true)) f else File(f.parentFile, f.name + "." + ext)
+
+    private fun awtSave(title: String, name: String, folder: File?): File? {
+        val d = FileDialog(window, title, FileDialog.SAVE)
+        d.file = name
+        folder?.let { d.directory = it.absolutePath }
+        d.isVisible = true
+        val n = d.file ?: return null
+        return File(d.directory ?: "", n)
+    }
+
+    /** Wersja do użycia w korutynie (zamykanie z zapisem). */
+    private suspend fun chooseSaveBlocking(tab: DocTab): File? = kotlinx.coroutines.suspendCancellableCoroutine { c ->
+        val name = baseName(tab.name) + ".pdf"
+        val folder = tab.file.parentFile
+        val win = window
+        Thread({
+            val r = NativeFileDialog.save(win, L("Zapisz jako", "Save as"), pdfFilter, folder, name, "pdf")
+            javax.swing.SwingUtilities.invokeLater {
+                val f = if (r == null) awtSave(L("Zapisz jako", "Save as"), name, folder) else r.firstOrNull()
+                c.resumeWith(Result.success(f?.let { withExtension(it, "pdf") }))
+            }
+        }, "file-dialog").apply { isDaemon = true }.start()
+    }
+
+    fun chooseFolder(title: String, onPicked: (File) -> Unit) {
+        if (picking) return
+        picking = true
+        val folder = lastFolder
+        val win = window
+        Thread({
+            val r = NativeFileDialog.pickFolder(win, title, folder)
+            javax.swing.SwingUtilities.invokeLater {
+                picking = false
+                val f = if (r == null) swingFolder(title, folder) else r.firstOrNull()
+                if (f != null) scope.launch { onPicked(f) }
+            }
+        }, "file-dialog").apply { isDaemon = true }.start()
+    }
+
+    private fun swingFolder(title: String, folder: File?): File? {
+        val c = javax.swing.JFileChooser(folder)
+        c.dialogTitle = title
+        c.fileSelectionMode = javax.swing.JFileChooser.DIRECTORIES_ONLY
+        return if (c.showOpenDialog(window) == javax.swing.JFileChooser.APPROVE_OPTION) c.selectedFile else null
+    }
+
+    // ------------------------------------------------------------------ zapis i pliki
+
+    fun save(tab: DocTab? = active) {
+        val t = tab ?: return
+        if (!t.ready) return
+        if (!t.savesInPlace) return saveAs(t)
+        if (!t.unsaved) {
+            showToast(L("Brak zmian do zapisania", "No changes to save"))
+            return
+        }
+        scope.launch { t.saveTo(t.file) }
+    }
+
+    fun saveAs(tab: DocTab? = active) {
+        val t = tab ?: return
+        if (!t.ready) return
+        chooseSave(L("Zapisz jako", "Save as"), baseName(t.name) + ".pdf", "pdf", pdfFilter) { f ->
+            if (tabs.any { it != t && it.file.absolutePath.equals(f.absolutePath, ignoreCase = true) }) {
+                showToast(L("Ten plik jest otwarty w innej karcie", "This file is open in another tab"), error = true)
+                return@chooseSave
+            }
+            scope.launch { t.saveTo(f) }
+        }
+    }
+
+    private fun runWork(label: String, block: suspend () -> Unit) {
+        if (work != null) return
+        work = label
+        workProgress = null
+        scope.launch {
+            try {
+                block()
+            } catch (e: Exception) {
+                showToast(label.trimEnd('…') + ": " + (e.message ?: e.javaClass.simpleName), error = true)
+            } finally {
+                work = null
+                workProgress = null
+            }
+        }
+    }
+
+    /** Scala wybrane pliki PDF w jeden nowy plik i otwiera go. */
+    fun mergePdfs() {
+        chooseFiles(L("Wybierz pliki PDF do scalenia (w kolejności)", "Choose PDF files to merge (in order)"), pdfFilter) { files ->
+            if (files.size < 2) {
+                showToast(L("Wybierz co najmniej dwa pliki", "Choose at least two files"), error = true)
+                return@chooseFiles
+            }
+            chooseSave(L("Zapisz scalony dokument", "Save the merged document"), L("Scalony.pdf", "Merged.pdf"), "pdf", pdfFilter) { out ->
+                runWork(L("Scalanie dokumentów…", "Merging documents…")) {
+                    withContext(Dispatchers.IO) {
+                        val tmp = File(out.parentFile, out.name + ".part")
+                        files.first().copyTo(tmp, overwrite = true)
+                        files.drop(1).forEachIndexed { i, f ->
+                            PdfOps.insertPdf(tmp, f, null, null)
+                            withContext(Dispatchers.Main) { workProgress = (i + 2f) / files.size }
+                        }
+                        PdfOps.replace(tmp, out)
+                    }
+                    open(listOf(out))
+                }
+            }
+        }
+    }
+
+    fun imagesToPdf() {
+        chooseFiles(L("Wybierz obrazy (po jednym na stronę)", "Choose images (one per page)"), imageFilter) { files ->
+            chooseSave(L("Zapisz nowy dokument", "Save the new document"), baseName(files.first().name) + ".pdf", "pdf", pdfFilter) { out ->
+                runWork(L("Tworzenie dokumentu z obrazów…", "Creating a document from images…")) {
+                    withContext(Dispatchers.IO) {
+                        val tmp = File(out.parentFile, out.name + ".part")
+                        engine.createFromImages(files.sortedBy { it.name.lowercase() }.map { it.toOkioPath() }, tmp.toOkioPath())
+                        PdfOps.replace(tmp, out)
+                    }
+                    open(listOf(out))
+                }
+            }
+        }
+    }
+
+    fun newBlank(pages: Int, landscape: Boolean, letter: Boolean) {
+        chooseSave(L("Nowy dokument", "New document"), L("Nowy dokument.pdf", "New document.pdf"), "pdf", pdfFilter) { out ->
+            runWork(L("Tworzenie dokumentu…", "Creating the document…")) {
+                withContext(Dispatchers.IO) {
+                    val base = if (letter) PDRectangle.LETTER else PDRectangle.A4
+                    val size = if (landscape) PDRectangle(base.height, base.width) else base
+                    PdfOps.createBlank(out, pages, size)
+                }
+                open(listOf(out))
+            }
+        }
+    }
+
+    /** Zapisuje strony jako obrazy w wybranym folderze. */
+    fun exportImages(tab: DocTab, pages: List<Int>, dpi: Int, png: Boolean) {
+        chooseFolder(L("Folder na obrazy stron", "Folder for page images")) { dir ->
+            runWork(L("Eksport stron…", "Exporting pages…")) {
+                val src = tab.currentFile()
+                val base = baseName(tab.name)
+                withContext(Dispatchers.IO) {
+                    val r = com.blacksingularities.openpdf.desktop.engine.DesktopRenderer.open(src)
+                    try {
+                        pages.forEachIndexed { i, p ->
+                            val s = r.sizes.getOrNull(p) ?: return@forEachIndexed
+                            var w = (s.width / 72f * dpi).toInt()
+                            var h = (s.height / 72f * dpi).toInt()
+                            val max = 40_000_000f
+                            if (w.toFloat() * h > max) {
+                                val k = kotlin.math.sqrt(max / (w.toFloat() * h))
+                                w = (w * k).toInt()
+                                h = (h * k).toInt()
+                            }
+                            val img = r.renderAwt(p, w, h) ?: return@forEachIndexed
+                            val n = (p + 1).toString().padStart(pages.maxOf { it + 1 }.toString().length, '0')
+                            ImageIO.write(img, if (png) "png" else "jpg", File(dir, "$base-$n.${if (png) "png" else "jpg"}"))
+                            withContext(Dispatchers.Main) { workProgress = (i + 1f) / pages.size }
+                        }
+                    } finally {
+                        r.close()
+                    }
+                }
+                showToast(L("Zapisano {0} obrazów w {1}", "Saved {0} images to {1}").replace("{0}", pages.size.toString()).replace("{1}", dir.name))
+                runCatching { java.awt.Desktop.getDesktop().open(dir) }
+            }
+        }
+    }
+
+    fun extractText(tab: DocTab) {
+        val t = tab.text ?: return
+        runWork(L("Wyodrębnianie tekstu…", "Extracting text…")) {
+            val text = t.allText { p -> scope.launch { workProgress = p } }.trim()
+            extracted = text
+            dialog = Dialog.TEXT
+        }
+    }
+
+    fun saveText(text: String, name: String) {
+        chooseSave(L("Zapisz tekst", "Save text"), baseName(name) + ".txt", "txt", listOf(NativeFileDialog.Filter(L("Tekst", "Text"), listOf("*.txt")))) { f ->
+            runCatching { f.writeText(text, Charsets.UTF_8) }
+                .onSuccess { showToast(L("Zapisano {0}", "Saved {0}").replace("{0}", f.name)) }
+                .onFailure { showToast(L("Nie udało się zapisać", "Could not save") + ": " + (it.message ?: ""), error = true) }
+        }
     }
 
     // ------------------------------------------------------------------ aktualizacje

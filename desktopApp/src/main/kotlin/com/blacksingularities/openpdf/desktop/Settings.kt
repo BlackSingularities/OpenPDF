@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.blacksingularities.openpdf.desktop.ui.Accent
 import com.blacksingularities.openpdf.desktop.ui.ThemeId
 import com.blacksingularities.openpdf.i18n.AppLanguage
 import java.io.File
@@ -17,7 +18,10 @@ enum class Flow { CONTINUOUS, PAGED }
 
 enum class Paper { NORMAL, SEPIA, NIGHT }
 
-enum class SideTab { THUMBS, OUTLINE, SEARCH }
+enum class SideTab { THUMBS, OUTLINE, BOOKMARKS, SEARCH, ANNOTATIONS, FORM }
+
+/** Zakładka użytkownika w dokumencie. */
+data class Bookmark(val page: Int, val title: String)
 
 /** Ostatnio otwierany plik i miejsce, w którym skończono czytać. */
 data class Recent(val path: String, val page: Int, val pages: Int, val opened: Long)
@@ -38,6 +42,10 @@ object AppDirs {
 class Settings {
     var language by mutableStateOf(AppLanguage.SYSTEM)
     var theme by mutableStateOf(ThemeId.DARK)
+    var accent by mutableStateOf(Accent.BLUE)
+    /** Gęstość interfejsu: kompaktowy (mniejsze odstępy) albo wygodny. */
+    var compact by mutableStateOf(true)
+    var author by mutableStateOf(System.getProperty("user.name")?.takeIf { it.isNotBlank() } ?: "OpenDocument")
     var layout by mutableStateOf(PageLayout.SINGLE)
     var flow by mutableStateOf(Flow.CONTINUOUS)
     var rtl by mutableStateOf(false)
@@ -53,6 +61,22 @@ class Settings {
     var activeInSession = 0
     var window = WindowBounds()
     val recents = mutableStateListOf<Recent>()
+    /** Ulubione pliki (ścieżki) – zawsze na górze ekranu startowego. */
+    val favorites = mutableStateListOf<String>()
+    /** Zakładki użytkownika: ścieżka pliku (małe litery) → zakładki. */
+    val bookmarks = androidx.compose.runtime.mutableStateMapOf<String, List<Bookmark>>()
+
+    fun isFavorite(path: String) = favorites.any { it.equals(path, ignoreCase = true) }
+
+    fun toggleFavorite(path: String) {
+        if (isFavorite(path)) favorites.removeAll { it.equals(path, ignoreCase = true) } else favorites.add(0, path)
+    }
+
+    fun bookmarksFor(path: String): List<Bookmark> = bookmarks[path.lowercase()].orEmpty()
+
+    fun setBookmarks(path: String, list: List<Bookmark>) {
+        if (list.isEmpty()) bookmarks.remove(path.lowercase()) else bookmarks[path.lowercase()] = list.sortedBy { it.page }
+    }
 
     data class WindowBounds(val x: Int = -1, val y: Int = -1, val w: Int = 1320, val h: Int = 860, val maximized: Boolean = false)
 
@@ -69,6 +93,13 @@ class Settings {
         val p = Properties()
         p["language"] = language.name
         p["theme"] = theme.name
+        p["accent"] = accent.name
+        p["compact"] = compact.toString()
+        p["author"] = author
+        p["favorites"] = favorites.joinToString("\n")
+        p["bookmarks"] = bookmarks.entries.flatMap { (k, v) ->
+            v.map { "$k\t${it.page}\t${it.title.replace('\t', ' ').replace('\n', ' ')}" }
+        }.joinToString("\n")
         p["layout"] = layout.name
         p["flow"] = flow.name
         p["rtl"] = rtl.toString()
@@ -105,6 +136,17 @@ class Settings {
             fun <E : Enum<E>> enum(k: String, values: Array<E>, d: E) = values.firstOrNull { it.name == str(k) } ?: d
             s.language = enum("language", AppLanguage.entries.toTypedArray(), AppLanguage.SYSTEM)
             s.theme = enum("theme", ThemeId.entries.toTypedArray(), ThemeId.DARK)
+            s.accent = enum("accent", Accent.entries.toTypedArray(), Accent.BLUE)
+            s.compact = bool("compact", true)
+            str("author")?.takeIf { it.isNotBlank() }?.let { s.author = it }
+            str("favorites")?.split('\n')?.filter { it.isNotBlank() }?.let { s.favorites.addAll(it) }
+            str("bookmarks")?.split('\n')?.forEach { line ->
+                val parts = line.split('\t', limit = 3)
+                if (parts.size == 3) {
+                    val page = parts[1].toIntOrNull() ?: return@forEach
+                    s.bookmarks[parts[0]] = s.bookmarks[parts[0]].orEmpty() + Bookmark(page, parts[2])
+                }
+            }
             s.layout = enum("layout", PageLayout.entries.toTypedArray(), PageLayout.SINGLE)
             s.flow = enum("flow", Flow.entries.toTypedArray(), Flow.CONTINUOUS)
             s.rtl = bool("rtl", false)

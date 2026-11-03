@@ -1,3 +1,16 @@
+## 2.0.0
+
+- **Windows – nowy interfejs i edycja dokumentów** (Android i iOS bez zmian).
+  - Kompaktowy pasek narzędzi w jednym wierszu: rozwijane menu Narzędzie, Styl, Widok i Dokument zamiast rzędów przycisków; na wąskim oknie zostają same ikony.
+  - Przeprojektowane motywy AMOLED, Grafit i Jasny z podglądem w ustawieniach, wybór koloru akcentu, szybka zmiana motywu z paska tytułu.
+  - Adnotacje: wyróżnianie tekstu (zakreślenie, podkreślenie, przekreślenie), pióro, zakreślacz, kształty, pola tekstowe, notatki i gumka; pasek nad zaznaczonym tekstem.
+  - Zapis i „Zapisz jako”, cofanie i ponawianie (Ctrl+Z / Ctrl+Y), kropka na karcie przy niezapisanych zmianach, pytanie przy zamykaniu.
+  - Porządkowanie stron: siatka miniatur, zaznaczanie wielu stron, obracanie, usuwanie, powielanie, przenoszenie, wstawianie pustych stron, innych PDF i obrazów, wyodrębnianie do nowego pliku.
+  - Panele boczne: zakładki użytkownika (Ctrl+D), adnotacje (niezapisane i w pliku), formularz z wypełnianiem i spłaszczaniem.
+  - Narzędzia: hasło i ochrona (AES-256), zmniejszanie rozmiaru, eksport stron do PNG/JPG, wyodrębnianie tekstu, edycja właściwości, druk z adnotacjami.
+  - Nowe dokumenty: pusty dokument, PDF z obrazów, scalanie plików PDF.
+  - Ekran startowy z szybkimi akcjami i ulubionymi plikami.
+
 ## 1.9.1
 
 - **Wersja dla Windows** – rozbudowana przeglądarka (bez edycji), jeden instalator `OpenDocument-x.y.z-setup-x64.exe`.

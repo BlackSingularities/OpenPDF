@@ -2,13 +2,10 @@
 
 package com.blacksingularities.openpdf.desktop.ui
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.hoverable
@@ -16,10 +13,12 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -34,30 +33,55 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Article
 import androidx.compose.material.icons.rounded.AutoStories
+import androidx.compose.material.icons.rounded.Bookmark
+import androidx.compose.material.icons.rounded.BookmarkBorder
 import androidx.compose.material.icons.rounded.Brightness2
+import androidx.compose.material.icons.rounded.Category
+import androidx.compose.material.icons.rounded.Circle
 import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Coffee
+import androidx.compose.material.icons.rounded.Compress
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.BorderColor
+import androidx.compose.material.icons.rounded.FactCheck
 import androidx.compose.material.icons.rounded.FitScreen
 import androidx.compose.material.icons.rounded.FolderOpen
+import androidx.compose.material.icons.rounded.FormatColorText
 import androidx.compose.material.icons.rounded.FormatTextdirectionRToL
 import androidx.compose.material.icons.rounded.Fullscreen
+import androidx.compose.material.icons.rounded.GridView
+import androidx.compose.material.icons.rounded.HighlightAlt
+import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Keyboard
+import androidx.compose.material.icons.rounded.Layers
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.MenuBook
-import androidx.compose.material.icons.rounded.MoreHoriz
+import androidx.compose.material.icons.rounded.MergeType
+import androidx.compose.material.icons.rounded.NoteAdd
+import androidx.compose.material.icons.rounded.Notes
 import androidx.compose.material.icons.rounded.PanTool
 import androidx.compose.material.icons.rounded.Print
+import androidx.compose.material.icons.rounded.Redo
 import androidx.compose.material.icons.rounded.Remove
+import androidx.compose.material.icons.rounded.RotateLeft
 import androidx.compose.material.icons.rounded.RotateRight
+import androidx.compose.material.icons.rounded.Save
+import androidx.compose.material.icons.rounded.SaveAs
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Slideshow
+import androidx.compose.material.icons.rounded.StickyNote2
 import androidx.compose.material.icons.rounded.SystemUpdateAlt
 import androidx.compose.material.icons.rounded.TextFields
+import androidx.compose.material.icons.rounded.Undo
 import androidx.compose.material.icons.rounded.ViewAgenda
 import androidx.compose.material.icons.rounded.ViewCarousel
 import androidx.compose.material.icons.rounded.ViewSidebar
@@ -77,11 +101,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -104,45 +126,55 @@ import com.blacksingularities.openpdf.desktop.AppState
 import com.blacksingularities.openpdf.desktop.Dialog
 import com.blacksingularities.openpdf.desktop.DocTab
 import com.blacksingularities.openpdf.desktop.Flow
+import com.blacksingularities.openpdf.desktop.INK_COLORS
+import com.blacksingularities.openpdf.desktop.MARKER_COLORS
 import com.blacksingularities.openpdf.desktop.PageLayout
 import com.blacksingularities.openpdf.desktop.Paper
+import com.blacksingularities.openpdf.desktop.SideTab
 import com.blacksingularities.openpdf.desktop.TabStatus
+import com.blacksingularities.openpdf.desktop.Tool
 import com.blacksingularities.openpdf.desktop.UpdateStatus
-import com.blacksingularities.openpdf.desktop.WindowsChrome
 import com.blacksingularities.openpdf.desktop.ZoomMode
+import com.blacksingularities.openpdf.pdf.MarkupKind
+import com.blacksingularities.openpdf.pdf.ShapeKind
 import kotlinx.coroutines.launch
-import java.awt.Cursor
-import java.awt.MouseInfo
-import java.awt.Window
-import kotlin.math.max
 import kotlin.math.roundToInt
 
-private val TitleH = 40.dp
+private val TitleH = 38.dp
 
 /**
  * Pasek tytułu okna: logo, karty dokumentów, pusty obszar do przeciągania okna (dwuklik –
- * maksymalizacja), aktualizacja, menu oraz przyciski minimalizacji, maksymalizacji i zamknięcia.
+ * maksymalizacja), aktualizacja, menu programu oraz przyciski okna.
  */
 @Composable
 fun TitleBar(app: AppState, scope: FrameWindowScope, state: WindowState, onClose: () -> Unit) {
     val window = scope.window
     val maximized = state.placement == WindowPlacement.Maximized
     Row(Modifier.fillMaxWidth().height(TitleH).background(P.bg), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.fillMaxHeight().windowDrag(state, window).padding(start = 12.dp, end = 10.dp), contentAlignment = Alignment.Center) {
-            Image(painterResource("icon.png"), null, Modifier.size(20.dp).clip(RoundedCornerShape(5.dp)))
+        Spacer(Modifier.width(6.dp))
+        MainMenu(app)
+        Box(Modifier.fillMaxHeight().windowDrag(state, window).padding(start = 4.dp, end = 8.dp), contentAlignment = Alignment.Center) {
+            Image(painterResource("icon.png"), null, Modifier.size(18.dp).clip(RoundedCornerShape(5.dp)))
         }
         Row(
             Modifier.weight(1f, fill = false).horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             app.tabs.forEachIndexed { i, t -> TabChip(app, t, i) }
         }
-        Spacer(Modifier.width(4.dp))
-        IconBtn(Icons.Rounded.Add, L("Otwórz dokumenty", "Open documents"), { app.pickFiles(window) }, shortcut = "Ctrl+O")
+        Spacer(Modifier.width(3.dp))
+        IconBtn(Icons.Rounded.Add, L("Otwórz dokumenty", "Open documents"), { app.pickFiles(window) }, shortcut = "Ctrl+O", size = 28.dp)
         // Pusty obszar paska – przeciąganie okna.
         Box(Modifier.weight(1f).fillMaxHeight().windowDrag(state, window).padding(start = 8.dp), contentAlignment = Alignment.CenterStart) {
             if (app.tabs.isEmpty()) Txt("OpenDocument", color = P.text2, weight = FontWeight.Medium)
+        }
+        val work = app.work
+        if (work != null) {
+            Row(Modifier.padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Spinner(Modifier.size(13.dp), P.accent)
+                Txt(work + (app.workProgress?.let { " ${(it * 100).roundToInt()}%" } ?: ""), style = Type.small, color = P.text2)
+            }
         }
         val upd = app.update
         if (upd is UpdateStatus.Available && app.settings.skippedVersion != upd.info.version) {
@@ -152,180 +184,32 @@ fun TitleBar(app: AppState, scope: FrameWindowScope, state: WindowState, onClose
             Btn("${(upd.progress * 100).roundToInt()}%", Icons.Rounded.Download, { app.dialog = Dialog.UPDATE }, height = 26.dp)
             Spacer(Modifier.width(6.dp))
         }
-        MainMenu(app, window)
-        Spacer(Modifier.width(6.dp))
-        WindowButton(WinGlyph.MIN, L("Minimalizuj", "Minimize")) { state.isMinimized = true }
-        WindowButton(if (maximized) WinGlyph.RESTORE else WinGlyph.MAX, if (maximized) L("Przywróć", "Restore") else L("Maksymalizuj", "Maximize")) {
+        ThemeQuick(app)
+        Spacer(Modifier.width(4.dp))
+        WindowButton(WinGlyph.MIN, L("Minimalizuj", "Minimize"), TitleH) { state.isMinimized = true }
+        WindowButton(if (maximized) WinGlyph.RESTORE else WinGlyph.MAX, if (maximized) L("Przywróć", "Restore") else L("Maksymalizuj", "Maximize"), TitleH) {
             toggleMaximize(state, window)
         }
-        WindowButton(WinGlyph.CLOSE, L("Zamknij", "Close"), onClick = onClose)
+        WindowButton(WinGlyph.CLOSE, L("Zamknij", "Close"), TitleH, onClick = onClose)
     }
 }
 
-fun toggleMaximize(state: WindowState, window: Window) {
-    if (state.placement == WindowPlacement.Maximized) {
-        state.placement = WindowPlacement.Floating
-    } else {
-        WindowsChrome.updateMaximizedBounds(window)
-        state.placement = WindowPlacement.Maximized
-    }
-}
-
-/** Obszar roboczy ekranu pod punktem (bez paska zadań), we współrzędnych pulpitu. */
-private fun workArea(at: java.awt.Point, window: Window): java.awt.Rectangle {
-    val ge = java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment()
-    val gc = ge.screenDevices.map { it.defaultConfiguration }.firstOrNull { it.bounds.contains(at) } ?: window.graphicsConfiguration
-    val b = gc.bounds
-    val ins = java.awt.Toolkit.getDefaultToolkit().getScreenInsets(gc)
-    return java.awt.Rectangle(b.x + ins.left, b.y + ins.top, b.width - ins.left - ins.right, b.height - ins.top - ins.bottom)
-}
-
-/**
- * Przeciąganie okna za pasek tytułu jak w Windows: dwuklik maksymalizuje, przeciągnięcie
- * zmaksymalizowanego okna przywraca je pod kursorem, upuszczenie przy górnej krawędzi ekranu
- * maksymalizuje, a przy bocznej – zajmuje połowę ekranu.
- */
-private fun Modifier.windowDrag(state: WindowState, window: Window): Modifier = this.pointerInput(state, window) {
-    awaitEachGesture {
-        awaitFirstDown(requireUnconsumed = false)
-        val native = currentEvent.nativeEvent as? java.awt.event.MouseEvent
-        if (native != null && native.button != java.awt.event.MouseEvent.BUTTON1) return@awaitEachGesture
-        if ((native?.clickCount ?: 1) >= 2) {
-            toggleMaximize(state, window)
-            return@awaitEachGesture
-        }
-        val start = MouseInfo.getPointerInfo()?.location ?: return@awaitEachGesture
-        val origin = window.location
-        var grab = java.awt.Point(start.x - origin.x, start.y - origin.y)
-        var dragging = false
-        while (true) {
-            val ev = awaitPointerEvent()
-            if (ev.changes.none { it.pressed }) break
-            val p = MouseInfo.getPointerInfo()?.location ?: continue
-            if (!dragging) {
-                if (kotlin.math.abs(p.x - start.x) + kotlin.math.abs(p.y - start.y) < 4) continue
-                dragging = true
-                if (state.placement == WindowPlacement.Maximized) {
-                    // Przywrócenie z zachowaniem miejsca chwytu (proporcjonalnie do szerokości).
-                    val frac = grab.x.toFloat() / window.width.coerceAtLeast(1)
-                    state.placement = WindowPlacement.Floating
-                    val w = state.size.width.value.toInt().coerceAtLeast(400)
-                    grab = java.awt.Point((w * frac).toInt(), grab.y)
-                }
-            }
-            ev.changes.forEach { it.consume() }
-            window.setLocation(p.x - grab.x, p.y - grab.y)
-        }
-        if (dragging) {
-            val p = MouseInfo.getPointerInfo()?.location ?: return@awaitEachGesture
-            val wa = workArea(p, window)
-            when {
-                p.y <= wa.y + 2 -> {
-                    WindowsChrome.updateMaximizedBounds(window)
-                    state.placement = WindowPlacement.Maximized
-                }
-                p.x <= wa.x + 2 -> window.setBounds(wa.x, wa.y, wa.width / 2, wa.height)
-                p.x >= wa.x + wa.width - 3 -> window.setBounds(wa.x + wa.width / 2, wa.y, wa.width - wa.width / 2, wa.height)
-            }
-        }
-    }
-}
-
-private enum class WinGlyph { MIN, MAX, RESTORE, CLOSE }
-
-/** Przycisk okna w stylu Windows 11: cienkie znaki, czerwone tło zamykania. */
+/** Szybka zmiana motywu: AMOLED → grafit → jasny. */
 @Composable
-private fun WindowButton(glyph: WinGlyph, tip: String, onClick: () -> Unit) {
-    val src = remember { MutableInteractionSource() }
-    val hovered by src.collectIsHoveredAsState()
-    val close = glyph == WinGlyph.CLOSE
-    val fg = if (close && hovered) Color.White else P.text
-    Tip(tip) {
-        Box(
-            Modifier.size(46.dp, TitleH)
-                .background(if (hovered) (if (close) Color(0xFFE81123) else P.raised2) else Color.Transparent)
-                .hoverable(src)
-                .clickable(src, null, onClick = onClick),
-            contentAlignment = Alignment.Center,
-        ) {
-            Canvas(Modifier.size(10.dp)) {
-                val w = size.width
-                val px = 1.dp.toPx()
-                when (glyph) {
-                    WinGlyph.MIN -> drawLine(fg, Offset(0f, w / 2), Offset(w, w / 2), px)
-                    WinGlyph.MAX -> drawRect(fg, style = Stroke(px))
-                    WinGlyph.RESTORE -> {
-                        val o = w * 0.24f
-                        drawRect(fg, Offset(0f, o), Size(w - o, w - o), style = Stroke(px))
-                        drawLine(fg, Offset(o, o), Offset(o, 0f), px)
-                        drawLine(fg, Offset(o, 0f), Offset(w, 0f), px)
-                        drawLine(fg, Offset(w, 0f), Offset(w, w - o), px)
-                        drawLine(fg, Offset(w, w - o), Offset(w - o, w - o), px)
-                    }
-                    WinGlyph.CLOSE -> {
-                        drawLine(fg, Offset(0f, 0f), Offset(w, w), px)
-                        drawLine(fg, Offset(w, 0f), Offset(0f, w), px)
-                    }
-                }
-            }
-        }
-    }
+private fun ThemeQuick(app: AppState) {
+    val st = app.settings
+    val next = ThemeId.entries[(st.theme.ordinal + 1) % ThemeId.entries.size]
+    IconBtn(
+        when (st.theme) {
+            ThemeId.DARK -> Icons.Rounded.Brightness2
+            ThemeId.GRAY -> Icons.Rounded.Coffee
+            ThemeId.LIGHT -> Icons.Rounded.WbSunny
+        },
+        L("Motyw: {0} – kliknij: {1}", "Theme: {0} – click: {1}").replace("{0}", st.theme.label).replace("{1}", next.label),
+        { st.theme = next; app.saveSoon() },
+        size = 28.dp,
+    )
 }
-
-/** Uchwyty zmiany rozmiaru okna bez ramki: krawędzie i rogi. */
-@Composable
-fun ResizeHandles(window: Window) {
-    val e = 5.dp
-    val c = 12.dp
-    Box(Modifier.fillMaxSize()) {
-        Box(Modifier.align(Alignment.TopCenter).fillMaxWidth().height(e).resizer(window, EDGE_T, Cursor.N_RESIZE_CURSOR))
-        Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(e).resizer(window, EDGE_B, Cursor.S_RESIZE_CURSOR))
-        Box(Modifier.align(Alignment.CenterStart).fillMaxHeight().width(e).resizer(window, EDGE_L, Cursor.W_RESIZE_CURSOR))
-        Box(Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(e).resizer(window, EDGE_R, Cursor.E_RESIZE_CURSOR))
-        Box(Modifier.align(Alignment.TopStart).size(c).resizer(window, EDGE_T or EDGE_L, Cursor.NW_RESIZE_CURSOR))
-        Box(Modifier.align(Alignment.TopEnd).size(c).resizer(window, EDGE_T or EDGE_R, Cursor.NE_RESIZE_CURSOR))
-        Box(Modifier.align(Alignment.BottomStart).size(c).resizer(window, EDGE_B or EDGE_L, Cursor.SW_RESIZE_CURSOR))
-        Box(Modifier.align(Alignment.BottomEnd).size(c).resizer(window, EDGE_B or EDGE_R, Cursor.SE_RESIZE_CURSOR))
-    }
-}
-
-private const val EDGE_L = 1
-private const val EDGE_T = 2
-private const val EDGE_R = 4
-private const val EDGE_B = 8
-
-private fun Modifier.resizer(window: Window, edges: Int, cursor: Int): Modifier =
-    this.pointerHoverIcon(PointerIcon(Cursor(cursor))).pointerInput(edges) {
-        awaitEachGesture {
-            awaitFirstDown(requireUnconsumed = false).consume()
-            val start = MouseInfo.getPointerInfo()?.location ?: return@awaitEachGesture
-            val b = window.bounds
-            val min = window.minimumSize
-            while (true) {
-                val ev = awaitPointerEvent()
-                if (ev.changes.none { it.pressed }) break
-                ev.changes.forEach { it.consume() }
-                val p = MouseInfo.getPointerInfo()?.location ?: continue
-                val dx = p.x - start.x
-                val dy = p.y - start.y
-                var x = b.x
-                var y = b.y
-                var w = b.width
-                var h = b.height
-                if (edges and EDGE_L != 0) {
-                    w = max(min.width, b.width - dx)
-                    x = b.x + b.width - w
-                }
-                if (edges and EDGE_R != 0) w = max(min.width, b.width + dx)
-                if (edges and EDGE_T != 0) {
-                    h = max(min.height, b.height - dy)
-                    y = b.y + b.height - h
-                }
-                if (edges and EDGE_B != 0) h = max(min.height, b.height + dy)
-                window.setBounds(x, y, w, h)
-            }
-        }
-    }
 
 @Composable
 private fun TabChip(app: AppState, t: DocTab, index: Int) {
@@ -334,16 +218,17 @@ private fun TabChip(app: AppState, t: DocTab, index: Int) {
     val hovered by src.collectIsHoveredAsState()
     var menu by remember { mutableStateOf(false) }
     var dragX by remember { mutableStateOf(0f) }
+    val shape = RoundedCornerShape(8.dp)
     Box {
         Tip(t.file.absolutePath) {
             Row(
-                Modifier.height(28.dp).widthIn(min = 90.dp, max = 220.dp).clip(Pill)
-                    .background(if (on) P.sel else if (hovered) P.raised2 else P.surface)
-                    .border(1.dp, if (on) P.sel else P.line, Pill)
+                Modifier.height(28.dp).widthIn(min = 96.dp, max = 230.dp).clip(shape)
+                    .background(if (on) P.raised2 else if (hovered) P.raised else Color.Transparent)
+                    .border(1.dp, if (on) P.line2 else Color.Transparent, shape)
                     .hoverable(src)
                     .onPointerEvent(PointerEventType.Press) { e ->
                         when (e.button) {
-                            PointerButton.Tertiary -> app.close(t)
+                            PointerButton.Tertiary -> app.requestClose(t)
                             PointerButton.Secondary -> menu = true
                             else -> app.active = t
                         }
@@ -362,32 +247,40 @@ private fun TabChip(app: AppState, t: DocTab, index: Int) {
                             }
                         }
                     }
-                    .padding(start = 10.dp, end = 4.dp),
+                    .padding(start = 9.dp, end = 3.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                val fg = if (on) P.selText else P.text2
+                val fg = if (on) P.text else P.text2
                 val st = t.status
-                if (st is TabStatus.Loading) {
-                    Spinner(Modifier.size(12.dp), fg)
+                if (st is TabStatus.Loading || t.busy != null) {
+                    Spinner(Modifier.size(12.dp), P.accent)
                 } else {
-                    Icon(iconFor(t), null, Modifier.size(14.dp), tint = if (st is TabStatus.Failed) P.err else fg)
+                    Icon(iconFor(t), null, Modifier.size(14.dp), tint = if (st is TabStatus.Failed) P.err else if (on) P.accent else fg)
                 }
                 Txt(t.name, Modifier.weight(1f, fill = false), style = Type.small, color = fg, weight = if (on) FontWeight.SemiBold else null)
                 val cs = remember { MutableInteractionSource() }
                 val ch by cs.collectIsHoveredAsState()
                 Box(
                     Modifier.size(20.dp).clip(CircleShape)
-                        .background(if (ch) (if (on) Color.Black.copy(alpha = 0.12f) else P.raised2) else Color.Transparent)
-                        .hoverable(cs).pointerHoverIcon(PointerIcon.Hand).clickable { app.close(t) },
+                        .background(if (ch) P.line2 else Color.Transparent)
+                        .hoverable(cs).pointerHoverIcon(PointerIcon.Hand).clickable { app.requestClose(t) },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(Icons.Rounded.Close, L("Zamknij", "Close"), Modifier.size(13.dp).alpha(if (on || hovered) 1f else 0.5f), tint = fg)
+                    if (t.unsaved && !ch) {
+                        // Niezapisane zmiany: kropka w miejscu krzyżyka.
+                        Box(Modifier.size(8.dp).background(P.accent, CircleShape))
+                    } else {
+                        Icon(Icons.Rounded.Close, L("Zamknij", "Close"), Modifier.size(13.dp).alpha(if (on || hovered || ch) 1f else 0.45f), tint = fg)
+                    }
                 }
             }
         }
         Menu(menu, { menu = false }, alignEnd = false, width = 230.dp) {
-            MenuItem(L("Zamknij", "Close"), Icons.Rounded.Close, "Ctrl+W") { menu = false; app.close(t) }
+            MenuItem(L("Zapisz", "Save"), Icons.Rounded.Save, "Ctrl+S", enabled = t.ready && t.unsaved) { menu = false; app.save(t) }
+            MenuItem(L("Zapisz jako…", "Save as…"), Icons.Rounded.SaveAs, enabled = t.ready) { menu = false; app.saveAs(t) }
+            MenuSeparator()
+            MenuItem(L("Zamknij", "Close"), Icons.Rounded.Close, "Ctrl+W") { menu = false; app.requestClose(t) }
             MenuItem(L("Zamknij pozostałe", "Close others"), enabled = app.tabs.size > 1) { menu = false; app.closeOthers(t) }
             MenuItem(L("Zamknij wszystkie", "Close all")) { menu = false; app.closeAll() }
             MenuSeparator()
@@ -414,89 +307,282 @@ fun Spinner(modifier: Modifier, color: Color) {
     androidx.compose.material3.CircularProgressIndicator(modifier, color = color, strokeWidth = 1.6.dp, trackColor = color.copy(alpha = 0.18f))
 }
 
+/** Menu programu (przycisk ☰ w lewym górnym rogu): plik, tworzenie dokumentów, widok, program. */
 @Composable
-private fun MainMenu(app: AppState, window: java.awt.Frame) {
+private fun MainMenu(app: AppState) {
     var open by remember { mutableStateOf(false) }
     Box {
-        IconBtn(Icons.Rounded.MoreHoriz, L("Menu", "Menu"), { open = true }, active = open)
-        Menu(open, { open = false }) {
+        IconBtn(Icons.Rounded.Menu, L("Menu", "Menu"), { open = !open }, active = open, size = 28.dp)
+        Menu(open, { open = false }, alignEnd = false, width = 290.dp) {
             val t = app.active
-            MenuItem(L("Otwórz…", "Open…"), Icons.Rounded.FolderOpen, "Ctrl+O") { open = false; app.pickFiles(window) }
-            MenuItem(L("Drukuj…", "Print…"), Icons.Rounded.Print, "Ctrl+P", enabled = t?.ready == true) { open = false; t?.let { print(app, it) } }
-            MenuItem(L("Właściwości dokumentu", "Document properties"), Icons.Rounded.Info, "Ctrl+D", enabled = t?.ready == true) { open = false; app.dialog = Dialog.PROPERTIES }
+            val ready = t?.ready == true
+            fun go(a: () -> Unit) {
+                open = false
+                a()
+            }
+            MenuHeader(L("Plik", "File"))
+            MenuItem(L("Otwórz…", "Open…"), Icons.Rounded.FolderOpen, "Ctrl+O") { go { app.pickFiles() } }
+            MenuItem(L("Zapisz", "Save"), Icons.Rounded.Save, "Ctrl+S", enabled = ready && t?.unsaved == true) { go { app.save() } }
+            MenuItem(L("Zapisz jako…", "Save as…"), Icons.Rounded.SaveAs, "Ctrl+Shift+S", enabled = ready) { go { app.saveAs() } }
+            MenuItem(L("Drukuj…", "Print…"), Icons.Rounded.Print, "Ctrl+P", enabled = ready) { go { t?.let { print(app, it) } } }
+            MenuItem(L("Zamknij kartę", "Close tab"), Icons.Rounded.Close, "Ctrl+W", enabled = t != null) { go { t?.let { app.requestClose(it) } } }
             MenuSeparator()
-            MenuItem(L("Prezentacja", "Presentation"), Icons.Rounded.Slideshow, "F5", enabled = t?.ready == true) { open = false; app.presentation = true }
-            MenuItem(L("Pełny ekran", "Full screen"), Icons.Rounded.Fullscreen, "F11", enabled = t?.ready == true) { open = false; app.fullscreen = true }
+            MenuHeader(L("Nowy dokument", "New document"))
+            MenuItem(L("Pusty dokument…", "Blank document…"), Icons.Rounded.NoteAdd) { go { app.dialog = Dialog.NEW_DOC } }
+            MenuItem(L("PDF z obrazów…", "PDF from images…"), Icons.Rounded.Image) { go { app.imagesToPdf() } }
+            MenuItem(L("Scal pliki PDF…", "Merge PDF files…"), Icons.Rounded.MergeType) { go { app.mergePdfs() } }
             MenuSeparator()
-            MenuItem(L("Ustawienia", "Settings"), Icons.Rounded.Settings, "Ctrl+,") { open = false; app.dialog = Dialog.SETTINGS }
-            MenuItem(L("Skróty klawiszowe", "Keyboard shortcuts"), Icons.Rounded.Keyboard, "F1") { open = false; app.dialog = Dialog.SHORTCUTS }
-            MenuItem(L("Sprawdź aktualizacje", "Check for updates"), Icons.Rounded.SystemUpdateAlt) { open = false; app.checkUpdates(manual = true) }
-            MenuItem(L("O programie", "About"), Icons.Rounded.Info) { open = false; app.dialog = Dialog.ABOUT }
+            MenuHeader(L("Widok", "View"))
+            MenuItem(L("Pełny ekran", "Full screen"), Icons.Rounded.Fullscreen, "F11", enabled = ready) { go { app.fullscreen = true } }
+            MenuItem(L("Prezentacja", "Presentation"), Icons.Rounded.Slideshow, "F5", enabled = ready) { go { app.presentation = true } }
+            MenuSeparator()
+            MenuHeader(L("Program", "Program"))
+            MenuItem(L("Ustawienia", "Settings"), Icons.Rounded.Settings, "Ctrl+,") { go { app.dialog = Dialog.SETTINGS } }
+            MenuItem(L("Skróty klawiszowe", "Keyboard shortcuts"), Icons.Rounded.Keyboard, "F1") { go { app.dialog = Dialog.SHORTCUTS } }
+            MenuItem(L("Sprawdź aktualizacje", "Check for updates"), Icons.Rounded.SystemUpdateAlt) { go { app.checkUpdates(manual = true) } }
+            MenuItem(L("O programie", "About"), Icons.Rounded.Info) { go { app.dialog = Dialog.ABOUT } }
         }
     }
 }
 
-/** Pasek narzędzi dokumentu: panel boczny i narzędzie | strony i powiększenie | układ i papier. */
+fun toolIcon(t: Tool): ImageVector = when (t) {
+    Tool.SELECT -> Icons.Rounded.HighlightAlt
+    Tool.HAND -> Icons.Rounded.PanTool
+    Tool.MARKUP -> Icons.Rounded.FormatColorText
+    Tool.PEN -> Icons.Rounded.Edit
+    Tool.MARKER -> Icons.Rounded.BorderColor
+    Tool.SHAPE -> Icons.Rounded.Category
+    Tool.TEXT -> Icons.Rounded.TextFields
+    Tool.NOTE -> Icons.Rounded.StickyNote2
+    Tool.ERASER -> Icons.Rounded.CleaningServices
+}
+
+/**
+ * Pasek narzędzi dokumentu w jednym wierszu: panel i narzędzie (rozwijane) | strony i powiększenie |
+ * widok, dokument i zapis (rozwijane). Na wąskim oknie etykiety chowają się, zostają ikony.
+ */
 @Composable
-fun Toolbar(app: AppState, tab: DocTab, handle: ViewerHandle) {
+fun Toolbar(app: AppState, tab: DocTab) {
     val st = app.settings
-    Row(
-        Modifier.fillMaxWidth().height(42.dp).background(P.panel).padding(horizontal = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            IconBtn(Icons.Rounded.ViewSidebar, L("Panel boczny", "Sidebar"), { st.sidebar = !st.sidebar; app.saveSoon() }, active = st.sidebar, shortcut = "Ctrl+B")
-            Seg(
-                listOf(
-                    SegItem(Tool.SELECT, icon = Icons.Rounded.TextFields, tip = L("Zaznaczanie tekstu", "Select text"), shortcut = "V"),
-                    SegItem(Tool.HAND, icon = Icons.Rounded.PanTool, tip = L("Przesuwanie (rączka)", "Pan (hand)"), shortcut = "H"),
-                ),
-                handle.tool, { handle.tool = it },
-            )
+    BoxWithConstraints(Modifier.fillMaxWidth().height(42.dp).background(P.panel)) {
+        val wide = maxWidth > 1180.dp
+        val medium = maxWidth > 940.dp
+        Row(Modifier.fillMaxWidth().fillMaxHeight().padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                IconBtn(Icons.Rounded.ViewSidebar, L("Panel boczny", "Sidebar"), { st.sidebar = !st.sidebar; app.saveSoon() }, active = st.sidebar, shortcut = "Ctrl+B")
+                IconBtn(Icons.Rounded.GridView, L("Porządkowanie stron", "Organize pages"), { tab.organize = !tab.organize }, active = tab.organize, shortcut = "Ctrl+Shift+O")
+                VDivider()
+                if (!tab.organize) {
+                    ToolDrop(app, wide)
+                    if (app.tool.annotates && app.tool != Tool.ERASER) StyleDrop(app)
+                }
+                IconBtn(Icons.Rounded.Undo, L("Cofnij", "Undo"), { tab.undo() }, enabled = tab.canUndo && tab.busy == null, shortcut = "Ctrl+Z")
+                IconBtn(Icons.Rounded.Redo, L("Ponów", "Redo"), { tab.redo() }, enabled = tab.canRedo && tab.busy == null, shortcut = "Ctrl+Y")
+            }
+            if (!tab.organize) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    IconBtn(Icons.Rounded.ChevronLeft, L("Poprzednia strona", "Previous page"), { tab.step(-1) }, enabled = tab.rowOf(tab.page) > 0, shortcut = "PgUp")
+                    PageField(app, tab)
+                    IconBtn(Icons.Rounded.ChevronRight, L("Następna strona", "Next page"), { tab.step(1) }, enabled = tab.rowOf(tab.page) < tab.rowOf(tab.pageCount - 1), shortcut = "PgDn")
+                    VDivider()
+                    if (medium) IconBtn(Icons.Rounded.Remove, L("Pomniejsz", "Zoom out"), { zoomStep(tab, -1) }, shortcut = "Ctrl+−")
+                    ZoomMenu(tab)
+                    if (medium) IconBtn(Icons.Rounded.Add, L("Powiększ", "Zoom in"), { zoomStep(tab, 1) }, shortcut = "Ctrl++")
+                }
+            } else {
+                Txt(L("Porządkowanie stron – zaznacz strony i wybierz działanie", "Organizing pages – select pages and choose an action"), color = P.text2, style = Type.small)
+            }
+            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.End)) {
+                val busy = tab.busy
+                if (busy != null) {
+                    Spinner(Modifier.size(13.dp), P.accent)
+                    if (medium) Txt(busy, Modifier.padding(start = 4.dp, end = 6.dp).widthIn(max = 220.dp), style = Type.small, color = P.text2)
+                }
+                IconBtn(
+                    if (tab.isBookmarked(tab.page)) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
+                    if (tab.isBookmarked(tab.page)) L("Usuń zakładkę z tej strony", "Remove the bookmark from this page") else L("Dodaj zakładkę na tej stronie", "Bookmark this page"),
+                    { tab.toggleBookmark() }, active = tab.isBookmarked(tab.page), shortcut = "Ctrl+D",
+                )
+                IconBtn(Icons.Rounded.Search, L("Szukaj w dokumencie", "Search the document"), {
+                    st.sidebar = true
+                    st.sideTab = SideTab.SEARCH
+                    app.focusSearch++
+                }, active = st.sidebar && st.sideTab == SideTab.SEARCH, shortcut = "Ctrl+F")
+                if (!tab.organize) ViewDrop(app, tab, wide)
+                DocDrop(app, tab, wide)
+                Spacer(Modifier.width(2.dp))
+                if (tab.unsaved) {
+                    Btn(if (medium) L("Zapisz", "Save") else null, Icons.Rounded.Save, { app.save(tab) }, kind = BtnKind.PRIMARY, enabled = tab.busy == null, tip = L("Zapisz zmiany", "Save changes"), shortcut = "Ctrl+S", height = 30.dp)
+                }
+            }
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-            IconBtn(Icons.Rounded.ChevronLeft, L("Poprzednia strona", "Previous page"), { tab.step(-1) }, enabled = tab.rowOf(tab.page) > 0, shortcut = "PgUp")
-            PageField(app, tab)
-            IconBtn(Icons.Rounded.ChevronRight, L("Następna strona", "Next page"), { tab.step(1) }, enabled = tab.rowOf(tab.page) < tab.rowOf(tab.pageCount - 1), shortcut = "PgDn")
-            VDivider()
-            IconBtn(Icons.Rounded.Remove, L("Pomniejsz", "Zoom out"), { zoomStep(tab, -1) }, shortcut = "Ctrl+−")
-            ZoomMenu(tab)
-            IconBtn(Icons.Rounded.Add, L("Powiększ", "Zoom in"), { zoomStep(tab, 1) }, shortcut = "Ctrl++")
-            Seg(
-                listOf(
-                    SegItem(ZoomMode.FIT_WIDTH, icon = Icons.Rounded.WidthNormal, tip = L("Dopasuj do szerokości", "Fit width"), shortcut = "Ctrl+2"),
-                    SegItem(ZoomMode.FIT_PAGE, icon = Icons.Rounded.FitScreen, tip = L("Cała strona", "Fit page"), shortcut = "Ctrl+1"),
-                ),
-                tab.zoomMode, { tab.zoomMode = it },
-            )
+    }
+}
+
+/** Wybór narzędzia: przeglądanie i adnotacje w jednym rozwijanym menu. */
+@Composable
+private fun ToolDrop(app: AppState, wide: Boolean) {
+    val cur = app.tool
+    DropBtn(if (wide) cur.label else null, toolIcon(cur), L("Narzędzie", "Tool"), width = 250.dp, active = cur.annotates, iconTint = if (cur.annotates) toolColor(app)?.let { Color(it) } else null) { close ->
+        MenuHeader(L("Przeglądanie", "Browsing"))
+        for (t in listOf(Tool.SELECT, Tool.HAND)) {
+            MenuItem(t.label, toolIcon(t), t.key, checked = if (cur == t) true else null) { close(); app.tool = t }
         }
-        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End)) {
-            Seg(
-                listOf(
-                    SegItem(PageLayout.SINGLE, icon = Icons.Rounded.Article, tip = L("Jedna strona", "Single page"), shortcut = "1"),
-                    SegItem(PageLayout.SPREAD, icon = Icons.Rounded.ViewCarousel, tip = L("Dwie strony", "Two pages"), shortcut = "2"),
-                    SegItem(PageLayout.BOOK, icon = Icons.Rounded.AutoStories, tip = L("Książka (okładka osobno)", "Book (cover alone)"), shortcut = "B"),
-                ),
-                tab.layout, { setLayout(app, tab, it) },
-            )
-            IconBtn(
-                if (tab.flow == Flow.CONTINUOUS) Icons.Rounded.ViewAgenda else Icons.Rounded.MenuBook,
-                if (tab.flow == Flow.CONTINUOUS) L("Przewijanie ciągłe – przełącz na strona po stronie", "Continuous scrolling – switch to page by page")
-                else L("Strona po stronie – przełącz na przewijanie ciągłe", "Page by page – switch to continuous scrolling"),
-                { setFlow(app, tab, if (tab.flow == Flow.CONTINUOUS) Flow.PAGED else Flow.CONTINUOUS) },
-                active = tab.flow == Flow.PAGED,
-                shortcut = "C",
-            )
-            IconBtn(
-                Icons.Rounded.FormatTextdirectionRToL, L("Od prawej do lewej (manga)", "Right to left (manga)"),
-                { tab.rtl = !tab.rtl; st.rtl = tab.rtl; app.saveSoon() },
-                active = tab.rtl, enabled = tab.layout != PageLayout.SINGLE, shortcut = "R",
-            )
-            IconBtn(Icons.Rounded.RotateRight, L("Obróć widok", "Rotate view"), { tab.rotation = (tab.rotation + 90) % 360 }, active = tab.rotation != 0, shortcut = "Ctrl+R")
-            VDivider()
-            PaperButton(app)
-            IconBtn(Icons.Rounded.Fullscreen, L("Pełny ekran", "Full screen"), { app.fullscreen = !app.fullscreen }, shortcut = "F11")
+        MenuSeparator()
+        MenuHeader(L("Adnotacje", "Annotations"))
+        for (t in listOf(Tool.MARKUP, Tool.PEN, Tool.MARKER, Tool.SHAPE, Tool.TEXT, Tool.NOTE, Tool.ERASER)) {
+            MenuItem(t.label, toolIcon(t), t.key, checked = if (cur == t) true else null) { close(); app.tool = t }
         }
+    }
+}
+
+/** Kolor bieżącego narzędzia rysowania (do kropki na przycisku). */
+fun toolColor(app: AppState): Int? = with(app.styles) {
+    when (app.tool) {
+        Tool.MARKUP -> markupColor
+        Tool.PEN -> penColor
+        Tool.MARKER -> markerColor
+        Tool.SHAPE -> shapeColor
+        Tool.TEXT -> textColor
+        Tool.NOTE -> noteColor
+        else -> null
+    }
+}
+
+/** Styl narzędzia: kolor, grubość, rodzaj kształtu lub wyróżnienia. */
+@Composable
+private fun StyleDrop(app: AppState) {
+    val s = app.styles
+    val color = toolColor(app) ?: return
+    Box {
+        DropBtn(null, Icons.Rounded.Circle, L("Kolor i styl", "Colour and style"), width = 260.dp, iconTint = Color(color)) { _ ->
+            when (app.tool) {
+                Tool.MARKUP -> {
+                    MenuHeader(L("Rodzaj", "Kind"))
+                    ChipRow(
+                        listOf(MarkupKind.HIGHLIGHT to L("Zakreśl", "Highlight"), MarkupKind.UNDERLINE to L("Podkreśl", "Underline"), MarkupKind.STRIKEOUT to L("Przekreśl", "Strike")),
+                        s.markupKind, { s.markupKind = it },
+                    )
+                    MenuHeader(L("Kolor", "Colour"))
+                    ColorRow(if (s.markupKind == MarkupKind.HIGHLIGHT) MARKER_COLORS else INK_COLORS, s.markupColor, { s.markupColor = it })
+                }
+                Tool.PEN -> {
+                    MenuHeader(L("Kolor", "Colour"))
+                    ColorRow(INK_COLORS, s.penColor, { s.penColor = it })
+                    MenuHeader(L("Grubość", "Width"))
+                    ChipRow(listOf(1f to "1", 2f to "2", 3f to "3", 5f to "5", 8f to "8"), s.penWidth, { s.penWidth = it })
+                }
+                Tool.MARKER -> {
+                    MenuHeader(L("Kolor", "Colour"))
+                    ColorRow(MARKER_COLORS, s.markerColor, { s.markerColor = it })
+                    MenuHeader(L("Grubość", "Width"))
+                    ChipRow(listOf(8f to "8", 12f to "12", 16f to "16", 22f to "22"), s.markerWidth, { s.markerWidth = it })
+                }
+                Tool.SHAPE -> {
+                    MenuHeader(L("Kształt", "Shape"))
+                    ChipRow(
+                        listOf(ShapeKind.RECT to L("Prostokąt", "Rectangle"), ShapeKind.ELLIPSE to L("Elipsa", "Ellipse"), ShapeKind.LINE to L("Linia", "Line"), ShapeKind.ARROW to L("Strzałka", "Arrow")),
+                        s.shapeKind, { s.shapeKind = it },
+                    )
+                    MenuHeader(L("Kolor", "Colour"))
+                    ColorRow(INK_COLORS, s.shapeColor, { s.shapeColor = it })
+                    MenuHeader(L("Grubość", "Width"))
+                    ChipRow(listOf(1f to "1", 2f to "2", 3f to "3", 5f to "5"), s.shapeWidth, { s.shapeWidth = it })
+                    ChipRow(listOf(false to L("Bez wypełnienia", "No fill"), true to L("Wypełnienie", "Fill")), s.shapeFill, { s.shapeFill = it })
+                }
+                Tool.TEXT -> {
+                    MenuHeader(L("Kolor tekstu", "Text colour"))
+                    ColorRow(INK_COLORS, s.textColor, { s.textColor = it })
+                    MenuHeader(L("Rozmiar", "Size"))
+                    ChipRow(listOf(9f to "9", 12f to "12", 16f to "16", 24f to "24", 36f to "36"), s.textSize, { s.textSize = it })
+                    ChipRow(listOf(false to L("Przezroczyste tło", "Transparent"), true to L("Białe tło", "White box")), s.textBackground, { s.textBackground = it })
+                }
+                Tool.NOTE -> {
+                    MenuHeader(L("Kolor notatki", "Note colour"))
+                    ColorRow(MARKER_COLORS + listOf(0xFFFFD54F.toInt()), s.noteColor, { s.noteColor = it })
+                }
+                else -> Unit
+            }
+        }
+    }
+}
+
+/** Widok: układ stron, przewijanie, kierunek, obrót i papier – jedno rozwijane menu. */
+@Composable
+private fun ViewDrop(app: AppState, tab: DocTab, wide: Boolean) {
+    val st = app.settings
+    val icon = when (tab.layout) {
+        PageLayout.SINGLE -> if (tab.flow == Flow.CONTINUOUS) Icons.Rounded.ViewAgenda else Icons.Rounded.Article
+        PageLayout.SPREAD -> Icons.Rounded.ViewCarousel
+        PageLayout.BOOK -> Icons.Rounded.AutoStories
+    }
+    val label = when (tab.layout) {
+        PageLayout.SINGLE -> L("Jedna strona", "Single page")
+        PageLayout.SPREAD -> L("Dwie strony", "Two pages")
+        PageLayout.BOOK -> L("Książka", "Book")
+    }
+    DropBtn(if (wide) label else null, icon, L("Widok", "View"), width = 270.dp, alignEnd = true) { close ->
+        MenuHeader(L("Układ stron", "Page layout"))
+        MenuItem(L("Jedna strona", "Single page"), Icons.Rounded.Article, "1", checked = if (tab.layout == PageLayout.SINGLE) true else null) { close(); setLayout(app, tab, PageLayout.SINGLE) }
+        MenuItem(L("Dwie strony", "Two pages"), Icons.Rounded.ViewCarousel, "2", checked = if (tab.layout == PageLayout.SPREAD) true else null) { close(); setLayout(app, tab, PageLayout.SPREAD) }
+        MenuItem(L("Książka (okładka osobno)", "Book (cover alone)"), Icons.Rounded.AutoStories, "B", checked = if (tab.layout == PageLayout.BOOK) true else null) { close(); setLayout(app, tab, PageLayout.BOOK) }
+        MenuSeparator()
+        MenuHeader(L("Przewijanie", "Scrolling"))
+        MenuItem(L("Ciągłe", "Continuous"), Icons.Rounded.ViewAgenda, "C", checked = if (tab.flow == Flow.CONTINUOUS) true else null) { close(); setFlow(app, tab, Flow.CONTINUOUS) }
+        MenuItem(L("Strona po stronie", "Page by page"), Icons.Rounded.MenuBook, "C", checked = if (tab.flow == Flow.PAGED) true else null) { close(); setFlow(app, tab, Flow.PAGED) }
+        MenuItem(L("Od prawej do lewej (manga)", "Right to left (manga)"), Icons.Rounded.FormatTextdirectionRToL, "R", checked = if (tab.rtl) true else null, enabled = tab.layout != PageLayout.SINGLE) {
+            close(); tab.rtl = !tab.rtl; st.rtl = tab.rtl; app.saveSoon()
+        }
+        MenuSeparator()
+        MenuHeader(L("Powiększenie i obrót", "Zoom and rotation"))
+        MenuItem(L("Dopasuj do szerokości", "Fit width"), Icons.Rounded.WidthNormal, "Ctrl+2", checked = if (tab.zoomMode == ZoomMode.FIT_WIDTH) true else null) { close(); tab.zoomMode = ZoomMode.FIT_WIDTH }
+        MenuItem(L("Cała strona", "Fit page"), Icons.Rounded.FitScreen, "Ctrl+1", checked = if (tab.zoomMode == ZoomMode.FIT_PAGE) true else null) { close(); tab.zoomMode = ZoomMode.FIT_PAGE }
+        MenuItem(L("Obróć widok w prawo", "Rotate view right"), Icons.Rounded.RotateRight, "Ctrl+R") { close(); tab.rotation = (tab.rotation + 90) % 360 }
+        MenuItem(L("Obróć widok w lewo", "Rotate view left"), Icons.Rounded.RotateLeft, "Ctrl+Shift+R") { close(); tab.rotation = (tab.rotation + 270) % 360 }
+        MenuSeparator()
+        MenuHeader(L("Papier", "Paper"))
+        MenuItem(L("Zwykły", "Normal"), Icons.Rounded.WbSunny, checked = if (st.paper == Paper.NORMAL) true else null) { close(); st.paper = Paper.NORMAL; app.saveSoon() }
+        MenuItem(L("Sepia", "Sepia"), Icons.Rounded.Coffee, checked = if (st.paper == Paper.SEPIA) true else null) { close(); st.paper = Paper.SEPIA; app.saveSoon() }
+        MenuItem(L("Nocny", "Night"), Icons.Rounded.Brightness2, "N", checked = if (st.paper == Paper.NIGHT) true else null) { close(); st.paper = Paper.NIGHT; app.saveSoon() }
+        MenuSeparator()
+        MenuItem(L("Pełny ekran", "Full screen"), Icons.Rounded.Fullscreen, "F11") { close(); app.fullscreen = true }
+        MenuItem(L("Prezentacja", "Presentation"), Icons.Rounded.Slideshow, "F5") { close(); app.presentation = true }
+    }
+}
+
+/** Dokument: panele treści i narzędzia zmieniające plik. */
+@Composable
+private fun DocDrop(app: AppState, tab: DocTab, wide: Boolean) {
+    val st = app.settings
+    val idx = tab.index
+    DropBtn(if (wide) L("Dokument", "Document") else null, Icons.Rounded.Layers, L("Dokument i narzędzia", "Document and tools"), width = 300.dp, alignEnd = true) { close ->
+        fun panel(t: SideTab) {
+            close()
+            st.sidebar = true
+            st.sideTab = t
+            app.saveSoon()
+        }
+        MenuHeader(L("Treść", "Content"))
+        MenuItem(L("Adnotacje ({0})", "Annotations ({0})").replace("{0}", (idx.annotCount + tab.marks.size).toString()), Icons.Rounded.Layers) { panel(SideTab.ANNOTATIONS) }
+        MenuItem(
+            if (idx.fields.isEmpty()) L("Formularz (brak pól)", "Form (no fields)") else L("Formularz ({0} pól)", "Form ({0} fields)").replace("{0}", idx.fields.size.toString()),
+            Icons.Rounded.FactCheck, enabled = idx.fields.isNotEmpty(),
+        ) { panel(SideTab.FORM) }
+        MenuItem(L("Zakładki ({0})", "Bookmarks ({0})").replace("{0}", tab.bookmarks.size.toString()), Icons.Rounded.Bookmark) { panel(SideTab.BOOKMARKS) }
+        MenuItem(L("Wyodrębnij tekst…", "Extract text…"), Icons.Rounded.Notes) { close(); app.extractText(tab) }
+        MenuSeparator()
+        MenuHeader(L("Plik", "File"))
+        MenuItem(L("Porządkuj strony", "Organize pages"), Icons.Rounded.GridView, "Ctrl+Shift+O") { close(); tab.organize = true }
+        MenuItem(L("Eksport stron jako obrazy…", "Export pages as images…"), Icons.Rounded.Image) { close(); app.dialog = Dialog.EXPORT_IMAGES }
+        MenuItem(L("Zmniejsz rozmiar…", "Reduce size…"), Icons.Rounded.Compress) { close(); app.dialog = Dialog.COMPRESS }
+        MenuItem(
+            if (tab.protection != null) L("Hasło i ochrona (włączone)", "Password and protection (on)") else L("Hasło i ochrona…", "Password and protection…"),
+            Icons.Rounded.Lock,
+        ) { close(); app.dialog = Dialog.SECURITY }
+        MenuItem(L("Właściwości…", "Properties…"), Icons.Rounded.Info, "Ctrl+I") { close(); app.dialog = Dialog.PROPERTIES }
+        MenuItem(L("Drukuj…", "Print…"), Icons.Rounded.Print, "Ctrl+P") { close(); print(app, tab) }
+        MenuSeparator()
+        MenuItem(L("Zapisz jako…", "Save as…"), Icons.Rounded.SaveAs, "Ctrl+Shift+S") { close(); app.saveAs(tab) }
     }
 }
 
@@ -536,13 +622,14 @@ private fun PageField(app: AppState, tab: DocTab) {
     var focused by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
     LaunchedEffect(app.focusPage) { if (app.focusPage > 0) runCatching { focus.requestFocus() } }
+    val shape = RoundedCornerShape(8.dp)
     Row(
-        Modifier.height(28.dp).background(P.surface, Pill).border(1.dp, if (focused) P.sel else P.line2, Pill).padding(horizontal = 10.dp),
+        Modifier.height(28.dp).background(P.surface, shape).border(1.dp, if (focused) P.accent else P.line, shape).padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         BasicTextField(
             text, { v -> text = v.filter { it.isDigit() }.take(6) },
-            Modifier.width(36.dp)
+            Modifier.width(34.dp)
                 .focusRequester(focus)
                 .onFocusChanged {
                     focused = it.isFocused
@@ -556,8 +643,8 @@ private fun PageField(app: AppState, tab: DocTab) {
                     } else false
                 },
             singleLine = true,
-            textStyle = Type.body.copy(color = P.text, textAlign = TextAlign.End, fontWeight = FontWeight.Medium),
-            cursorBrush = SolidColor(P.text),
+            textStyle = Type.body.copy(color = P.text, textAlign = TextAlign.End, fontWeight = FontWeight.SemiBold),
+            cursorBrush = SolidColor(P.accent),
         )
         Txt(" / ${tab.pageCount}", color = P.text3)
     }
@@ -565,38 +652,13 @@ private fun PageField(app: AppState, tab: DocTab) {
 
 @Composable
 private fun ZoomMenu(tab: DocTab) {
-    var open by remember { mutableStateOf(false) }
-    Box {
-        Btn("${(tab.effectiveZoom * 100).roundToInt()}%", null, { open = true }, Modifier.width(62.dp), kind = BtnKind.GHOST, tip = L("Powiększenie", "Zoom"))
-        Menu(open, { open = false }, alignEnd = false, width = 200.dp) {
-            MenuItem(L("Dopasuj do szerokości", "Fit width"), shortcut = "Ctrl+2", checked = tab.zoomMode == ZoomMode.FIT_WIDTH) { open = false; tab.zoomMode = ZoomMode.FIT_WIDTH }
-            MenuItem(L("Cała strona", "Fit page"), shortcut = "Ctrl+1", checked = tab.zoomMode == ZoomMode.FIT_PAGE) { open = false; tab.zoomMode = ZoomMode.FIT_PAGE }
-            MenuItem(L("Rozmiar rzeczywisty", "Actual size"), shortcut = "Ctrl+0", checked = tab.zoomMode == ZoomMode.CUSTOM && tab.zoom == 1f) { open = false; tab.zoomMode = ZoomMode.CUSTOM; tab.zoom = 1f }
-            MenuSeparator()
-            for (z in floatArrayOf(0.5f, 0.75f, 1.25f, 1.5f, 2f, 3f, 4f)) {
-                MenuItem("${(z * 100).roundToInt()}%", checked = tab.zoomMode == ZoomMode.CUSTOM && tab.zoom == z) { open = false; tab.zoomMode = ZoomMode.CUSTOM; tab.zoom = z }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PaperButton(app: AppState) {
-    var open by remember { mutableStateOf(false) }
-    val st = app.settings
-    Box {
-        IconBtn(
-            when (st.paper) {
-                Paper.NORMAL -> Icons.Rounded.WbSunny
-                Paper.SEPIA -> Icons.Rounded.Coffee
-                Paper.NIGHT -> Icons.Rounded.Brightness2
-            },
-            L("Papier", "Paper"), { open = true }, active = open || st.paper != Paper.NORMAL, shortcut = "N",
-        )
-        Menu(open, { open = false }, width = 190.dp) {
-            MenuItem(L("Zwykły", "Normal"), Icons.Rounded.WbSunny, checked = st.paper == Paper.NORMAL) { open = false; st.paper = Paper.NORMAL; app.saveSoon() }
-            MenuItem(L("Sepia", "Sepia"), Icons.Rounded.Coffee, checked = st.paper == Paper.SEPIA) { open = false; st.paper = Paper.SEPIA; app.saveSoon() }
-            MenuItem(L("Nocny", "Night"), Icons.Rounded.Brightness2, checked = st.paper == Paper.NIGHT) { open = false; st.paper = Paper.NIGHT; app.saveSoon() }
+    DropBtn("${(tab.effectiveZoom * 100).roundToInt()}%", null, L("Powiększenie", "Zoom"), Modifier.widthIn(min = 68.dp), width = 210.dp) { close ->
+        MenuItem(L("Dopasuj do szerokości", "Fit width"), Icons.Rounded.WidthNormal, "Ctrl+2", checked = if (tab.zoomMode == ZoomMode.FIT_WIDTH) true else null) { close(); tab.zoomMode = ZoomMode.FIT_WIDTH }
+        MenuItem(L("Cała strona", "Fit page"), Icons.Rounded.FitScreen, "Ctrl+1", checked = if (tab.zoomMode == ZoomMode.FIT_PAGE) true else null) { close(); tab.zoomMode = ZoomMode.FIT_PAGE }
+        MenuItem(L("Rozmiar rzeczywisty", "Actual size"), shortcut = "Ctrl+0", checked = if (tab.zoomMode == ZoomMode.CUSTOM && tab.zoom == 1f) true else null) { close(); tab.zoomMode = ZoomMode.CUSTOM; tab.zoom = 1f }
+        MenuSeparator()
+        for (z in floatArrayOf(0.5f, 0.75f, 1.25f, 1.5f, 2f, 3f, 4f)) {
+            MenuItem("${(z * 100).roundToInt()}%", checked = if (tab.zoomMode == ZoomMode.CUSTOM && tab.zoom == z) true else null) { close(); tab.zoomMode = ZoomMode.CUSTOM; tab.zoom = z }
         }
     }
 }
@@ -605,19 +667,22 @@ fun copyToClipboard(s: String) {
     runCatching { java.awt.Toolkit.getDefaultToolkit().systemClipboard.setContents(java.awt.datatransfer.StringSelection(s), null) }
 }
 
-/** Drukowanie systemowym oknem drukowania (PDFBox). */
+/** Drukowanie systemowym oknem drukowania (PDFBox) – razem z niezapisanymi adnotacjami. */
 fun print(app: AppState, tab: DocTab) {
-    val f = tab.pdf ?: return
-    Thread {
-        runCatching {
-            com.blacksingularities.openpdf.desktop.engine.DesktopPdfEngine.load(f).use { doc ->
-                val job = java.awt.print.PrinterJob.getPrinterJob()
-                job.jobName = tab.name
-                job.setPageable(org.apache.pdfbox.printing.PDFPageable(doc))
-                if (job.printDialog()) job.print()
+    if (!tab.ready) return
+    tab.scope.launch {
+        val f = runCatching { tab.currentFile() }.getOrNull() ?: return@launch
+        Thread {
+            runCatching {
+                com.blacksingularities.openpdf.desktop.engine.DesktopPdfEngine.load(f).use { doc ->
+                    val job = java.awt.print.PrinterJob.getPrinterJob()
+                    job.jobName = tab.name
+                    job.setPageable(org.apache.pdfbox.printing.PDFPageable(doc))
+                    if (job.printDialog()) job.print()
+                }
+            }.onFailure { e ->
+                app.scope.launch { app.showToast(L("Drukowanie nie powiodło się", "Printing failed") + ": " + (e.message ?: ""), true) }
             }
-        }.onFailure { e ->
-            app.scope.launch { app.showToast(L("Drukowanie nie powiodło się", "Printing failed") + ": " + (e.message ?: ""), true) }
-        }
-    }.apply { isDaemon = true }.start()
+        }.apply { isDaemon = true }.start()
+    }
 }

@@ -68,6 +68,11 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.window.PopupProperties
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 
 val Pill = RoundedCornerShape(50)
 
@@ -121,9 +126,10 @@ fun Kbd(text: String) {
     }
 }
 
-enum class BtnKind { NORMAL, PRIMARY, GHOST }
+/** NORMAL – obrys, PRIMARY – wypełniony akcentem, GHOST – bez tła, SOFT – delikatne tło akcentu (włączona opcja), DANGER – czerwony. */
+enum class BtnKind { NORMAL, PRIMARY, GHOST, SOFT, DANGER }
 
-/** Przycisk w kształcie pigułki, jak w OpenPano. */
+/** Przycisk w kształcie pigułki. [trailing] – mała ikona po tekście (np. strzałka rozwijania). */
 @Composable
 fun Btn(
     text: String?,
@@ -136,40 +142,125 @@ fun Btn(
     tip: String? = null,
     shortcut: String? = null,
     height: Dp = 28.dp,
+    trailing: ImageVector? = null,
+    iconTint: Color? = null,
 ) {
     val src = remember { MutableInteractionSource() }
     val hovered by src.collectIsHoveredAsState()
     val p = P
+    val h = hovered && enabled
     val (bg, fg, border) = when {
-        active || kind == BtnKind.PRIMARY -> Triple(if (hovered && enabled) p.selHover else p.sel, p.selText, if (hovered && enabled) p.selHover else p.sel)
-        kind == BtnKind.GHOST -> Triple(if (hovered && enabled) p.raised2 else Color.Transparent, if (hovered && enabled) p.text else p.text2, Color.Transparent)
-        else -> Triple(if (hovered && enabled) p.raised2 else p.surface, p.text, if (hovered && enabled) p.text.copy(alpha = 0.45f) else p.line2)
+        kind == BtnKind.PRIMARY || (active && kind == BtnKind.NORMAL) -> Triple(if (h) p.selHover else p.sel, p.selText, if (h) p.selHover else p.sel)
+        kind == BtnKind.SOFT || active -> Triple(if (h) p.accent.copy(alpha = p.accentSoft.alpha + 0.08f) else p.accentSoft, if (p.dark || p.accent.luminanceOk()) p.accent else p.text, Color.Transparent)
+        kind == BtnKind.DANGER -> Triple(if (h) p.err.copy(alpha = 0.22f) else p.err.copy(alpha = 0.12f), p.err, Color.Transparent)
+        kind == BtnKind.GHOST -> Triple(if (h) p.raised2 else Color.Transparent, if (h) p.text else p.text2, Color.Transparent)
+        else -> Triple(if (h) p.raised2 else p.surface, p.text, if (h) p.text.copy(alpha = 0.40f) else p.line2)
     }
+    val compactText = text == null && trailing == null
     Tip(tip, shortcut) {
         Row(
             modifier
                 .height(height)
-                .then(if (text == null) Modifier.width(height) else Modifier)
-                .alpha(if (enabled) 1f else 0.42f)
-                .clip(Pill)
+                .then(if (compactText) Modifier.width(height) else Modifier)
+                .alpha(if (enabled) 1f else 0.38f)
+                .clip(RoundedCornerShape(8.dp))
                 .background(bg)
-                .border(1.dp, border, Pill)
+                .border(1.dp, border, RoundedCornerShape(8.dp))
                 .hoverable(src, enabled)
                 .pointerHoverIcon(if (enabled) PointerIcon.Hand else PointerIcon.Default)
                 .clickable(src, null, enabled = enabled, onClick = onClick)
-                .padding(horizontal = if (text == null) 0.dp else 11.dp),
+                .padding(start = if (compactText) 0.dp else if (icon != null && text == null) 6.dp else 10.dp, end = if (compactText) 0.dp else if (trailing != null) 6.dp else 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
         ) {
-            if (icon != null) Icon(icon, null, Modifier.size(if (height < 26.dp) 14.dp else 16.dp), tint = fg)
-            if (text != null) Txt(text, color = fg, weight = if (kind == BtnKind.PRIMARY || active) FontWeight.SemiBold else null)
+            if (icon != null) Icon(icon, null, Modifier.size(if (height < 26.dp) 14.dp else 17.dp), tint = iconTint ?: fg)
+            if (text != null) Txt(text, color = fg, weight = if (kind == BtnKind.PRIMARY || active) FontWeight.SemiBold else FontWeight.Medium)
+            if (trailing != null) Icon(trailing, null, Modifier.size(15.dp).padding(start = 0.dp), tint = fg.copy(alpha = 0.7f))
         }
     }
 }
 
+/** Akcent czytelny jako kolor tekstu na jasnym tle. */
+private fun Color.luminanceOk() = (0.2126f * red + 0.7152f * green + 0.0722f * blue) < 0.6f
+
 @Composable
-fun IconBtn(icon: ImageVector, tip: String?, onClick: () -> Unit, active: Boolean = false, enabled: Boolean = true, shortcut: String? = null, size: Dp = 28.dp) =
-    Btn(null, icon, onClick, kind = if (active) BtnKind.NORMAL else BtnKind.GHOST, active = active, enabled = enabled, tip = tip, shortcut = shortcut, height = size)
+fun IconBtn(icon: ImageVector, tip: String?, onClick: () -> Unit, active: Boolean = false, enabled: Boolean = true, shortcut: String? = null, size: Dp = 30.dp, tint: Color? = null) =
+    Btn(null, icon, onClick, kind = if (active) BtnKind.SOFT else BtnKind.GHOST, enabled = enabled, tip = tip, shortcut = shortcut, height = size, iconTint = tint)
+
+/**
+ * Przycisk z rozwijanym menu: ikona, krótka etykieta i strzałka. [content] dostaje funkcję
+ * zamykającą menu.
+ */
+@Composable
+fun DropBtn(
+    text: String?,
+    icon: ImageVector?,
+    tip: String?,
+    modifier: Modifier = Modifier,
+    width: Dp = 250.dp,
+    alignEnd: Boolean = false,
+    active: Boolean = false,
+    enabled: Boolean = true,
+    shortcut: String? = null,
+    iconTint: Color? = null,
+    content: @Composable ColumnScope.(close: () -> Unit) -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        Btn(
+            text, icon, { open = !open }, modifier,
+            kind = if (active || open) BtnKind.SOFT else BtnKind.GHOST,
+            enabled = enabled, tip = if (open) null else tip, shortcut = shortcut, height = 30.dp,
+            trailing = androidx.compose.material.icons.Icons.Rounded.KeyboardArrowDown, iconTint = iconTint,
+        )
+        Menu(open, { open = false }, alignEnd = alignEnd, width = width) { content { open = false } }
+    }
+}
+
+/** Nagłówek grupy w menu. */
+@Composable
+fun MenuHeader(text: String) =
+    Txt(text.uppercase(), Modifier.padding(start = 10.dp, top = 8.dp, bottom = 4.dp), style = Type.tiny, color = P.text3, weight = FontWeight.SemiBold)
+
+/** Rząd próbek kolorów; wybrana ma obwódkę dookoła. */
+@Composable
+fun ColorRow(colors: List<Int>, selected: Int, onPick: (Int) -> Unit, modifier: Modifier = Modifier) {
+    Row(modifier.padding(horizontal = 8.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        for (c in colors) {
+            val on = (c or 0xFF000000.toInt()) == (selected or 0xFF000000.toInt())
+            Box(
+                Modifier.size(22.dp).clip(CircleShape)
+                    .border(2.dp, if (on) P.accent else Color.Transparent, CircleShape)
+                    .padding(3.dp).clip(CircleShape)
+                    .background(Color(c or 0xFF000000.toInt()))
+                    .border(1.dp, P.line2, CircleShape)
+                    .pointerHoverIcon(PointerIcon.Hand)
+                    .clickable { onPick(c) },
+            )
+        }
+    }
+}
+
+/** Rząd wartości do wyboru (grubość, rozmiar) – małe pigułki. */
+@Composable
+fun <T> ChipRow(items: List<Pair<T, String>>, selected: T, onPick: (T) -> Unit, modifier: Modifier = Modifier) {
+    Row(modifier.padding(horizontal = 8.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        for ((v, label) in items) {
+            val on = v == selected
+            Box(
+                Modifier.height(24.dp).clip(RoundedCornerShape(6.dp))
+                    .background(if (on) P.accentSoft else P.surface)
+                    .border(1.dp, if (on) P.accent.copy(alpha = 0.6f) else P.line, RoundedCornerShape(6.dp))
+                    .pointerHoverIcon(PointerIcon.Hand)
+                    .clickable { onPick(v) }
+                    .padding(horizontal = 8.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Txt(label, style = Type.small, color = if (on) P.text else P.text2, weight = if (on) FontWeight.SemiBold else null)
+            }
+        }
+    }
+}
 
 data class SegItem<T>(val value: T, val label: String? = null, val icon: ImageVector? = null, val tip: String? = null, val shortcut: String? = null)
 
@@ -284,12 +375,21 @@ fun Input(
 
 /** Pozycja menu rozwijanego. */
 @Composable
-fun MenuItem(text: String, icon: ImageVector? = null, shortcut: String? = null, enabled: Boolean = true, checked: Boolean? = null, onClick: () -> Unit) {
+fun MenuItem(
+    text: String,
+    icon: ImageVector? = null,
+    shortcut: String? = null,
+    enabled: Boolean = true,
+    checked: Boolean? = null,
+    danger: Boolean = false,
+    iconTint: Color? = null,
+    onClick: () -> Unit,
+) {
     val src = remember { MutableInteractionSource() }
     val hovered by src.collectIsHoveredAsState()
     Row(
-        Modifier.fillMaxWidth().height(30.dp).clip(RoundedCornerShape(8.dp))
-            .background(if (hovered && enabled) P.raised2 else Color.Transparent)
+        Modifier.fillMaxWidth().height(30.dp).clip(RoundedCornerShape(7.dp))
+            .background(if (hovered && enabled) (if (danger) P.err.copy(alpha = 0.14f) else P.raised2) else Color.Transparent)
             .hoverable(src, enabled)
             .clickable(src, null, enabled = enabled, onClick = onClick)
             .alpha(if (enabled) 1f else 0.4f)
@@ -299,11 +399,11 @@ fun MenuItem(text: String, icon: ImageVector? = null, shortcut: String? = null, 
     ) {
         Box(Modifier.size(16.dp), contentAlignment = Alignment.Center) {
             when {
-                checked == true -> Icon(androidx.compose.material.icons.Icons.Rounded.Check, null, Modifier.size(15.dp), tint = P.text)
-                icon != null -> Icon(icon, null, Modifier.size(15.dp), tint = P.text2)
+                checked == true -> Icon(androidx.compose.material.icons.Icons.Rounded.Check, null, Modifier.size(16.dp), tint = P.accent)
+                icon != null -> Icon(icon, null, Modifier.size(16.dp), tint = iconTint ?: if (danger) P.err else P.text2)
             }
         }
-        Txt(text, Modifier.weight(1f))
+        Txt(text, Modifier.weight(1f), color = if (danger) P.err else P.text, weight = if (checked == true) FontWeight.SemiBold else null)
         if (shortcut != null) Txt(shortcut, style = Type.small, color = P.text3)
     }
 }
@@ -335,8 +435,8 @@ fun Menu(open: Boolean, onDismiss: () -> Unit, alignEnd: Boolean = true, width: 
         properties = PopupProperties(focusable = true),
     ) {
         Column(
-            Modifier.width(width).shadow(18.dp, RoundedCornerShape(12.dp)).background(P.raised, RoundedCornerShape(12.dp))
-                .border(1.dp, P.line2, RoundedCornerShape(12.dp)).padding(5.dp),
+            Modifier.width(width).heightIn(max = 620.dp).shadow(18.dp, RoundedCornerShape(12.dp)).background(P.raised, RoundedCornerShape(12.dp))
+                .border(1.dp, P.line2, RoundedCornerShape(12.dp)).verticalScroll(rememberScrollState()).padding(5.dp),
             content = content,
         )
     }

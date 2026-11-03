@@ -52,6 +52,87 @@ object NativeFileDialog {
         return runCatching { openImpl(owner, title, filters, folder) }.getOrNull()
     }
 
+    /**
+     * Okno „Zapisz jako”; blokuje bieżący wątek. Zwraca null, gdy okno systemowe nie jest dostępne,
+     * pustą listę po anulowaniu, a w przeciwnym razie – jeden wybrany plik.
+     */
+    fun save(owner: Window?, title: String, filters: List<Filter>, folder: File?, name: String, ext: String): List<File>? {
+        if (!System.getProperty("os.name").startsWith("Windows")) return null
+        return runCatching { singleImpl(owner, title, filters, folder, name, ext, save = true) }.getOrNull()
+    }
+
+    /** Wybór folderu; zasady wyniku jak w [save]. */
+    fun pickFolder(owner: Window?, title: String, folder: File?): List<File>? {
+        if (!System.getProperty("os.name").startsWith("Windows")) return null
+        return runCatching { singleImpl(owner, title, emptyList(), folder, null, null, save = false) }.getOrNull()
+    }
+
+    private val CLSID_FileSaveDialog = Guid.CLSID("{C0B4E2F3-BA21-4773-8DBA-335EC946EB8B}")
+    private val IID_IFileSaveDialog = Guid.IID("{84bccd23-5fde-4cdb-aea4-af64b83d78ab}")
+    private const val FOS_OVERWRITEPROMPT = 0x2
+    private const val FOS_PICKFOLDERS = 0x20
+    private const val SET_FILE_NAME = 15
+    private const val GET_RESULT = 20
+    private const val SET_DEFAULT_EXTENSION = 22
+
+    private fun singleImpl(owner: Window?, title: String, filters: List<Filter>, folder: File?, name: String?, ext: String?, save: Boolean): List<File> {
+        val init = Ole32.INSTANCE.CoInitializeEx(null, COINIT_APARTMENTTHREADED)
+        try {
+            val ref = PointerByReference()
+            val hr = if (save) Ole32.INSTANCE.CoCreateInstance(CLSID_FileSaveDialog, null, CLSCTX_INPROC_SERVER, IID_IFileSaveDialog, ref)
+            else Ole32.INSTANCE.CoCreateInstance(CLSID_FileOpenDialog, null, CLSCTX_INPROC_SERVER, IID_IFileOpenDialog, ref)
+            if (hr.toInt() != 0) error("CoCreateInstance $hr")
+            val dlg = ref.value
+            val keep = ArrayList<Memory>()
+            try {
+                val opts = IntByReference()
+                call(dlg, GET_OPTIONS, opts)
+                val extra = if (save) FOS_OVERWRITEPROMPT or FOS_PATHMUSTEXIST else FOS_PICKFOLDERS or FOS_PATHMUSTEXIST
+                call(dlg, SET_OPTIONS, opts.value or FOS_FORCEFILESYSTEM or extra)
+                call(dlg, SET_TITLE, wide(title).also { keep += it })
+                if (filters.isNotEmpty()) {
+                    val spec = Memory(filters.size * 2L * Native.POINTER_SIZE)
+                    filters.forEachIndexed { i, f ->
+                        val n = wide(f.name).also { keep += it }
+                        val p = wide(f.patterns.joinToString(";")).also { keep += it }
+                        spec.setPointer(i * 2L * Native.POINTER_SIZE, n)
+                        spec.setPointer((i * 2L + 1) * Native.POINTER_SIZE, p)
+                    }
+                    keep += spec
+                    call(dlg, SET_FILE_TYPES, filters.size, spec)
+                }
+                if (ext != null) call(dlg, SET_DEFAULT_EXTENSION, wide(ext).also { keep += it })
+                if (name != null) call(dlg, SET_FILE_NAME, wide(name).also { keep += it })
+                if (folder != null && folder.isDirectory) {
+                    val item = PointerByReference()
+                    val r = Shell32Ext.INSTANCE.SHCreateItemFromParsingName(com.sun.jna.WString(folder.absolutePath), null, IID_IShellItem, item)
+                    if (r == 0 && item.value != null) {
+                        call(dlg, SET_FOLDER, item.value)
+                        call(item.value, RELEASE)
+                    }
+                }
+                val hwnd = owner?.let { Native.getWindowPointer(it) }
+                if (call(dlg, SHOW, hwnd) != 0) return emptyList() // anulowano
+                val item = PointerByReference()
+                if (call(dlg, GET_RESULT, item) != 0 || item.value == null) return emptyList()
+                try {
+                    val path = PointerByReference()
+                    if (call(item.value, ITEM_GET_DISPLAY_NAME, SIGDN_FILESYSPATH, path) != 0 || path.value == null) return emptyList()
+                    val f = File(path.value.getWideString(0))
+                    Ole32.INSTANCE.CoTaskMemFree(path.value)
+                    return listOf(f)
+                } finally {
+                    call(item.value, RELEASE)
+                }
+            } finally {
+                call(dlg, RELEASE)
+                keep.clear()
+            }
+        } finally {
+            if (init.toInt() == 0 || init.toInt() == 1) Ole32.INSTANCE.CoUninitialize()
+        }
+    }
+
     private fun call(obj: Pointer, index: Int, vararg args: Any?): Int {
         val vtbl = obj.getPointer(0)
         val fn = Function.getFunction(vtbl.getPointer(index.toLong() * Native.POINTER_SIZE), Function.ALT_CONVENTION)

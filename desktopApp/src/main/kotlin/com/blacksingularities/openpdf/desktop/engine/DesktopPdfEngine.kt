@@ -59,14 +59,12 @@ import java.util.concurrent.Executors
 import kotlin.math.max
 
 /**
- * Silnik PDF Windows (PDFBox) – tylko to, czego potrzebuje przeglądarka: otwieranie (także
- * zaszyfrowanych plików), struktura dokumentu, rysowanie stron, tekst oraz składanie PDF z innych
- * formatów. Operacje zmieniające dokument nie są dostępne.
+ * Silnik PDF Windows (PDFBox): otwieranie (także zaszyfrowanych plików), struktura dokumentu,
+ * rysowanie stron, tekst, składanie PDF z innych formatów oraz zmiany dokumentu ([PdfOps]).
+ * PDFBox rysuje adnotacje sam, więc kopia do wyświetlania nie jest potrzebna.
  */
 class DesktopPdfEngine : PdfEngine {
     private val Path.f: File get() = toFile()
-
-    private fun unsupported(): Nothing = throw UnsupportedOperationException(tr("Ta wersja jest tylko przeglądarką"))
 
     override fun needsPassword(file: Path): Boolean = try {
         load(file.f).close()
@@ -99,7 +97,8 @@ class DesktopPdfEngine : PdfEngine {
     override fun buildIndex(source: Path, display: Path): Pair<DocIndex, Boolean> = load(source.f).use { doc ->
         val geos = ArrayList<PageGeo>()
         val links = ArrayList<List<LinkInfo>>()
-        for (page in doc.pages) {
+        val annots = ArrayList<List<AnnotInfo>>()
+        for ((pi, page) in doc.pages.withIndex()) {
             val crop = page.cropBox
             val geo = PageGeo(crop.lowerLeftX, crop.lowerLeftY, crop.width.coerceAtLeast(1f), crop.height.coerceAtLeast(1f), normalizeRotation(page.rotation))
             geos += geo
@@ -113,6 +112,7 @@ class DesktopPdfEngine : PdfEngine {
                 }
             }
             links += pageLinks
+            annots += runCatching { PdfOps.readAnnots(doc, pi, page, geo) }.getOrDefault(emptyList())
         }
         val outline = ArrayList<OutlineEntry>()
         runCatching { doc.documentCatalog.documentOutline?.let { readOutline(doc, it, 0, outline) } }
@@ -130,7 +130,8 @@ class DesktopPdfEngine : PdfEngine {
                 modified = runCatching { i.modificationDate?.timeInMillis }.getOrNull(),
             )
         }.getOrDefault(DocInfo())
-        DocIndex(geos, geos.map { emptyList<AnnotInfo>() }, links, outline, emptyList(), info) to false
+        val fields = runCatching { PdfOps.readFields(doc) }.getOrDefault(emptyList())
+        DocIndex(geos, annots, links, outline, fields, info) to false
     }
 
     private fun resolveLink(doc: PDDocument, link: PDAnnotationLink): Pair<Int?, String?> = try {
@@ -217,24 +218,28 @@ class DesktopPdfEngine : PdfEngine {
         return page
     }
 
-    // Przeglądarka nie zmienia dokumentów.
-    override fun commitMarks(file: Path, marks: List<Mark>, author: String) = unsupported()
-    override fun deleteAnnotations(file: Path, targets: List<AnnotInfo>) = unsupported()
-    override fun deleteAllAnnotations(file: Path) = unsupported()
-    override fun rotatePages(file: Path, pages: Collection<Int>, degrees: Int) = unsupported()
-    override fun deletePages(file: Path, pages: Collection<Int>) = unsupported()
-    override fun movePages(file: Path, pages: List<Int>, target: Int) = unsupported()
-    override fun duplicatePages(file: Path, pages: Collection<Int>) = unsupported()
-    override fun insertBlank(file: Path, at: Int) = unsupported()
-    override fun insertPdf(file: Path, other: Path, otherPassword: String?, at: Int?) = unsupported()
-    override fun extractPages(file: Path, pages: Collection<Int>, out: Path) = unsupported()
-    override fun insertImages(file: Path, images: List<Path>, at: Int) = unsupported()
-    override fun createBlank(out: Path, pages: Int, widthPt: Float, heightPt: Float) = unsupported()
-    override fun fillFields(file: Path, edits: List<FieldEdit>): List<String> = unsupported()
-    override fun flattenForm(file: Path) = unsupported()
-    override fun setInfo(file: Path, e: InfoEdit) = unsupported()
-    override fun export(file: Path, out: Path, userPassword: String?, ownerPassword: String?) = unsupported()
-    override fun compress(file: Path, out: Path, maxSide: Int, quality: Float, onProgress: (Float) -> Unit): Int = unsupported()
+    override fun commitMarks(file: Path, marks: List<Mark>, author: String) = PdfOps.commitMarks(file.f, marks, author)
+    override fun deleteAnnotations(file: Path, targets: List<AnnotInfo>) = PdfOps.deleteAnnotations(file.f, targets)
+    override fun deleteAllAnnotations(file: Path) = PdfOps.deleteAllAnnotations(file.f)
+    override fun rotatePages(file: Path, pages: Collection<Int>, degrees: Int) = PdfOps.rotatePages(file.f, pages, degrees)
+    override fun deletePages(file: Path, pages: Collection<Int>) = PdfOps.deletePages(file.f, pages)
+    override fun movePages(file: Path, pages: List<Int>, target: Int) = PdfOps.movePages(file.f, pages, target)
+    override fun duplicatePages(file: Path, pages: Collection<Int>) = PdfOps.duplicatePages(file.f, pages)
+    override fun insertBlank(file: Path, at: Int) = PdfOps.insertBlank(file.f, at)
+    override fun insertPdf(file: Path, other: Path, otherPassword: String?, at: Int?) = try {
+        PdfOps.insertPdf(file.f, other.f, otherPassword, at)
+    } catch (e: InvalidPasswordException) {
+        throw PasswordRequiredException(e.message)
+    }
+    override fun extractPages(file: Path, pages: Collection<Int>, out: Path) = PdfOps.extractPages(file.f, pages, out.f)
+    override fun insertImages(file: Path, images: List<Path>, at: Int) = PdfOps.insertImages(file.f, images.map { it.f }, at)
+    override fun createBlank(out: Path, pages: Int, widthPt: Float, heightPt: Float) = PdfOps.createBlank(out.f, pages, PDRectangle(widthPt, heightPt))
+    override fun fillFields(file: Path, edits: List<FieldEdit>): List<String> = PdfOps.fillFields(file.f, edits)
+    override fun flattenForm(file: Path) = PdfOps.flattenForm(file.f)
+    override fun setInfo(file: Path, e: InfoEdit) = PdfOps.setInfo(file.f, e)
+    override fun export(file: Path, out: Path, userPassword: String?, ownerPassword: String?) = PdfOps.export(file.f, out.f, userPassword, ownerPassword)
+    override fun compress(file: Path, out: Path, maxSide: Int, quality: Float, onProgress: (Float) -> Unit): Int =
+        PdfOps.compress(file.f, out.f, maxSide, quality, onProgress)
 
     companion object {
         val memory: org.apache.pdfbox.io.RandomAccessStreamCache.StreamCacheCreateFunction

@@ -77,21 +77,20 @@ fun Sidebar(app: AppState, tab: DocTab, modifier: Modifier = Modifier) {
     val st = app.settings
     LaunchedEffect(app.focusSearch) { if (app.focusSearch > 0) st.sideTab = SideTab.SEARCH }
     Column(modifier.background(P.panel)) {
-        Row(Modifier.fillMaxWidth().padding(10.dp, 10.dp, 10.dp, 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Seg(
-                listOf(
-                    SegItem(SideTab.THUMBS, icon = Icons.Rounded.GridView, tip = L("Miniatury stron", "Page thumbnails")),
-                    SegItem(SideTab.OUTLINE, icon = Icons.Rounded.Toc, tip = L("Spis treści", "Table of contents")),
-                    SegItem(SideTab.SEARCH, icon = Icons.Rounded.Search, tip = L("Szukaj w dokumencie", "Search the document"), shortcut = "Ctrl+F"),
-                ),
-                st.sideTab,
-                {
-                    st.sideTab = it
-                    app.saveSoon()
-                },
-                Modifier.fillMaxWidth(),
-                fill = true,
-            )
+        Row(Modifier.fillMaxWidth().padding(8.dp, 6.dp, 4.dp, 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f)) {
+                DropBtn(sideLabel(st.sideTab, tab), sideIcon(st.sideTab), L("Zawartość panelu", "Panel content"), width = 250.dp) { close ->
+                    for (t in SideTab.entries) {
+                        if (t == SideTab.FORM && tab.index.fields.isEmpty()) continue
+                        MenuItem(sideLabel(t, tab), sideIcon(t), shortcut = if (t == SideTab.SEARCH) "Ctrl+F" else null, checked = if (st.sideTab == t) true else null) {
+                            close()
+                            st.sideTab = t
+                            app.saveSoon()
+                        }
+                    }
+                }
+            }
+            IconBtn(Icons.Rounded.Close, L("Ukryj panel", "Hide panel"), { st.sidebar = false; app.saveSoon() }, shortcut = "Ctrl+B", size = 26.dp)
         }
         CompositionLocalProvider(
             LocalScrollbarStyle provides ScrollbarStyle(
@@ -104,6 +103,9 @@ fun Sidebar(app: AppState, tab: DocTab, modifier: Modifier = Modifier) {
                     SideTab.THUMBS -> Thumbs(tab)
                     SideTab.OUTLINE -> Outline(tab)
                     SideTab.SEARCH -> SearchPanel(app, tab)
+                    SideTab.BOOKMARKS -> BookmarksPanel(app, tab)
+                    SideTab.ANNOTATIONS -> AnnotationsPanel(app, tab)
+                    SideTab.FORM -> FormPanel(app, tab)
                 }
             }
         }
@@ -330,7 +332,7 @@ private fun highlight(snippet: String, query: String, strong: Color, normal: Col
 }
 
 @Composable
-private fun Empty(text: String) {
+fun Empty(text: String) {
     Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.TopCenter) {
         Txt(text, Modifier.padding(top = 24.dp), color = P.text3, maxLines = 3)
     }
