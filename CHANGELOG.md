@@ -1,3 +1,8 @@
+## 2.0.1
+
+- Windows: przebudowany górny pasek – po lewej nawigacja (strony, powiększenie), po prawej wszystkie narzędzia; menu i przycisk panelu bocznego przed kartami; usunięty zdublowany przycisk widoku stron (porządkowanie zostaje w menu „Dokument” i pod Ctrl+Shift+O).
+- Windows: poprawka zapisu hasła dokumentu.
+
 ## 2.0.0
 
 - **Windows – nowy interfejs i edycja dokumentów** (Android i iOS bez zmian).
