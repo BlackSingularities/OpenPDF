@@ -16,3 +16,5 @@ rootProject.name = "OpenDocument"
 include(":app")
 // Wspólny kod (interfejs, logika) dla Androida i iOS.
 include(":shared")
+// Przeglądarka dla Windows (Compose Desktop, PDFBox).
+include(":desktopApp")

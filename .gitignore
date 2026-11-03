@@ -19,3 +19,4 @@ build/
 /iosApp/Payload/
 *.ipa
 /.kotlin/
+/desktopApp/installer/output/

@@ -1,3 +1,14 @@
+## 1.9.0
+
+- **Wersja dla Windows** – rozbudowana przeglądarka (bez edycji), jeden instalator `OpenDocument-x.y.z-setup-x64.exe`.
+  - Karty dokumentów w pasku tytułu, w jednej linii z przyciskami minimalizacji, maksymalizacji i zamknięcia.
+  - Wiele dokumentów w kartach: otwieranie wielu plików naraz, przeciąganie z Eksploratora, przywracanie kart po uruchomieniu, jedno okno programu (kolejne pliki trafiają do nowych kart).
+  - Tryb książki: jedna strona, dwie strony, książka z okładką osobno; strony rozkładówki mają wspólną wysokość i stykają się grzbietem, od prawej do lewej; przewijanie ciągłe albo strona po stronie.
+  - Miniatury, spis treści, wyszukiwanie bez względu na polskie znaki, zaznaczanie i kopiowanie tekstu, odnośniki.
+  - Powiększanie (Ctrl+kółko), dopasowanie do szerokości i strony, obrót widoku, papier zwykły / sepia / nocny, pełny ekran i prezentacja, druk.
+  - Wszystkie formaty wersji mobilnej (DjVu, EPUB, FB2, MOBI, DOCX, ODT, RTF, CBZ, Markdown, HTML, obrazy).
+  - Motywy ciemny, szary i jasny w stylu OpenPano, polski i angielski, automatyczne aktualizacje.
+
 ## 1.8.0
 
 - Biblioteka: wyszukiwanie po nazwie, sortowanie (ostatnio otwarte, nazwa, postęp czytania), ulubione z gwiazdką zawsze na początku listy, etykieta formatu na okładce.

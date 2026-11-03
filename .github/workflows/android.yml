@@ -1,4 +1,4 @@
-name: Build & Release (Android + iOS)
+name: Build & Release (Android + iOS + Windows)
 
 # Budowanie i wydanie wyłącznie po wypchnięciu tagu wersji (np. v1.2.3).
 on:
@@ -132,8 +132,41 @@ jobs:
           name: OpenDocument-${{ needs.version.outputs.name }}-ios
           path: OpenDocument-${{ needs.version.outputs.name }}.ipa
 
+  # Windows: przeglądarka Compose Desktop; jedynym plikiem wydania jest instalator Inno Setup.
+  windows:
+    needs: version
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+
+      - name: Obraz aplikacji
+        run: gradle :desktopApp:createDistributable -PversionName=${{ needs.version.outputs.name }} --stacktrace
+
+      - name: Instalator
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
+          & $iscc /DAppVersion=${{ needs.version.outputs.name }} "/DSourceDir=$PWD\desktopApp\build\compose\binaries\main\app\OpenDocument" desktopApp\installer\OpenDocument.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item "desktopApp\installer\output\OpenDocument-${{ needs.version.outputs.name }}-setup-x64.exe" .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenDocument-${{ needs.version.outputs.name }}-windows
+          path: OpenDocument-${{ needs.version.outputs.name }}-setup-x64.exe
+
   release:
-    needs: [version, android, ios]
+    needs: [version, android, ios, windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -157,8 +190,8 @@ jobs:
             LOG=$(git log -5 --pretty='- %s' "$GITHUB_SHA")
             NOTES=$(printf 'Poprawki i ulepszenia:\n\n%s' "$LOG")
           fi
-          FOOTER=$(printf -- '---\n**Android:** pobierz **OpenDocument-%s.apk** i zainstaluj go na telefonie (Android 10+).\n\n**iPhone / iPad:** pobierz **OpenDocument-%s.ipa** i zainstaluj przez AltStore lub Sideloadly (iOS 16.4+).' "$NAME" "$NAME")
-          gh release create "$TAG" "dist/OpenDocument-$NAME.apk" "dist/OpenDocument-$NAME.ipa" \
+          FOOTER=$(printf -- '---\n**Android:** pobierz **OpenDocument-%s.apk** i zainstaluj go na telefonie (Android 10+).\n\n**iPhone / iPad:** pobierz **OpenDocument-%s.ipa** i zainstaluj przez AltStore lub Sideloadly (iOS 16.4+).\n\n**Windows:** pobierz **OpenDocument-%s-setup-x64.exe** i uruchom instalator (Windows 10/11, 64-bit).' "$NAME" "$NAME" "$NAME")
+          gh release create "$TAG" "dist/OpenDocument-$NAME.apk" "dist/OpenDocument-$NAME.ipa" "dist/OpenDocument-$NAME-setup-x64.exe" \
             --target "$GITHUB_SHA" \
             --title "OpenDocument $NAME" \
             --notes "$(printf '%s\n\n%s' "$NOTES" "$FOOTER")" \

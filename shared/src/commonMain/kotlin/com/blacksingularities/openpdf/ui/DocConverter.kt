@@ -17,13 +17,13 @@ import com.blacksingularities.openpdf.platform.PdfEngine
 import okio.Path
 import okio.openZip
 
-internal fun detectFormat(file: Path, name: String): DocFormat {
+fun detectFormat(file: Path, name: String): DocFormat {
     val head = fileSystem.read(file) { readByteArray(minOf(4096L, fileSystem.metadataOrNull(file)?.size ?: 0L)) }
     return DocumentReader.detect(name, head, fileSystem, file)
 }
 
 /** Dokument tekstowy albo obraz → plik PDF w katalogu sesji. */
-internal suspend fun convertToPdf(engine: PdfEngine, dir: Path, file: Path, format: DocFormat, name: String, progress: (Busy) -> Unit): Path {
+suspend fun convertToPdf(engine: PdfEngine, dir: Path, file: Path, format: DocFormat, name: String, progress: (Busy) -> Unit): Path {
     val out = dir / "converted.pdf"
     progress(Busy(tr("Składanie stron: {0}", name)))
     if (format == DocFormat.IMAGE) {

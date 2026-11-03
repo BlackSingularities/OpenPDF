@@ -13,6 +13,10 @@ kotlin {
     androidTarget {
         compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
     }
+    // Windows (Compose Desktop) – przeglądarka w module :desktopApp.
+    jvm("desktop") {
+        compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
+    }
     listOf(iosArm64(), iosSimulatorArm64()).forEach { target ->
         target.binaries.framework {
             baseName = "Shared"
@@ -45,6 +49,11 @@ kotlin {
         androidMain.dependencies {
             implementation("androidx.activity:activity-compose:1.11.0")
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+        }
+        val desktopMain by getting {
+            dependencies {
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.10.2")
+            }
         }
         val androidUnitTest by getting {
             dependencies {
