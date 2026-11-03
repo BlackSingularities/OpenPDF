@@ -149,14 +149,15 @@ jobs:
           gradle-version: '8.14.3'
 
       - name: Obraz aplikacji
-        run: gradle :desktopApp:createDistributable -PversionName=${{ needs.version.outputs.name }} --stacktrace
+        # Cudzysłów: PowerShell rozbija niecytowane „-Px=1.9.0” na kropkach.
+        run: gradle :desktopApp:createDistributable "-PversionName=${{ needs.version.outputs.name }}" --stacktrace
 
       - name: Instalator
         shell: pwsh
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
-          & $iscc /DAppVersion=${{ needs.version.outputs.name }} "/DSourceDir=$PWD\desktopApp\build\compose\binaries\main\app\OpenDocument" desktopApp\installer\OpenDocument.iss
+          & $iscc "/DAppVersion=${{ needs.version.outputs.name }}" "/DSourceDir=$PWD\desktopApp\build\compose\binaries\main\app\OpenDocument" desktopApp\installer\OpenDocument.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Copy-Item "desktopApp\installer\output\OpenDocument-${{ needs.version.outputs.name }}-setup-x64.exe" .
 

@@ -30,7 +30,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.window.WindowDraggableArea
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Article
@@ -129,12 +128,8 @@ fun TitleBar(app: AppState, scope: FrameWindowScope, state: WindowState, onClose
     val window = scope.window
     val maximized = state.placement == WindowPlacement.Maximized
     Row(Modifier.fillMaxWidth().height(TitleH).background(P.bg), verticalAlignment = Alignment.CenterVertically) {
-        with(scope) {
-            WindowDraggableArea(Modifier.fillMaxHeight().doubleClickMaximize(state, window)) {
-                Box(Modifier.fillMaxHeight().padding(start = 12.dp, end = 10.dp), contentAlignment = Alignment.Center) {
-                    Image(painterResource("icon.png"), null, Modifier.size(20.dp).clip(RoundedCornerShape(5.dp)))
-                }
-            }
+        Box(Modifier.fillMaxHeight().windowDrag(state, window).padding(start = 12.dp, end = 10.dp), contentAlignment = Alignment.Center) {
+            Image(painterResource("icon.png"), null, Modifier.size(20.dp).clip(RoundedCornerShape(5.dp)))
         }
         Row(
             Modifier.weight(1f, fill = false).horizontalScroll(rememberScrollState()),
@@ -146,14 +141,8 @@ fun TitleBar(app: AppState, scope: FrameWindowScope, state: WindowState, onClose
         Spacer(Modifier.width(4.dp))
         IconBtn(Icons.Rounded.Add, L("Otwórz dokumenty", "Open documents"), { app.pickFiles(window) }, shortcut = "Ctrl+O")
         // Pusty obszar paska – przeciąganie okna.
-        with(scope) {
-            WindowDraggableArea(Modifier.weight(1f).fillMaxHeight().doubleClickMaximize(state, window)) {
-                if (app.tabs.isEmpty()) {
-                    Box(Modifier.fillMaxSize().padding(start = 8.dp), contentAlignment = Alignment.CenterStart) {
-                        Txt("OpenDocument", color = P.text2, weight = FontWeight.Medium)
-                    }
-                }
-            }
+        Box(Modifier.weight(1f).fillMaxHeight().windowDrag(state, window).padding(start = 8.dp), contentAlignment = Alignment.CenterStart) {
+            if (app.tabs.isEmpty()) Txt("OpenDocument", color = P.text2, weight = FontWeight.Medium)
         }
         val upd = app.update
         if (upd is UpdateStatus.Available && app.settings.skippedVersion != upd.info.version) {
@@ -182,8 +171,64 @@ fun toggleMaximize(state: WindowState, window: Window) {
     }
 }
 
-private fun Modifier.doubleClickMaximize(state: WindowState, window: Window): Modifier = this.onPointerEvent(PointerEventType.Press) { e ->
-    if (e.button == PointerButton.Primary && (e.nativeEvent as? java.awt.event.MouseEvent)?.clickCount == 2) toggleMaximize(state, window)
+/** Obszar roboczy ekranu pod punktem (bez paska zadań), we współrzędnych pulpitu. */
+private fun workArea(at: java.awt.Point, window: Window): java.awt.Rectangle {
+    val ge = java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment()
+    val gc = ge.screenDevices.map { it.defaultConfiguration }.firstOrNull { it.bounds.contains(at) } ?: window.graphicsConfiguration
+    val b = gc.bounds
+    val ins = java.awt.Toolkit.getDefaultToolkit().getScreenInsets(gc)
+    return java.awt.Rectangle(b.x + ins.left, b.y + ins.top, b.width - ins.left - ins.right, b.height - ins.top - ins.bottom)
+}
+
+/**
+ * Przeciąganie okna za pasek tytułu jak w Windows: dwuklik maksymalizuje, przeciągnięcie
+ * zmaksymalizowanego okna przywraca je pod kursorem, upuszczenie przy górnej krawędzi ekranu
+ * maksymalizuje, a przy bocznej – zajmuje połowę ekranu.
+ */
+private fun Modifier.windowDrag(state: WindowState, window: Window): Modifier = this.pointerInput(state, window) {
+    awaitEachGesture {
+        awaitFirstDown(requireUnconsumed = false)
+        val native = currentEvent.nativeEvent as? java.awt.event.MouseEvent
+        if (native != null && native.button != java.awt.event.MouseEvent.BUTTON1) return@awaitEachGesture
+        if ((native?.clickCount ?: 1) >= 2) {
+            toggleMaximize(state, window)
+            return@awaitEachGesture
+        }
+        val start = MouseInfo.getPointerInfo()?.location ?: return@awaitEachGesture
+        val origin = window.location
+        var grab = java.awt.Point(start.x - origin.x, start.y - origin.y)
+        var dragging = false
+        while (true) {
+            val ev = awaitPointerEvent()
+            if (ev.changes.none { it.pressed }) break
+            val p = MouseInfo.getPointerInfo()?.location ?: continue
+            if (!dragging) {
+                if (kotlin.math.abs(p.x - start.x) + kotlin.math.abs(p.y - start.y) < 4) continue
+                dragging = true
+                if (state.placement == WindowPlacement.Maximized) {
+                    // Przywrócenie z zachowaniem miejsca chwytu (proporcjonalnie do szerokości).
+                    val frac = grab.x.toFloat() / window.width.coerceAtLeast(1)
+                    state.placement = WindowPlacement.Floating
+                    val w = state.size.width.value.toInt().coerceAtLeast(400)
+                    grab = java.awt.Point((w * frac).toInt(), grab.y)
+                }
+            }
+            ev.changes.forEach { it.consume() }
+            window.setLocation(p.x - grab.x, p.y - grab.y)
+        }
+        if (dragging) {
+            val p = MouseInfo.getPointerInfo()?.location ?: return@awaitEachGesture
+            val wa = workArea(p, window)
+            when {
+                p.y <= wa.y + 2 -> {
+                    WindowsChrome.updateMaximizedBounds(window)
+                    state.placement = WindowPlacement.Maximized
+                }
+                p.x <= wa.x + 2 -> window.setBounds(wa.x, wa.y, wa.width / 2, wa.height)
+                p.x >= wa.x + wa.width - 3 -> window.setBounds(wa.x + wa.width / 2, wa.y, wa.width - wa.width / 2, wa.height)
+            }
+        }
+    }
 }
 
 private enum class WinGlyph { MIN, MAX, RESTORE, CLOSE }

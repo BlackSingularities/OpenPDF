@@ -179,7 +179,32 @@ class AppState {
         active = tabs.getOrNull(settings.activeInSession) ?: tabs.firstOrNull()
     }
 
+    private var picking = false
+
+    /** Okno wyboru plików Windows (w osobnym wątku, interfejs działa dalej); zapasowo – okno AWT. */
     fun pickFiles(window: Frame?) {
+        if (picking) return
+        picking = true
+        val folder = settings.recents.firstOrNull()?.let { File(it.path).parentFile }
+        val title = L("Otwórz dokumenty", "Open documents")
+        val filters = listOf(
+            NativeFileDialog.Filter(L("Wszystkie obsługiwane", "All supported"), SUPPORTED_EXTENSIONS.map { "*.$it" }),
+            NativeFileDialog.Filter("PDF", listOf("*.pdf")),
+            NativeFileDialog.Filter(L("Książki (EPUB, FB2, MOBI, DjVu)", "Books (EPUB, FB2, MOBI, DjVu)"), listOf("*.epub", "*.fb2", "*.mobi", "*.azw", "*.azw3", "*.prc", "*.djvu", "*.djv")),
+            NativeFileDialog.Filter(L("Dokumenty tekstowe", "Text documents"), listOf("*.docx", "*.odt", "*.rtf", "*.md", "*.markdown", "*.html", "*.htm", "*.xhtml", "*.txt", "*.csv", "*.tsv")),
+            NativeFileDialog.Filter(L("Komiksy i obrazy", "Comics and images"), listOf("*.cbz", "*.jpg", "*.jpeg", "*.png", "*.webp", "*.gif", "*.bmp")),
+            NativeFileDialog.Filter(L("Wszystkie pliki", "All files"), listOf("*.*")),
+        )
+        Thread({
+            val files = NativeFileDialog.open(window, title, filters, folder)
+            javax.swing.SwingUtilities.invokeLater {
+                picking = false
+                if (files == null) pickFilesAwt(window) else if (files.isNotEmpty()) scope.launch { open(files) }
+            }
+        }, "file-dialog").apply { isDaemon = true }.start()
+    }
+
+    private fun pickFilesAwt(window: Frame?) {
         val d = FileDialog(window, L("Otwórz dokumenty", "Open documents"), FileDialog.LOAD)
         d.isMultipleMode = true
         d.file = SUPPORTED_EXTENSIONS.joinToString(";") { "*.$it" }
