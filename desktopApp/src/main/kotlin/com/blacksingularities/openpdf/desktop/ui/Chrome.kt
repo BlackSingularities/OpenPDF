@@ -151,11 +151,16 @@ fun TitleBar(app: AppState, scope: FrameWindowScope, state: WindowState, onClose
     val window = scope.window
     val maximized = state.placement == WindowPlacement.Maximized
     Row(Modifier.fillMaxWidth().height(TitleH).background(P.bg), verticalAlignment = Alignment.CenterVertically) {
+        // Przed kartami: menu programu i panel boczny.
         Spacer(Modifier.width(6.dp))
         MainMenu(app)
-        Box(Modifier.fillMaxHeight().windowDrag(state, window).padding(start = 4.dp, end = 8.dp), contentAlignment = Alignment.Center) {
-            Image(painterResource("icon.png"), null, Modifier.size(18.dp).clip(RoundedCornerShape(5.dp)))
-        }
+        val doc = app.active?.takeIf { it.ready && !it.organize }
+        IconBtn(
+            Icons.Rounded.ViewSidebar, L("Panel boczny", "Sidebar"),
+            { app.settings.sidebar = !app.settings.sidebar; app.saveSoon() },
+            active = doc != null && app.settings.sidebar, enabled = doc != null, shortcut = "Ctrl+B", size = 28.dp,
+        )
+        Box(Modifier.fillMaxHeight().width(10.dp).windowDrag(state, window))
         Row(
             Modifier.weight(1f, fill = false).horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(3.dp),
@@ -358,8 +363,9 @@ fun toolIcon(t: Tool): ImageVector = when (t) {
 }
 
 /**
- * Pasek narzędzi dokumentu w jednym wierszu: panel i narzędzie (rozwijane) | strony i powiększenie |
- * widok, dokument i zapis (rozwijane). Na wąskim oknie etykiety chowają się, zostają ikony.
+ * Pasek dokumentu w jednym wierszu: po lewej nawigacja (strony, powiększenie), po prawej wszystkie
+ * narzędzia – narzędzie i styl, cofanie, zakładka, szukanie, widok, dokument i zapis. Na wąskim oknie
+ * etykiety chowają się, zostają ikony.
  */
 @Composable
 fun Toolbar(app: AppState, tab: DocTab) {
@@ -367,20 +373,10 @@ fun Toolbar(app: AppState, tab: DocTab) {
     BoxWithConstraints(Modifier.fillMaxWidth().height(42.dp).background(P.panel)) {
         val wide = maxWidth > 1180.dp
         val medium = maxWidth > 940.dp
-        Row(Modifier.fillMaxWidth().fillMaxHeight().padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                IconBtn(Icons.Rounded.ViewSidebar, L("Panel boczny", "Sidebar"), { st.sidebar = !st.sidebar; app.saveSoon() }, active = st.sidebar, shortcut = "Ctrl+B")
-                IconBtn(Icons.Rounded.GridView, L("Porządkowanie stron", "Organize pages"), { tab.organize = !tab.organize }, active = tab.organize, shortcut = "Ctrl+Shift+O")
-                VDivider()
+        Row(Modifier.fillMaxWidth().fillMaxHeight().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            // Nawigacja.
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                 if (!tab.organize) {
-                    ToolDrop(app, wide)
-                    if (app.tool.annotates && app.tool != Tool.ERASER) StyleDrop(app)
-                }
-                IconBtn(Icons.Rounded.Undo, L("Cofnij", "Undo"), { tab.undo() }, enabled = tab.canUndo && tab.busy == null, shortcut = "Ctrl+Z")
-                IconBtn(Icons.Rounded.Redo, L("Ponów", "Redo"), { tab.redo() }, enabled = tab.canRedo && tab.busy == null, shortcut = "Ctrl+Y")
-            }
-            if (!tab.organize) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                     IconBtn(Icons.Rounded.ChevronLeft, L("Poprzednia strona", "Previous page"), { tab.step(-1) }, enabled = tab.rowOf(tab.page) > 0, shortcut = "PgUp")
                     PageField(app, tab)
                     IconBtn(Icons.Rounded.ChevronRight, L("Następna strona", "Next page"), { tab.step(1) }, enabled = tab.rowOf(tab.page) < tab.rowOf(tab.pageCount - 1), shortcut = "PgDn")
@@ -388,16 +384,24 @@ fun Toolbar(app: AppState, tab: DocTab) {
                     if (medium) IconBtn(Icons.Rounded.Remove, L("Pomniejsz", "Zoom out"), { zoomStep(tab, -1) }, shortcut = "Ctrl+−")
                     ZoomMenu(tab)
                     if (medium) IconBtn(Icons.Rounded.Add, L("Powiększ", "Zoom in"), { zoomStep(tab, 1) }, shortcut = "Ctrl++")
+                } else {
+                    Txt(L("Porządkowanie stron – zaznacz strony i wybierz działanie", "Organizing pages – select pages and choose an action"), color = P.text2, style = Type.small)
                 }
-            } else {
-                Txt(L("Porządkowanie stron – zaznacz strony i wybierz działanie", "Organizing pages – select pages and choose an action"), color = P.text2, style = Type.small)
             }
+            // Narzędzia.
             Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.End)) {
                 val busy = tab.busy
                 if (busy != null) {
                     Spinner(Modifier.size(13.dp), P.accent)
                     if (medium) Txt(busy, Modifier.padding(start = 4.dp, end = 6.dp).widthIn(max = 220.dp), style = Type.small, color = P.text2)
                 }
+                if (!tab.organize) {
+                    ToolDrop(app, wide)
+                    if (app.tool.annotates && app.tool != Tool.ERASER) StyleDrop(app)
+                }
+                IconBtn(Icons.Rounded.Undo, L("Cofnij", "Undo"), { tab.undo() }, enabled = tab.canUndo && tab.busy == null, shortcut = "Ctrl+Z")
+                IconBtn(Icons.Rounded.Redo, L("Ponów", "Redo"), { tab.redo() }, enabled = tab.canRedo && tab.busy == null, shortcut = "Ctrl+Y")
+                VDivider()
                 IconBtn(
                     if (tab.isBookmarked(tab.page)) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
                     if (tab.isBookmarked(tab.page)) L("Usuń zakładkę z tej strony", "Remove the bookmark from this page") else L("Dodaj zakładkę na tej stronie", "Bookmark this page"),
