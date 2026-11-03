@@ -624,6 +624,16 @@ private fun About(vm: PdfViewModel) {
                 .clickable { runCatching { uri.openUri("https://redzikowski.com") } }
                 .padding(horizontal = 8.dp, vertical = 4.dp),
         )
+        Text(
+            "kontakt@redzikowski.com",
+            fontSize = 12.sp,
+            color = Palette.TextDim,
+            modifier = Modifier
+                .padding(top = 0.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .clickable { runCatching { uri.openUri("mailto:kontakt@redzikowski.com") } }
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+        )
         if (vm.platform.showsDonation) {
             Text(
                 "☕  " + tr("Postaw kawę"),
