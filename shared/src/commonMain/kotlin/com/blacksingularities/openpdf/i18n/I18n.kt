@@ -538,6 +538,25 @@ private val En: Map<String, String> = hashMapOf(
     "kod {0}" to "code {0}",
     "Aktualizacja nieudana: {0}" to "Update failed: {0}",
     "Aktualizacje" to "Updates",
+    // tryby widoku
+    "Widok i książka" to "View and book",
+    "Tryb widoku" to "View mode",
+    "Ciągły" to "Continuous",
+    "2 strony" to "2 pages",
+    "Widok: {0} (automatycznie)" to "View: {0} (automatic)",
+    "Widok: {0}" to "View: {0}",
+    // wczytywanie i konwersja dokumentów
+    "Ta wersja jest tylko przeglądarką" to "This version is a viewer only",
+    "Stary format Worda (.doc) nie jest obsługiwany – zapisz plik jako DOCX" to "The old Word format (.doc) is not supported – save the file as DOCX",
+    "Nieobsługiwany format pliku" to "Unsupported file format",
+    "Uszkodzone archiwum ZIP" to "Damaged ZIP archive",
+    "Obsługiwane są tylko dokumenty tekstowe OpenDocument (ODT)" to "Only OpenDocument text documents (ODT) are supported",
+    "Arkusze i prezentacje nie są obsługiwane – tylko dokumenty tekstowe" to "Spreadsheets and presentations are not supported – text documents only",
+    "Brak opisu książki w pliku EPUB" to "The EPUB file has no book description",
+    "Książka nie zawiera tekstu" to "The book contains no text",
+    "Brak treści dokumentu" to "The document has no content",
+    "Składanie stron: {0}" to "Laying out pages: {0}",
+    "Dokument jest pusty" to "The document is empty",
 )
 
 /** Odmiana „strona” dla liczby (polski) / „page(s)” (angielski). */
