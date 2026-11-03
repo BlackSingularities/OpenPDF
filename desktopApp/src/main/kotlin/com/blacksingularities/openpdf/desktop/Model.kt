@@ -134,6 +134,7 @@ class DocTab(file0: File, private val app: AppState) {
     var busy by mutableStateOf<String?>(null)
         private set
     var protection by mutableStateOf<Protection?>(null)
+        private set
     /** Widok porządkowania stron zamiast czytania. */
     var organize by mutableStateOf(false)
     /** Strony zaznaczone w widoku porządkowania. */
@@ -646,7 +647,7 @@ class DocTab(file0: File, private val app: AppState) {
     /** Bieżący stan dokumentu do druku i eksportu (z oczekującymi elementami). */
     suspend fun currentFile(): File = commitPendingCopy()
 
-    fun setProtection(p: Protection?) {
+    fun changeProtection(p: Protection?) {
         protection = p
         dirty = true
     }

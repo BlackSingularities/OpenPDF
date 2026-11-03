@@ -479,11 +479,11 @@ private fun SecurityDialog(app: AppState, close: () -> Unit) {
         Input(owner, { owner = it }, Modifier.fillMaxWidth(), placeholder = L("Hasło właściciela (opcjonalnie)", "Owner password (optional)"), password = true, onFocus = { app.typing = it })
     }
     Buttons {
-        if (t.protection != null) Btn(L("Usuń hasło", "Remove password"), null, { t.setProtection(null); close() }, kind = BtnKind.DANGER)
+        if (t.protection != null) Btn(L("Usuń hasło", "Remove password"), null, { t.changeProtection(null); close() }, kind = BtnKind.DANGER)
         Spacer(Modifier.weight(1f))
         Btn(L("Anuluj", "Cancel"), null, close, kind = BtnKind.GHOST)
         Btn(L("Ustaw hasło", "Set password"), null, {
-            t.setProtection(Protection(user, owner.ifEmpty { user }))
+            t.changeProtection(Protection(user, owner.ifEmpty { user }))
             close()
             app.showToast(L("Hasło zostanie dodane przy zapisie", "The password will be applied when you save"))
         }, kind = BtnKind.PRIMARY, enabled = user.isNotEmpty())
