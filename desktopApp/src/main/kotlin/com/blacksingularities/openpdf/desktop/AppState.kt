@@ -603,7 +603,7 @@ class AppState {
         scope.launch {
             update = try {
                 val info = withContext(Dispatchers.IO) {
-                    val req = HttpRequest.newBuilder(URI(UPDATE_API)).header("Accept", "application/vnd.github+json").timeout(Duration.ofSeconds(20)).build()
+                    val req = HttpRequest.newBuilder(URI(UPDATE_API)).header("Accept", "application/json").timeout(Duration.ofSeconds(20)).build()
                     val res = http.send(req, HttpResponse.BodyHandlers.ofString())
                     if (res.statusCode() !in 200..299) error("HTTP ${res.statusCode()}")
                     parseRelease(res.body(), "-setup-x64.exe")

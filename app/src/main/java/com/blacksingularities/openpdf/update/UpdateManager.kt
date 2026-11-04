@@ -82,7 +82,7 @@ object UpdateManager {
         val conn = (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 10_000
             readTimeout = 15_000
-            setRequestProperty("Accept", "application/vnd.github+json")
+            setRequestProperty("Accept", "application/json")
             setRequestProperty("User-Agent", "OpenDocument/" + BuildConfig.VERSION_NAME)
         }
         try {
