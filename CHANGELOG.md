@@ -1,3 +1,8 @@
+## 2.1.0
+
+- Windows: przewracanie kartek jak w książce w widoku „strona po stronie” (dwie strony i książka) – ta sama animacja co na Androidzie; włączane w Ustawieniach → Czytanie → „Przewracanie kartek”.
+- Windows: podpis „Pomysł i wykonanie: Adam Rędzikowski · redzikowski.com” z adresem kontaktowym na ekranie startowym i w ustawieniach (z przyciskiem „Postaw kawę”).
+
 ## 2.0.1
 
 - Windows: przebudowany górny pasek – po lewej nawigacja (strony, powiększenie), po prawej wszystkie narzędzia; menu i przycisk panelu bocznego przed kartami; usunięty zdublowany przycisk widoku stron (porządkowanie zostaje w menu „Dokument” i pod Ctrl+Shift+O).

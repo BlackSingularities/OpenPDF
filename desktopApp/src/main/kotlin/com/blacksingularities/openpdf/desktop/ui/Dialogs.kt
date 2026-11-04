@@ -200,6 +200,9 @@ private fun SettingsDialog(app: AppState, close: () -> Unit) {
         SettingRow(L("Płynne przewijanie i animacje", "Smooth scrolling and animations")) {
             Switch(st.smoothScroll) { st.smoothScroll = it; changed() }
         }
+        SettingRow(L("Przewracanie kartek", "Page curl"), L("Animacja jak w książce przy przewracaniu stron (dwie strony i książka, strona po stronie)", "Book-like animation when turning pages (two pages and book, page by page)")) {
+            Switch(st.pageFlip) { st.pageFlip = it; changed() }
+        }
         SettingRow(L("Pamiętaj miejsce w dokumencie", "Remember reading position"), L("Otwiera plik na stronie, na której skończono", "Opens a file on the page where you stopped")) {
             Switch(st.rememberPosition) { st.rememberPosition = it; changed() }
         }
@@ -220,6 +223,32 @@ private fun SettingsDialog(app: AppState, close: () -> Unit) {
             Btn(L("Wyczyść", "Clear"), null, {
                 st.recents.toList().filter { !st.isFavorite(it.path) }.forEach { app.removeRecent(it.path) }
             }, enabled = st.recents.isNotEmpty())
+        }
+        HDivider(Modifier.padding(vertical = 8.dp))
+        AuthorCredit(Modifier.fillMaxWidth().padding(vertical = 6.dp), coffee = true)
+    }
+}
+
+/**
+ * Podpis autora jak w pozostałych aplikacjach: „Pomysł i wykonanie: Adam Rędzikowski ·
+ * redzikowski.com” (klik otwiera stronę) i adres kontaktowy; opcjonalnie przycisk kawy.
+ */
+@Composable
+fun AuthorCredit(modifier: Modifier = Modifier, coffee: Boolean = false) {
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Txt(
+            L("Pomysł i wykonanie: Adam Rędzikowski · redzikowski.com", "Idea and development: Adam Rędzikowski · redzikowski.com"),
+            Modifier.pointerHoverIcon(PointerIcon.Hand).clickable { browse("https://redzikowski.com") }.padding(vertical = 2.dp),
+            style = Type.small, color = P.text3,
+        )
+        Txt(
+            "kontakt@redzikowski.com",
+            Modifier.pointerHoverIcon(PointerIcon.Hand).clickable { browse("mailto:kontakt@redzikowski.com") }.padding(vertical = 2.dp),
+            style = Type.small, color = P.text3,
+        )
+        if (coffee) {
+            Spacer(Modifier.height(8.dp))
+            Btn(L("☕  Postaw kawę", "☕  Buy me a coffee"), null, { browse("https://buycoffee.to/adamredzikowski") }, kind = BtnKind.SOFT)
         }
     }
 }
@@ -288,7 +317,7 @@ private fun AboutDialog(app: AppState, close: () -> Unit) {
             style = Type.body.copy(color = P.text2, textAlign = androidx.compose.ui.text.style.TextAlign.Center),
         )
         Spacer(Modifier.height(14.dp))
-        Txt(L("Projekt i wykonanie", "Design and development"), style = Type.tiny, color = P.text3)
+        Txt(L("Pomysł i wykonanie: Adam Rędzikowski", "Idea and development: Adam Rędzikowski"), style = Type.tiny, color = P.text3)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
             Btn("redzikowski.com", null, { browse("https://redzikowski.com") })
             Btn("kontakt@redzikowski.com", null, { browse("mailto:kontakt@redzikowski.com") })

@@ -56,6 +56,8 @@ class Settings {
     var checkUpdates by mutableStateOf(true)
     var rememberPosition by mutableStateOf(true)
     var smoothScroll by mutableStateOf(true)
+    /** Przewracanie kartek jak w książce (dwie strony i książka, strona po stronie). */
+    var pageFlip by mutableStateOf(true)
     var skippedVersion by mutableStateOf("")
     var session: List<String> = emptyList()
     var activeInSession = 0
@@ -110,6 +112,7 @@ class Settings {
         p["checkUpdates"] = checkUpdates.toString()
         p["rememberPosition"] = rememberPosition.toString()
         p["smoothScroll"] = smoothScroll.toString()
+        p["pageFlip"] = pageFlip.toString()
         p["skippedVersion"] = skippedVersion
         p["session"] = session.joinToString("\n")
         p["session.active"] = activeInSession.toString()
@@ -157,6 +160,7 @@ class Settings {
             s.checkUpdates = bool("checkUpdates", true)
             s.rememberPosition = bool("rememberPosition", true)
             s.smoothScroll = bool("smoothScroll", true)
+            s.pageFlip = bool("pageFlip", true)
             s.skippedVersion = str("skippedVersion") ?: ""
             s.session = str("session")?.split('\n')?.filter { it.isNotBlank() } ?: emptyList()
             s.activeInSession = str("session.active")?.toIntOrNull() ?: 0

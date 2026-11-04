@@ -217,6 +217,7 @@ private fun Home(app: AppState, window: Frame?, modifier: Modifier) {
                 }
             }
         }
+        AuthorCredit(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 12.dp))
     }
 }
 

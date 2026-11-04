@@ -4,6 +4,16 @@ package com.blacksingularities.openpdf.desktop.ui
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animate
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.graphics.Matrix
+import androidx.compose.ui.graphics.drawscope.withTransform
+import com.blacksingularities.openpdf.desktop.PageLayout
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -371,6 +381,62 @@ private fun PagedView(
         lastFlip = now
         tab.step(d)
     }
+    // Przewracanie kartek jak w książce: rozkładówki (dwie strony, książka) mieszczące się w oknie.
+    val flipOn = app.settings.pageFlip && tab.layout != PageLayout.SINGLE
+    fun fits(r: Int) = r in rows.indices && geo.rowW[r] * scale <= vw - 2 * pad + 1f && geo.rowH[r] * scale <= vh - 2 * pad + 1f
+    var shown by remember(tab.id, tab.layout) { mutableStateOf(ri) }
+    var turning by remember(tab.id, tab.layout) { mutableStateOf<FlipAnim?>(null) }
+    if (!flipOn && shown != ri) shown = ri
+    LaunchedEffect(ri, flipOn) {
+        if (!flipOn) return@LaunchedEffect
+        // Poprzednia kartka jeszcze w ruchu – kolejna zaczyna się od jej docelowej rozkładówki.
+        val from = turning?.to ?: shown
+        turning = null
+        shown = from
+        if (ri == from) return@LaunchedEffect
+        if (abs(ri - from) != 1 || !fits(from) || !fits(ri)) {
+            shown = ri
+            return@LaunchedEffect
+        }
+        val f = FlipAnim(from, ri, ri > from)
+        turning = f
+        animate(0f, 1f, animationSpec = tween(620, easing = FastOutSlowInEasing)) { v, _ -> f.progress = v }
+        if (turning === f) {
+            shown = ri
+            turning = null
+        }
+    }
+    val page: @Composable (Int) -> Unit = { r ->
+        val vs = rememberScrollState()
+        val hs = rememberScrollState()
+        Box(Modifier.fillMaxSize()) {
+            Box(
+                Modifier.fillMaxSize()
+                    .onPointerEvent(PointerEventType.Scroll) { e ->
+                        if (e.keyboardModifiers.isCtrlPressed || e.changes.any { it.isConsumed }) return@onPointerEvent
+                        val dy = e.changes.firstOrNull()?.scrollDelta?.y ?: 0f
+                        if (dy == 0f) return@onPointerEvent
+                        if ((dy > 0 && vs.value >= vs.maxValue) || (dy < 0 && vs.value <= 0)) flip(dy.sign.toInt())
+                    }
+                    .verticalScroll(vs)
+                    .horizontalScroll(hs),
+            ) {
+                // Najmniej tyle, co okno – rozkładówka zawsze na środku.
+                Box(
+                    Modifier.sizeIn(minWidth = (vw / density).dp, minHeight = (vh / density).dp).padding((pad / density).dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (r in rows.indices) Spread(app, tab, handle, rows[r], geo, scale, shadow = !presentation)
+                }
+            }
+            if (!presentation && vs.maxValue > 0) {
+                VerticalScrollbar(rememberScrollbarAdapter(vs), Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(2.dp))
+            }
+            if (!presentation && hs.maxValue > 0) {
+                HorizontalScrollbar(rememberScrollbarAdapter(hs), Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(2.dp))
+            }
+        }
+    }
     Box(
         modifier.then(
             if (presentation) Modifier.onPointerEvent(PointerEventType.Press) { e ->
@@ -378,50 +444,208 @@ private fun PagedView(
             } else Modifier,
         ),
     ) {
-        AnimatedContent(
-            targetState = ri,
-            transitionSpec = {
-                if (!app.settings.smoothScroll) {
-                    fadeIn(tween(0)) togetherWith fadeOut(tween(0))
-                } else {
-                    val d = if (targetState > initialState) 1 else -1
-                    (slideInHorizontally(tween(220)) { it / 8 * d } + fadeIn(tween(220))) togetherWith
-                        (slideOutHorizontally(tween(220)) { -it / 8 * d } + fadeOut(tween(160)))
-                }
-            },
-            modifier = Modifier.fillMaxSize(),
-            label = "page",
-        ) { r ->
-            val vs = rememberScrollState()
-            val hs = rememberScrollState()
-            Box(Modifier.fillMaxSize()) {
-                Box(
-                    Modifier.fillMaxSize()
-                        .onPointerEvent(PointerEventType.Scroll) { e ->
-                            if (e.keyboardModifiers.isCtrlPressed || e.changes.any { it.isConsumed }) return@onPointerEvent
-                            val dy = e.changes.firstOrNull()?.scrollDelta?.y ?: 0f
-                            if (dy == 0f) return@onPointerEvent
-                            if ((dy > 0 && vs.value >= vs.maxValue) || (dy < 0 && vs.value <= 0)) flip(dy.sign.toInt())
-                        }
-                        .verticalScroll(vs)
-                        .horizontalScroll(hs),
-                ) {
-                    // Najmniej tyle, co okno – rozkładówka zawsze na środku.
-                    Box(
-                        Modifier.sizeIn(minWidth = (vw / density).dp, minHeight = (vh / density).dp).padding((pad / density).dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        if (r in rows.indices) Spread(app, tab, handle, rows[r], geo, scale, shadow = !presentation)
+        val f = turning
+        if (flipOn && f != null) {
+            FlipView(app, tab, rows, geo, scale, vw, vh, f, shadow = !presentation)
+        } else if (flipOn) {
+            key(shown) { page(shown) }
+        } else {
+            AnimatedContent(
+                targetState = ri,
+                transitionSpec = {
+                    if (!app.settings.smoothScroll) {
+                        fadeIn(tween(0)) togetherWith fadeOut(tween(0))
+                    } else {
+                        val d = if (targetState > initialState) 1 else -1
+                        (slideInHorizontally(tween(220)) { it / 8 * d } + fadeIn(tween(220))) togetherWith
+                            (slideOutHorizontally(tween(220)) { -it / 8 * d } + fadeOut(tween(160)))
                     }
-                }
-                if (!presentation && vs.maxValue > 0) {
-                    VerticalScrollbar(rememberScrollbarAdapter(vs), Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(2.dp))
-                }
-                if (!presentation && hs.maxValue > 0) {
-                    HorizontalScrollbar(rememberScrollbarAdapter(hs), Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(2.dp))
-                }
-            }
+                },
+                modifier = Modifier.fillMaxSize(),
+                label = "page",
+            ) { r -> page(r) }
         }
+    }
+}
+
+/** Przewracana kartka: z rozkładówki [from] na [to]; [progress] 0..1 – obrót wokół grzbietu. */
+private class FlipAnim(val from: Int, val to: Int, val forward: Boolean) {
+    var progress by mutableFloatStateOf(0f)
+}
+
+/**
+ * Położenie stron wiersza na ekranie podczas przewracania. Rozkładówka leży jak w widoku
+ * (wyśrodkowana, grzbiet między stronami); pojedyncza strona staje przy grzbiecie – okładka
+ * po prawej, ostatnia strona po lewej (w kolejności od prawej do lewej odwrotnie).
+ */
+private fun flipRects(tab: DocTab, row: IntArray, first: Boolean, geo: RowGeo, scale: Float, vh: Float, spine: Float): List<Pair<Int, Rect>> {
+    val pages = if (tab.rtl && row.size == 2) row.reversedArray() else row
+    val sizes = pages.map { p -> (geo.disp[p] ?: tab.pageSize(p)).let { Size(it.width * scale, it.height * scale) } }
+    val h = sizes.maxOf { it.height }
+    var x = when {
+        pages.size == 2 -> spine - sizes[0].width
+        first != tab.rtl -> spine
+        else -> spine - sizes[0].width
+    }
+    return pages.mapIndexed { i, p ->
+        val sz = sizes[i]
+        val top = (vh - h) / 2f + (h - sz.height) / 2f
+        val r = Rect(x, top, x + sz.width, top + sz.height)
+        x += sz.width
+        p to r
+    }
+}
+
+/** Widok w trakcie przewracania kartki: strony leżące płasko i kartka obracana w perspektywie. */
+@Composable
+private fun FlipView(app: AppState, tab: DocTab, rows: List<IntArray>, geo: RowGeo, scale: Float, vw: Float, vh: Float, f: FlipAnim, shadow: Boolean) {
+    val fromRow = rows.getOrNull(f.from) ?: return
+    val toRow = rows.getOrNull(f.to) ?: return
+    // Grzbiet z rozkładówki (wyśrodkowanej w oknie); same pojedyncze strony – środek okna.
+    val spreadIdx = listOf(f.from, f.to).firstOrNull { rows[it].size == 2 }
+    val spine = if (spreadIdx != null) {
+        val r = rows[spreadIdx]
+        val pages = if (tab.rtl) r.reversedArray() else r
+        (vw - geo.rowW[spreadIdx] * scale) / 2f + (geo.disp[pages[0]]?.width ?: tab.pageSize(pages[0]).width) * scale
+    } else vw / 2f
+    val fromR = flipRects(tab, fromRow, f.from == 0, geo, scale, vh, spine)
+    val toR = flipRects(tab, toRow, f.to == 0, geo, scale, vh, spine)
+    val rot = tab.rotation
+    val images = HashMap<Int, ImageBitmap?>()
+    for ((p, r) in fromR + toR) {
+        key(p) {
+            val w = r.width.roundToInt().coerceAtLeast(1)
+            val h = r.height.roundToInt().coerceAtLeast(1)
+            images[p] = if (rot % 180 != 0) pageImage(tab, p, h, w) else pageImage(tab, p, w, h)
+        }
+    }
+    val paper = app.settings.paper
+    val filter = remember(paper) { paperFilter(paper) }
+    Canvas(Modifier.fillMaxSize()) {
+        drawFlip(f, fromR, toR, spine, images, rot, paper, filter, tab.rtl, shadow)
+    }
+}
+
+private fun black(a: Float) = Color.Black.copy(alpha = a.coerceIn(0f, 1f))
+
+private fun DrawScope.pageInto(img: ImageBitmap?, r: Rect, rot: Int, paper: Paper, filter: ColorFilter?) {
+    drawRect(paperColor(paper), r.topLeft, r.size)
+    if (img != null) translate(r.left, r.top) { drawPage(img, rot, r.width.roundToInt().coerceAtLeast(1), r.height.roundToInt().coerceAtLeast(1), filter) }
+}
+
+/** Zagięcie przy grzbiecie jak w [PageView]; [spineRight] – grzbiet przy prawej krawędzi strony, [k] – siła. */
+private fun DrawScope.gutterShade(r: Rect, spineRight: Boolean, paper: Paper, k: Float) {
+    if (k <= 0.01f) return
+    val w = r.width * 0.07f
+    val dark = black((if (paper == Paper.NIGHT) 0.5f else 0.18f) * k)
+    if (spineRight) {
+        drawRect(Brush.horizontalGradient(listOf(Color.Transparent, dark), startX = r.right - w, endX = r.right), Offset(r.right - w, r.top), Size(w, r.height))
+    } else {
+        drawRect(Brush.horizontalGradient(listOf(dark, Color.Transparent), startX = r.left, endX = r.left + w), r.topLeft, Size(w, r.height))
+    }
+}
+
+/**
+ * Przewracanie kartki jak w książce (ta sama geometria co na Androidzie): kartka obraca się
+ * w przestrzeni wokół grzbietu, z perspektywą – unosząc się, rośnie ku patrzącemu, a za połową
+ * obrotu widać jej drugą stronę. Kartka ustawiona bokiem do światła ciemnieje i rzuca miękki
+ * cień na stronę, nad którą przechodzi.
+ */
+private fun DrawScope.drawFlip(
+    f: FlipAnim,
+    fromR: List<Pair<Int, Rect>>,
+    toR: List<Pair<Int, Rect>>,
+    spine: Float,
+    images: Map<Int, ImageBitmap?>,
+    rot: Int,
+    paper: Paper,
+    filter: ColorFilter?,
+    rtl: Boolean,
+    shadow: Boolean,
+) {
+    fun side(rs: List<Pair<Int, Rect>>, left: Boolean) = rs.firstOrNull { (_, r) -> if (left) r.center.x < spine else r.center.x >= spine }
+    // Kartka odchodzi od prawej krawędzi (do przodu) albo od lewej (wstecz); w RTL odwrotnie.
+    val fromRight = f.forward != rtl
+    val t = f.progress.coerceIn(0f, 1f)
+    val theta = PI.toFloat() * t
+    val staticSide = side(fromR, left = fromRight)
+    val revealed = side(toR, left = !fromRight)
+    val front = side(fromR, left = !fromRight)
+    val back = side(toR, left = fromRight)
+    val flats = listOfNotNull(staticSide, revealed)
+    if (shadow) {
+        for ((_, r) in flats) drawRect(black(0.10f), Offset(r.left - 2f, r.top + 2f), Size(r.width + 4f, r.height + 4f))
+    }
+    for ((p, r) in flats) {
+        pageInto(images[p], r, rot, paper, filter)
+        gutterShade(r, spineRight = r.center.x < spine, paper = paper, k = 1f)
+    }
+    val firstHalf = t < 0.5f
+    val leaf = (if (firstHalf) front else back) ?: return
+    val (leafPage, flat) = leaf
+    val s = if (flat.center.x >= spine) 1f else -1f
+    // Kąt kartki od jej płaskiego położenia: 0 – leży, π/2 – stoi pionowo.
+    val a = if (firstHalf) theta else PI.toFloat() - theta
+    val cosA = cos(a)
+    val sinA = sin(a)
+    val w = flat.width
+    val camera = w * 5f
+    val k = sinA / camera
+    // Rzut zewnętrznej krawędzi kartki na ekran.
+    val edgeX = spine + s * w * cosA / (1f - w * k)
+    // Strona pod kartką dostaje miękki cień – tym szerszy i mocniejszy, im wyżej uniesiona kartka.
+    val beneath = if (firstHalf) revealed else staticSide
+    if (beneath != null) {
+        val b = beneath.second
+        val shadowW = w * (0.05f + 0.32f * sinA)
+        val alpha = 0.38f * sinA * (2f - sinA)
+        val x1 = edgeX + s * shadowW
+        val l = min(edgeX, x1).coerceIn(b.left, b.right)
+        val r = max(edgeX, x1).coerceIn(b.left, b.right)
+        if (r > l && alpha > 0.005f) {
+            drawRect(
+                Brush.horizontalGradient(
+                    0f to black(alpha),
+                    0.25f to black(alpha * 0.55f),
+                    0.55f to black(alpha * 0.2f),
+                    1f to Color.Transparent,
+                    startX = edgeX,
+                    endX = x1,
+                ),
+                Offset(l, b.top),
+                Size(r - l, b.height),
+            )
+        }
+    }
+    // Kartka w perspektywie: punkt (x, y) płaskiej strony (względem grzbietu i środka wysokości)
+    // trafia w (x·cos a, y) / w, gdzie w = 1 − d·sin a / D (d – odległość od grzbietu, D – kamera).
+    val cy = flat.center.y
+    val local = Rect(flat.left - spine, flat.top - cy, flat.right - spine, flat.bottom - cy)
+    val m = Matrix(
+        floatArrayOf(
+            cosA, 0f, 0f, -s * k,
+            0f, 1f, 0f, 0f,
+            0f, 0f, 1f, 0f,
+            0f, 0f, 0f, 1f,
+        ),
+    )
+    withTransform({
+        translate(spine, cy)
+        transform(m)
+    }) {
+        pageInto(images[leafPage], local, rot, paper, filter)
+        // Światło: kartka ustawiona bokiem ciemnieje, mocniej przy zewnętrznej krawędzi.
+        val shade = 0.36f * (1f - cosA)
+        val fold = shade * 0.45f + 0.05f * sinA
+        drawRect(
+            Brush.horizontalGradient(0f to black(fold), 0.35f to black(shade * 0.75f), 1f to black(shade), startX = 0f, endX = s * w),
+            local.topLeft,
+            local.size,
+        )
+        // Cieniowanie przy grzbiecie wygaszane płynnie wraz z uniesieniem kartki.
+        gutterShade(local, spineRight = s < 0f, paper = paper, k = cosA * cosA)
+        // Cienka krawędź kartki – oddziela ją od strony pod spodem.
+        drawLine(black(0.2f * sinA), Offset(s * w, local.top), Offset(s * w, local.bottom), 1.2f)
     }
 }
 
