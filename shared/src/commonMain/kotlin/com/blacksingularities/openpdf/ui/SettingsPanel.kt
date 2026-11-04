@@ -566,7 +566,7 @@ private fun UpdateRow(vm: PdfViewModel) {
         UpdateState.Idle -> Triple(tr("Wersja {0}", vm.platform.appVersion), tr("Sprawdź"), { vm.updates.checkUpdate() })
         UpdateState.Checking -> Triple(tr("Sprawdzanie…"), null, {})
         UpdateState.UpToDate -> Triple(tr("Wersja {0} jest najnowsza", vm.platform.appVersion), tr("Sprawdź"), { vm.updates.checkUpdate() })
-        is UpdateState.Available -> Triple(tr("Dostępna wersja {0}", update.info.version), if (vm.platform.canSelfUpdate) tr("Aktualizuj") else tr("Pobierz"), { vm.updates.updateNow() })
+        is UpdateState.Available -> Triple(tr("Dostępna wersja {0}", update.info.version), if (vm.platform.canSelfUpdate) tr("Aktualizuj") else null, { vm.updates.updateNow() })
         is UpdateState.Downloading -> Triple(tr("Pobieranie {0} · {1}%", update.info.version, (update.progress * 100).roundToInt()), null, {})
         is UpdateState.Ready -> Triple(tr("Wersja {0} gotowa", update.info.version), tr("Zainstaluj"), { vm.updates.installUpdate() })
         is UpdateState.Installing -> Triple(tr("Instalowanie {0}…", update.info.version), null, {})

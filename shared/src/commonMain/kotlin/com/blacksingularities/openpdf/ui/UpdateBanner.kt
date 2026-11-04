@@ -38,7 +38,7 @@ val PdfViewModel.updatePending: Boolean
     get() = updates.update is UpdateState.Available || updates.update is UpdateState.Downloading || updates.update is UpdateState.Ready || updates.update is UpdateState.Installing
 
 /**
- * Baner nowej wersji: jednym dotknięciem aplikacja pobiera APK z GitHub Releases i instaluje go
+ * Baner nowej wersji: jednym dotknięciem aplikacja pobiera APK i instaluje go
  * (bez przeglądarki). Od Androida 12 kolejne aktualizacje mogą przejść bez potwierdzenia systemu.
  */
 @Composable
@@ -46,13 +46,12 @@ fun UpdateBanner(vm: PdfViewModel, modifier: Modifier = Modifier) {
     val u = vm.updates.update
     AnimatedVisibility(visible = vm.updatePending && !vm.updates.updateBannerHidden, modifier = modifier) {
         val (title, action) = when (u) {
-            is UpdateState.Available -> tr("Nowa wersja {0}", u.info.version) to (if (vm.platform.canSelfUpdate) tr("Aktualizuj") else tr("Pobierz"))
+            is UpdateState.Available -> tr("Nowa wersja {0}", u.info.version) to (if (vm.platform.canSelfUpdate) tr("Aktualizuj") else null)
             is UpdateState.Downloading -> tr("Pobieranie {0} · {1}%", u.info.version, (u.progress * 100).roundToInt()) to null
             is UpdateState.Ready -> tr("Wersja {0} pobrana", u.info.version) to tr("Zainstaluj")
             is UpdateState.Installing -> tr("Instalowanie {0}…", u.info.version) to null
             else -> "" to null
         }
-        val notes = (u as? UpdateState.Available)?.info?.notes ?: (u as? UpdateState.Ready)?.info?.notes
         Column(
             Modifier
                 .fillMaxWidth()
@@ -68,7 +67,7 @@ fun UpdateBanner(vm: PdfViewModel, modifier: Modifier = Modifier) {
                         when {
                             u !is UpdateState.Available -> tr("Nie zamykaj aplikacji")
                             vm.platform.canSelfUpdate -> tr("Pobierze się i zainstaluje automatycznie")
-                            else -> tr("Otworzy stronę wydania na GitHubie")
+                            else -> tr("Dostępna jest nowa wersja aplikacji")
                         },
                         color = Palette.TextDim,
                         fontSize = 11.sp,
@@ -103,9 +102,6 @@ fun UpdateBanner(vm: PdfViewModel, modifier: Modifier = Modifier) {
                     trackColor = Color.White.copy(alpha = 0.12f),
                     modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
                 )
-            }
-            if (!notes.isNullOrBlank()) {
-                Text(notes, color = Palette.TextDim, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 4, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp, start = 34.dp))
             }
         }
     }

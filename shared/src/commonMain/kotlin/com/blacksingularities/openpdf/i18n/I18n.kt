@@ -469,7 +469,7 @@ private val En: Map<String, String> = hashMapOf(
     "Nowa wersja {0}" to "New version {0}",
     "Wersja {0} pobrana" to "Version {0} downloaded",
     "Pobierze się i zainstaluje automatycznie" to "It will download and install automatically",
-    "Otworzy stronę wydania na GitHubie" to "Opens the release page on GitHub",
+    "Dostępna jest nowa wersja aplikacji" to "A new version of the app is available",
     "Pobierz" to "Download",
     "Nie zamykaj aplikacji" to "Do not close the app",
     "Później" to "Later",

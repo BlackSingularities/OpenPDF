@@ -1,3 +1,7 @@
+## 2.1.1
+
+- Komunikat o nowej wersji bez listy zmian, linków i informacji, skąd pobierana jest aktualizacja.
+
 ## 2.1.0
 
 - Windows: przewracanie kartek jak w książce w widoku „strona po stronie” (dwie strony i książka) – ta sama animacja co na Androidzie; włączane w Ustawieniach → Czytanie → „Przewracanie kartek”.

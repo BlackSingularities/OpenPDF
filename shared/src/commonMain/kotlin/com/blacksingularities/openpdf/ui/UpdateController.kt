@@ -57,8 +57,7 @@ class UpdateController(private val platform: Platform, private val scope: Corout
     fun updateNow() {
         val u = update
         if (!platform.canSelfUpdate && u is UpdateState.Available) {
-            // iOS: nową wersję instaluje się ręcznie – strona wydania z plikiem IPA.
-            platform.openUrl(u.info.pageUrl)
+            // iOS: tylko komunikat o nowej wersji – bez linków i listy zmian.
             return
         }
         when (u) {
