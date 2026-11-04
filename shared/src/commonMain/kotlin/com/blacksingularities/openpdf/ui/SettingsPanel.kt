@@ -601,10 +601,6 @@ private fun UpdateRow(vm: PdfViewModel) {
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             )
         }
-        val notes = (update as? UpdateState.Available)?.info?.notes ?: (update as? UpdateState.Ready)?.info?.notes
-        if (!notes.isNullOrBlank()) {
-            Text(notes, fontSize = 12.sp, lineHeight = 17.sp, color = Palette.TextDim, modifier = Modifier.padding(top = 8.dp, start = 44.dp))
-        }
     }
 }
 

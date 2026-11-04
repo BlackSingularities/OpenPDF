@@ -322,8 +322,6 @@ private fun AboutDialog(app: AppState, close: () -> Unit) {
             Btn("redzikowski.com", null, { browse("https://redzikowski.com") })
             Btn("kontakt@redzikowski.com", null, { browse("mailto:kontakt@redzikowski.com") })
         }
-        Spacer(Modifier.height(8.dp))
-        Btn("GitHub", null, { browse("https://github.com/BlackSingularities/OpenPDF") }, kind = BtnKind.GHOST)
     }
 }
 
@@ -390,11 +388,6 @@ private fun UpdateDialog(app: AppState, close: () -> Unit) {
     when (val u = app.update) {
         is UpdateStatus.Available -> {
             Txt(L("Dostępna jest wersja {0} (masz {1}).", "Version {0} is available (you have {1}).").replace("{0}", u.info.version).replace("{1}", app.version))
-            if (u.info.notes.isNotBlank()) {
-                Box(Modifier.padding(vertical = 12.dp).fillMaxWidth().height(200.dp).background(P.raised, RoundedCornerShape(10.dp)).padding(12.dp)) {
-                    BasicText(u.info.notes, Modifier.verticalScroll(rememberScrollState()), style = Type.small.copy(color = P.text2))
-                }
-            }
             Buttons {
                 Btn(L("Pomiń tę wersję", "Skip this version"), null, { app.settings.skippedVersion = u.info.version; app.saveSoon(); close() }, kind = BtnKind.GHOST)
                 Btn(L("Później", "Later"), null, close)
