@@ -38,6 +38,8 @@ import java.awt.dnd.DropTargetAdapter
 import java.awt.dnd.DropTargetDragEvent
 import java.awt.dnd.DropTargetDropEvent
 import java.awt.dnd.DropTargetEvent
+import com.blacksingularities.openpdf.desktop.feedback.CrashReportPrompt
+import com.blacksingularities.openpdf.desktop.feedback.DesktopFeedback
 import java.io.File
 import javax.swing.SwingUtilities
 import kotlin.system.exitProcess
@@ -48,6 +50,12 @@ fun main(args: Array<String>) {
     // Drugie uruchomienie (np. dwuklik pliku) przekazuje pliki do działającego okna i kończy się.
     if (SingleInstance.forward(files)) exitProcess(0)
     val app = AppState()
+    DesktopFeedback.install(
+        slug = "openpdf",
+        appName = "OpenDocument",
+        version = app.version,
+        dataDir = File(System.getenv("LOCALAPPDATA") ?: System.getProperty("user.home"), "OpenDocument"),
+    )
     SingleInstance.listen { received ->
         SwingUtilities.invokeLater {
             app.scope.launch {
@@ -122,6 +130,7 @@ fun main(args: Array<String>) {
             }
             AppTheme(app.settings.theme, app.settings.accent) {
                 AppContent(app, this, state, handles, onClose = quit)
+                CrashReportPrompt(polish = !com.blacksingularities.openpdf.i18n.I18n.english)
             }
         }
     }

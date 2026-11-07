@@ -219,6 +219,16 @@ private fun SettingsDialog(app: AppState, close: () -> Unit) {
         SettingRow(L("Sprawdzaj aktualizacje", "Check for updates"), L("Automatycznie, w tle", "Automatically, in the background")) {
             Switch(st.checkUpdates) { st.checkUpdates = it; changed() }
         }
+        var feedback by remember { mutableStateOf(false) }
+        SettingRow(L("Zgłoś błąd lub sugestię", "Report a bug or suggest a feature"), L("Wiadomość trafia prosto do autora; e-mail jest opcjonalny", "Goes straight to the developer; email is optional")) {
+            Btn(L("Napisz", "Write"), null, { feedback = true })
+        }
+        if (feedback) {
+            com.blacksingularities.openpdf.desktop.feedback.FeedbackDialog(
+                onDismiss = { feedback = false },
+                polish = !com.blacksingularities.openpdf.i18n.I18n.english,
+            )
+        }
         SettingRow(L("Ostatnio otwierane", "Recent files"), L("{0} pozycji na liście", "{0} items in the list").replace("{0}", st.recents.size.toString())) {
             Btn(L("Wyczyść", "Clear"), null, {
                 st.recents.toList().filter { !st.isFavorite(it.path) }.forEach { app.removeRecent(it.path) }

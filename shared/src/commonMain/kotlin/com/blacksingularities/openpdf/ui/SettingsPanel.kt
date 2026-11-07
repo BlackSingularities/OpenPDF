@@ -215,6 +215,9 @@ private fun ColumnScope.SettingsContent(vm: PdfViewModel) {
         Group(null) {
             vm.platform.settingsExtras?.invoke()
             UpdateRow(vm)
+            var feedback by remember { mutableStateOf(false) }
+            ActionRow(Icons.Rounded.BugReport, tr("Zgłoś błąd lub sugestię"), tr("Wiadomość trafia prosto do autora")) { feedback = true }
+            if (feedback) com.blacksingularities.openpdf.feedback.FeedbackDialog(vm.platform) { feedback = false }
             ActionRow(Icons.Rounded.Person, tr("Wyczyść listę ostatnich plików"), tr("{0} pozycji", vm.recents.size), danger = true) { vm.clearRecents() }
         }
         About(vm)

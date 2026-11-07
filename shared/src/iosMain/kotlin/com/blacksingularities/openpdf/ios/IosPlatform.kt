@@ -158,6 +158,30 @@ class IosPlatform : Platform {
         return data.toByteArray().decodeToString()
     }
 
+    override val feedbackPlatform = "ios"
+    override val osDescription: String
+        get() = "${UIDevice.currentDevice.systemName} ${UIDevice.currentDevice.systemVersion}"
+    override val deviceDescription: String
+        get() = UIDevice.currentDevice.model
+
+    override fun postJson(url: String, body: String): Int {
+        val u = NSURL.URLWithString(url) ?: error(url)
+        val request = NSMutableURLRequest.requestWithURL(u).apply {
+            setHTTPMethod("POST")
+            setValue("application/json; charset=utf-8", forHTTPHeaderField = "Content-Type")
+            setHTTPBody(NSString.create(string = body).dataUsingEncoding(NSUTF8StringEncoding))
+            setTimeoutInterval(15.0)
+        }
+        var status = 0
+        val done = platform.darwin.dispatch_semaphore_create(0)
+        NSURLSession.sharedSession.dataTaskWithRequest(request) { _, response, _ ->
+            status = (response as? NSHTTPURLResponse)?.statusCode?.toInt() ?: 0
+            platform.darwin.dispatch_semaphore_signal(done)
+        }.resume()
+        platform.darwin.dispatch_semaphore_wait(done, platform.darwin.DISPATCH_TIME_FOREVER)
+        return status
+    }
+
     override fun openUrl(url: String) {
         val u = NSURL.URLWithString(url) ?: return
         UIApplication.sharedApplication.openURL(u, options = emptyMap<Any?, Any>(), completionHandler = null)

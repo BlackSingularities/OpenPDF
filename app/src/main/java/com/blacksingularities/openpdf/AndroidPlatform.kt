@@ -117,6 +117,26 @@ class AndroidPlatform(private val app: Application) : Platform {
 
     override fun httpGet(url: String): String = UpdateManager.httpGet(url)
 
+    override val feedbackPlatform = "android"
+    override val osDescription get() = "Android ${android.os.Build.VERSION.RELEASE} (API ${android.os.Build.VERSION.SDK_INT})"
+    override val deviceDescription get() = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}"
+
+    override fun postJson(url: String, body: String): Int {
+        val conn = (java.net.URL(url).openConnection() as java.net.HttpURLConnection).apply {
+            requestMethod = "POST"
+            doOutput = true
+            connectTimeout = 10_000
+            readTimeout = 15_000
+            setRequestProperty("Content-Type", "application/json; charset=utf-8")
+        }
+        try {
+            conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+            return conn.responseCode
+        } finally {
+            conn.disconnect()
+        }
+    }
+
     override suspend fun downloadUpdate(info: ReleaseInfo, onProgress: (Float) -> Unit): Path =
         UpdateManager.download(app, info, onProgress).toOkioPath()
 

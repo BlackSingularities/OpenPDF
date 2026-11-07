@@ -1,5 +1,7 @@
 package com.blacksingularities.openpdf
 
+import com.blacksingularities.openpdf.feedback.Feedback
+import com.blacksingularities.openpdf.feedback.CrashReportPrompt
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -37,6 +39,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Feedback.install(this, "openpdf")
         enableEdgeToEdge()
         WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = false
         UpdateManager.clearUpdatedNotification(this)
@@ -56,6 +59,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             OpenPdfTheme {
+                CrashReportPrompt()
                 val keepOn = vm.settings.keepScreenOn && vm.screen != Screen.HOME
                 LaunchedEffect(keepOn) {
                     if (keepOn) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)

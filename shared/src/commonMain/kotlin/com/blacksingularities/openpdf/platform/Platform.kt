@@ -80,6 +80,18 @@ interface Platform {
     suspend fun installUpdate(file: Path) {}
 
     fun openUrl(url: String)
+
+    // ------------------------------------------------------------------ zgłoszenia
+
+    /** „android” albo „ios” – platforma w zgłoszeniach do redzikowski.com. */
+    val feedbackPlatform: String
+
+    /** System i urządzenie dołączane do zgłoszeń (za zgodą użytkownika). */
+    val osDescription: String get() = ""
+    val deviceDescription: String get() = ""
+
+    /** POST z treścią JSON (zapytanie blokujące – wywoływane w tle). Zwraca kod HTTP. */
+    fun postJson(url: String, body: String): Int
 }
 
 data class DocMeta(val name: String, val size: Long)
