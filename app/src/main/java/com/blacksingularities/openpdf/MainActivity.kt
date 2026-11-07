@@ -39,7 +39,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Feedback.install(this, "openpdf")
+        // Nieprzechwycona awaria: zapis we wspólnym module zgłoszeń, pytanie o raport przy następnym starcie.
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, error ->
+            runCatching { Feedback.recordCrash(vm.platform, error.stackTraceToString()) }
+            previous?.uncaughtException(thread, error)
+        }
         enableEdgeToEdge()
         WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = false
         UpdateManager.clearUpdatedNotification(this)
@@ -59,7 +64,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             OpenPdfTheme {
-                CrashReportPrompt()
+                CrashReportPrompt(vm.platform)
                 val keepOn = vm.settings.keepScreenOn && vm.screen != Screen.HOME
                 LaunchedEffect(keepOn) {
                     if (keepOn) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
