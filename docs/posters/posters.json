@@ -1,0 +1,23 @@
+{
+  "slug": "openpdf",
+  "name": "OpenDocument",
+  "label": "czytnik dokumentów i edytor PDF",
+  "icon": "icon.png",
+  "url": "https://redzikowski.com/portfolio/openpdf",
+  "posters": [
+    {
+      "platform": "android",
+      "file": "android.png",
+      "title": "Każdy dokument *jak książka*",
+      "lead": "PDF, DjVu, EPUB, DOCX i kilka innych formatów w jednym czytniku, z adnotacjami, które potem otworzy Acrobat.",
+      "shots": [
+        { "src": "../screenshots/android/04-biblioteka.png", "caption": "Biblioteka" },
+        { "src": "../screenshots/android/01-czytanie.png", "caption": "Czytanie" },
+        { "src": "../screenshots/android/02-adnotacje.png", "caption": "Adnotacje" },
+        { "src": "../screenshots/android/03-strony.png", "caption": "Strony" }
+      ],
+      "features": ["PDF, DjVu, EPUB, DOCX, ODT", "tryb książki", "zakreślacz, pióro i notatki", "formularze i podpisy", "scalanie plików", "hasło AES-256"],
+      "meta": "Android 10 lub nowszy"
+    }
+  ]
+}

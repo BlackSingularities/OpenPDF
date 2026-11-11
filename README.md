@@ -1,5 +1,13 @@
 # OpenDocument
 
+<!-- posters:start -->
+<p align="center">
+  <img src="docs/posters/android.png" alt="OpenDocument – Android" width="460">
+</p>
+
+<p align="center"><a href="https://redzikowski.com/portfolio/openpdf">redzikowski.com/portfolio/openpdf</a></p>
+<!-- posters:end -->
+
 **Otwarty czytnik dokumentów i pełnoprawny edytor PDF dla Androida i iOS** – PDF, DjVu, EPUB, FB2, DOCX, ODT, RTF, Markdown, HTML i tekst; czytanie w trybie książki, adnotacje zapisywane w standardzie PDF, podpisy, formularze i pełna praca na stronach.
 
 [![Build & Release](../../actions/workflows/android.yml/badge.svg)](../../actions/workflows/android.yml)
