@@ -2,7 +2,8 @@
 
 <!-- posters:start -->
 <p align="center">
-  <img src="docs/posters/android.png" alt="OpenDocument – Android" width="460">
+  <img src="docs/posters/android.png" alt="OpenDocument – Android" width="400">
+  <img src="docs/posters/windows.png" alt="OpenDocument – Windows" width="400">
 </p>
 
 <p align="center"><a href="https://redzikowski.com/portfolio/openpdf">redzikowski.com/portfolio/openpdf</a></p>

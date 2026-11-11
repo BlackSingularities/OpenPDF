@@ -11,13 +11,61 @@
       "title": "Każdy dokument *jak książka*",
       "lead": "PDF, DjVu, EPUB, DOCX i kilka innych formatów w jednym czytniku, z adnotacjami, które potem otworzy Acrobat.",
       "shots": [
-        { "src": "../screenshots/android/04-biblioteka.png", "caption": "Biblioteka" },
-        { "src": "../screenshots/android/01-czytanie.png", "caption": "Czytanie" },
-        { "src": "../screenshots/android/02-adnotacje.png", "caption": "Adnotacje" },
-        { "src": "../screenshots/android/03-strony.png", "caption": "Strony" }
+        {
+          "src": "../screenshots/android/04-biblioteka.png",
+          "caption": "Biblioteka"
+        },
+        {
+          "src": "../screenshots/android/01-czytanie.png",
+          "caption": "Czytanie"
+        },
+        {
+          "src": "../screenshots/android/02-adnotacje.png",
+          "caption": "Adnotacje"
+        },
+        {
+          "src": "../screenshots/android/03-strony.png",
+          "caption": "Strony"
+        }
       ],
-      "features": ["PDF, DjVu, EPUB, DOCX, ODT", "tryb książki", "zakreślacz, pióro i notatki", "formularze i podpisy", "scalanie plików", "hasło AES-256"],
+      "features": [
+        "PDF, DjVu, EPUB, DOCX, ODT",
+        "tryb książki",
+        "zakreślacz, pióro i notatki",
+        "formularze i podpisy",
+        "scalanie plików",
+        "hasło AES-256"
+      ],
       "meta": "Android 10 lub nowszy"
+    },
+    {
+      "platform": "windows",
+      "file": "windows.png",
+      "title": "Każdy dokument *jak książka*",
+      "lead": "Rozkładówki jak w papierowym wydaniu, zakreślacz i notatki zapisywane w samym PDF oraz biblioteka ostatnio czytanych plików.",
+      "shots": [
+        {
+          "src": "../screenshots/windows/01-ksiazka.png",
+          "caption": "Tryb książki"
+        },
+        {
+          "src": "../screenshots/windows/02-adnotacje.png",
+          "caption": "Zakreślenia, notatki i pióro"
+        },
+        {
+          "src": "../screenshots/windows/03-raport.png",
+          "caption": "Dwie strony obok siebie"
+        }
+      ],
+      "features": [
+        "PDF, DjVu, EPUB, DOCX, ODT",
+        "karty i miniatury stron",
+        "adnotacje czytelne w Acrobacie",
+        "formularze i podpisy",
+        "scalanie i PDF z obrazów",
+        "hasło AES-256"
+      ],
+      "meta": "Windows 10 i 11"
     }
   ]
 }
