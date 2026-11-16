@@ -35,7 +35,7 @@ enum class Tool(private val pl: String) {
 
 data class ToolStyle(val color: Int, val width: Float, val fill: Boolean = false)
 
-enum class Sheet { OUTLINE, ANNOTATIONS, FORM, INFO, SECURITY, COMPRESS, EXPORT, MORE, SETTINGS, TEXT, SIGNATURES }
+enum class Sheet { OUTLINE, ANNOTATIONS, FORM, INFO, SECURITY, COMPRESS, EXPORT, MORE, SETTINGS, TEXT, SIGNATURES, SPLIT, CROP }
 
 /**
  * Otwarty dokument: plik roboczy w katalogu sesji i miejsce, z którego pochodzi. [converted] –
@@ -68,6 +68,10 @@ fun baseName(name: String): String {
 
 /** Nazwa pliku PDF dla dokumentu („Raport.docx” → „Raport.pdf”). */
 fun pdfFileName(name: String): String = if (name.endsWith(".pdf", ignoreCase = true)) name else baseName(name) + ".pdf"
+
+const val PDF_MIME = "application/pdf"
+const val ZIP_MIME = "application/zip"
+const val DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 data class Busy(val label: String, val progress: Float? = null)
 

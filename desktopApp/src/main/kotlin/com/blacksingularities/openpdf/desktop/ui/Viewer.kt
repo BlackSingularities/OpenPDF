@@ -772,6 +772,7 @@ private fun PageView(app: AppState, tab: DocTab, handle: ViewerHandle, page: Int
             .onGloballyPositioned { c -> bounds = Rect(c.positionInWindow(), Size(boxW.toFloat(), boxH.toFloat())) }
             .pointerHoverIcon(
                 when {
+                    app.placingField != null -> PointerIcon.Crosshair
                     tool == Tool.PEN || tool == Tool.MARKER || tool == Tool.SHAPE || tool == Tool.NOTE -> PointerIcon.Crosshair
                     tool == Tool.ERASER -> if (hoverErase != null) PointerIcon.Hand else PointerIcon.Crosshair
                     tool == Tool.TEXT -> PointerIcon.Text
@@ -822,6 +823,18 @@ private fun PageView(app: AppState, tab: DocTab, handle: ViewerHandle, page: Int
                                 scope.launch { tab.hscroll.scrollBy(-d.x) }
                                 c.consume()
                             }
+                            continue
+                        }
+
+                        // Wstawianie pola formularza: pole pojawia się w miejscu kliknięcia.
+                        val placing = app.placingField
+                        if (placing != null) {
+                            ch.consume()
+                            while (true) {
+                                val e = awaitPointerEvent()
+                                if (e.type == PointerEventType.Release || e.changes.none { it.pressed }) break
+                            }
+                            if (canEdit) tab.addField(placing, page, n0)
                             continue
                         }
 

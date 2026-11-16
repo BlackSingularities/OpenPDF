@@ -46,6 +46,22 @@ import com.blacksingularities.openpdf.pdf.TextIndex
 import com.blacksingularities.openpdf.pdf.TEXT_LEADING
 import com.blacksingularities.openpdf.pdf.TEXT_PAD
 import com.blacksingularities.openpdf.pdf.TextMark
+import com.blacksingularities.openpdf.pdf.DocxWriter
+import com.blacksingularities.openpdf.pdf.NewField
+import com.blacksingularities.openpdf.pdf.SplitPart
+import com.blacksingularities.openpdf.pdf.SplitPlan
+import com.blacksingularities.openpdf.pdf.ZipItem
+import com.blacksingularities.openpdf.pdf.cropRect
+import com.blacksingularities.openpdf.pdf.detectMargins
+import com.blacksingularities.openpdf.pdf.halfMargins
+import com.blacksingularities.openpdf.pdf.halvesPlan
+import com.blacksingularities.openpdf.pdf.mixOrder
+import com.blacksingularities.openpdf.pdf.newFieldName
+import com.blacksingularities.openpdf.pdf.newFieldRect
+import com.blacksingularities.openpdf.pdf.safeFileName
+import com.blacksingularities.openpdf.pdf.splitPartName
+import com.blacksingularities.openpdf.pdf.validCrop
+import com.blacksingularities.openpdf.pdf.writeZip
 import com.blacksingularities.openpdf.pdf.resizable
 import com.blacksingularities.openpdf.pdf.resized
 import com.blacksingularities.openpdf.pdf.simplify
@@ -545,29 +561,62 @@ class PdfViewModel(val platform: Platform) : ViewModel() {
         }
     }
 
-    /** Scala wiele plików PDF w nowy dokument. */
+    /** Pliki wybrane do scalenia – okno wyboru sposobu: kolejno albo na przemian (strona po stronie). */
+    var mergeRequest by mutableStateOf<List<String>?>(null)
+
+    /** Wybrane pliki PDF: pyta o sposób scalania (pojedynczy plik – po prostu go otwiera). */
     fun mergeFiles(uris: List<String>) {
         if (uris.size < 2) {
             uris.firstOrNull()?.let { open(it) }
             return
         }
+        mergeRequest = uris
+    }
+
+    /** Liczba stron pliku PDF (odczyt struktury; kopia do wyświetlania od razu usuwana). */
+    private fun pageCountOf(f: Path): Int {
+        val tmp = f.parent!! / (f.name + ".count.pdf")
+        return try {
+            engine.buildIndex(f, tmp).first.pageCount
+        } finally {
+            tmp.delete()
+        }
+    }
+
+    /**
+     * Scala pliki w nowy dokument: kolejno albo – gdy [alternate] – na przemian, strona po stronie
+     * (np. przednie i tylne strony skanu dwustronnego). [reverseOthers] – pliki po pierwszym brane od końca.
+     */
+    fun merge(uris: List<String>, alternate: Boolean, reverseOthers: Boolean) {
+        mergeRequest = null
+        if (uris.size < 2) return
         viewModelScope.launch {
-            if (!confirmDiscardIfNeeded { mergeFiles(uris) }) return@launch
+            if (!confirmDiscardIfNeeded { merge(uris, alternate, reverseOthers) }) return@launch
             busy = Busy(tr("Scalanie {0} plików…", uris.size))
             try {
                 val dir = newSessionDir()
                 val first = dir / "merge-0.pdf"
-                withContext(ioDispatcher) { copyUri(uris[0], first) }
+                val counts = ArrayList<Int>()
+                withContext(ioDispatcher) {
+                    copyUri(uris[0], first)
+                    if (alternate) counts += pageCountOf(first)
+                }
                 for ((i, u) in uris.drop(1).withIndex()) {
                     busy = Busy(tr("Scalanie {0} z {1}…", i + 2, uris.size), (i + 1f) / uris.size)
                     val f = dir / "merge-${i + 1}.pdf"
                     withContext(ioDispatcher) {
                         copyUri(u, f)
+                        if (alternate) counts += pageCountOf(f)
                         engine.insertPdf(first, f, null, null)
                         f.delete()
                     }
                 }
-                openLocal(first, tr("Scalony dokument.pdf"))
+                if (alternate) {
+                    busy = Busy(tr("Przeplatanie stron…"))
+                    val reverse = listOf(false) + List(counts.size - 1) { reverseOthers }
+                    withContext(ioDispatcher) { engine.reorderPages(first, mixOrder(counts, reverse)) }
+                }
+                openLocal(first, if (alternate) tr("Przeplecione strony.pdf") else tr("Scalony dokument.pdf"))
             } catch (e: PasswordRequiredException) {
                 toast(tr("Jeden z plików jest chroniony hasłem – otwórz go i zapisz bez hasła przed scaleniem"))
             } catch (e: Throwable) {
@@ -909,6 +958,10 @@ class PdfViewModel(val platform: Platform) : ViewModel() {
 
     /** Dotknięcie w trybie przeglądania: odnośniki, notatki, pola formularza. Zwraca true, gdy obsłużone. */
     fun viewTap(page: Int, p: PointN): Boolean {
+        placingField?.let { kind ->
+            addField(kind, page, p)
+            return true
+        }
         val tol = 0.01f
         index.fields.firstOrNull { f -> f.widgets.any { it.page == page && it.rect.contains(p, tol) } }?.let { f ->
             if (f.kind != FieldKind.BUTTON && f.kind != FieldKind.SIGNATURE) {
@@ -933,6 +986,10 @@ class PdfViewModel(val platform: Platform) : ViewModel() {
 
     /** Dotknięcie w trybie edycji (narzędzia punktowe). */
     fun editTap(page: Int, p: PointN) {
+        placingField?.let { kind ->
+            addField(kind, page, p)
+            return
+        }
         when (tool) {
             Tool.TEXT -> {
                 val existing = marks.lastOrNull { it.page == page && it is TextMark && it.hit(p, 0.005f) } as? TextMark
@@ -1356,6 +1413,163 @@ class PdfViewModel(val platform: Platform) : ViewModel() {
                 }
             }
         }
+    }
+
+    // ------------------------------------------------------------------ narzędzia: podział, przycinanie, Word, pola
+
+    /** Plik z bieżącą treścią (z elementami oczekującymi) do operacji, które nie zmieniają dokumentu. */
+    private suspend fun currentCopy(d: OpenDoc, name: String): Path = withContext(ioDispatcher) {
+        if (marks.isEmpty()) {
+            d.source
+        } else {
+            val tmp = d.dir / name
+            tmp.delete()
+            d.source.copyTo(tmp)
+            engine.commitMarks(tmp, marks, settings.author)
+            tmp
+        }
+    }
+
+    /** Dzieli dokument na części według planu: jedna część – plik PDF, kilka – archiwum ZIP z plikami PDF. */
+    fun splitInto(parts: List<SplitPart>) {
+        val d = doc ?: return
+        if (parts.isEmpty()) {
+            toast(tr("Brak stron do podziału – sprawdź ustawienia"))
+            return
+        }
+        viewModelScope.launch {
+            busy = Busy(tr("Dzielenie dokumentu…"), 0f)
+            try {
+                val base = safeFileName(baseName(d.name)).take(80).ifBlank { tr("Dokument") }
+                val dir = (d.dir / "split-${newId()}").mkdirs()
+                val src = currentCopy(d, "split-src.pdf")
+                val files = ArrayList<ZipItem>()
+                for ((i, part) in parts.withIndex()) {
+                    busy = Busy(tr("Dzielenie dokumentu: część {0} z {1}", i + 1, parts.size), i.toFloat() / parts.size)
+                    val f = dir / "part-$i.pdf"
+                    withContext(ioDispatcher) { engine.extractPages(src, part.pages, f) }
+                    files += ZipItem(splitPartName(base, i, parts.size, part, tr("część"), tr("s.")), file = f)
+                }
+                if (src != d.source) src.delete()
+                if (files.size == 1) {
+                    requestSave(SaveTarget.FileCopy(files[0].file!!, PDF_MIME), files[0].name, PDF_MIME)
+                } else {
+                    busy = Busy(tr("Pakowanie {0} plików…", files.size))
+                    val zip = d.dir / "split-${newId()}.zip"
+                    withContext(ioDispatcher) { writeZip(fileSystem, zip, files) }
+                    requestSave(SaveTarget.FileCopy(zip, ZIP_MIME), "$base.zip", ZIP_MIME)
+                }
+            } catch (e: Throwable) {
+                toast(tr("Nie udało się podzielić dokumentu: {0}", e.message))
+            } finally {
+                busy = null
+            }
+        }
+    }
+
+    /** Podział na części nie większe niż [maxMb] MB (rozmiar stron szacowany z zapasem). */
+    fun splitBySize(maxMb: Float) {
+        val d = doc ?: return
+        viewModelScope.launch {
+            busy = Busy(tr("Szacowanie rozmiaru stron…"))
+            val bytes = try {
+                withContext(ioDispatcher) { engine.pageBytes(d.source) }
+            } catch (e: Throwable) {
+                toast(tr("Nie udało się podzielić dokumentu: {0}", e.message))
+                null
+            } finally {
+                busy = null
+            }
+            if (bytes != null) splitInto(SplitPlan.bySize(bytes, (maxMb * 1024f * 1024f).toLong().coerceAtLeast(10_000L)))
+        }
+    }
+
+    /** Podział według tekstu: nowy plik zaczyna się na każdej stronie, na której występuje [query]. */
+    fun splitByText(query: String) {
+        val ti = textIndex ?: return
+        if (query.isBlank()) return
+        viewModelScope.launch {
+            busy = Busy(tr("Szukanie tekstu…"), 0f)
+            val starts = try {
+                ti.pagesContaining(query) { busy = Busy(tr("Szukanie tekstu…"), it) }
+            } finally {
+                busy = null
+            }
+            if (starts.isEmpty()) toast(tr("Nie znaleziono „{0}” w dokumencie", query.trim())) else splitInto(SplitPlan.byStarts(starts, index.pageCount))
+        }
+    }
+
+    /** Dzieli strony [pages] na połowy (skany rozkładówek); [swap] – najpierw prawa (dolna) połowa. */
+    fun splitHalves(pages: Collection<Int>, vertical: Boolean, swap: Boolean) {
+        if (pages.isEmpty()) return
+        launchMutate(tr("Dzielenie stron na pół")) { f ->
+            engine.duplicatePages(f, pages)
+            val (first, second) = halvesPlan(pages, swap)
+            engine.cropPages(f, first, cropRect(halfMargins(vertical, second = false)))
+            engine.cropPages(f, second, cropRect(halfMargins(vertical, second = true)))
+        }
+    }
+
+    /** Przycina strony [pages] o marginesy (lewy, górny, prawy, dolny – ułamki strony). */
+    fun cropPages(pages: Collection<Int>, margins: FloatArray) {
+        if (pages.isEmpty() || margins.all { it <= 0f }) return
+        if (!validCrop(margins)) {
+            toast(tr("Marginesy są za duże – ze strony nic by nie zostało"))
+            return
+        }
+        launchMutate(tr("Przycinanie stron")) { engine.cropPages(it, pages, cropRect(margins)) }
+    }
+
+    /** Jasne marginesy wykryte na obrazie strony [page] albo null. */
+    suspend fun autoMargins(page: Int): FloatArray? {
+        val r = render ?: return null
+        val bmp = r.renderPage(page, 480) ?: return null
+        val px = IntArray(bmp.width * bmp.height)
+        bmp.readPixels(px)
+        return withContext(ioDispatcher) { detectMargins(px, bmp.width, bmp.height) }
+    }
+
+    /** Eksport tekstu dokumentu do pliku Word (.docx). */
+    fun exportWord() {
+        val d = doc ?: return
+        val ti = textIndex ?: return
+        viewModelScope.launch {
+            busy = Busy(tr("Eksport do Worda…"), 0f)
+            try {
+                val pages = ti.allPages { busy = Busy(tr("Eksport do Worda…"), it * 0.95f) }
+                val g = index.geos.firstOrNull()
+                val out = d.dir / "word-${newId()}.docx"
+                val count = withContext(ioDispatcher) {
+                    DocxWriter.write(fileSystem, out, pages, g?.displayWidth ?: A4_WIDTH_PT, g?.displayHeight ?: A4_HEIGHT_PT, baseName(d.name))
+                }
+                if (count == 0) {
+                    out.delete()
+                    toast(tr("Dokument nie zawiera tekstu (to prawdopodobnie skan) – nie ma czego przenieść do Worda"))
+                } else {
+                    requestSave(SaveTarget.FileCopy(out, DOCX_MIME), safeFileName(baseName(d.name)) + ".docx", DOCX_MIME)
+                }
+            } catch (e: Throwable) {
+                toast(tr("Eksport do Worda nie powiódł się: {0}", e.message))
+            } finally {
+                busy = null
+            }
+        }
+    }
+
+    /** Rodzaj pola wstawianego dotknięciem strony (null – zwykła praca z dokumentem). */
+    var placingField by mutableStateOf<FieldKind?>(null)
+
+    fun startPlacingField(kind: FieldKind) {
+        if (editing) changeEditing(false)
+        sheet = null
+        placingField = kind
+    }
+
+    private fun addField(kind: FieldKind, page: Int, p: PointN) {
+        if (busy != null) return
+        val rect = newFieldRect(kind, p, pageWidthPt(page), pageHeightPt(page))
+        val name = newFieldName(kind, index.fields.map { it.name }, tr("Pole"), tr("Pole wyboru"))
+        launchMutate(tr("Dodawanie pola formularza")) { engine.addFormFields(it, listOf(NewField(page, rect, kind, name))) }
     }
 
     // ------------------------------------------------------------------ zapis, udostępnianie, eksport

@@ -23,7 +23,9 @@ import androidx.core.content.FileProvider
 import com.blacksingularities.openpdf.i18n.tr
 import com.blacksingularities.openpdf.platform.LocalPlatformUi
 import com.blacksingularities.openpdf.platform.PlatformUi
+import com.blacksingularities.openpdf.ui.DOCX_MIME
 import com.blacksingularities.openpdf.ui.PdfViewModel
+import com.blacksingularities.openpdf.ui.ZIP_MIME
 import okio.Path
 import java.io.File
 import java.io.FileInputStream
@@ -52,6 +54,8 @@ fun ProvideAndroidPlatformUi(vm: PdfViewModel, content: @Composable () -> Unit) 
     ui.placeLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { vm.placeImage(it?.toString()) }
     ui.savePdf = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { vm.onSaveLocation(it?.toString()) }
     ui.saveText = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { vm.onSaveLocation(it?.toString()) }
+    ui.saveZip = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(ZIP_MIME)) { vm.onSaveLocation(it?.toString()) }
+    ui.saveDocx = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(DOCX_MIME)) { vm.onSaveLocation(it?.toString()) }
     CompositionLocalProvider(LocalPlatformUi provides ui, content = content)
 }
 
@@ -64,6 +68,8 @@ private class AndroidPlatformUi(private val context: Context, private val vm: Pd
     lateinit var placeLauncher: ManagedActivityResultLauncher<String, Uri?>
     lateinit var savePdf: ManagedActivityResultLauncher<String, Uri?>
     lateinit var saveText: ManagedActivityResultLauncher<String, Uri?>
+    lateinit var saveZip: ManagedActivityResultLauncher<String, Uri?>
+    lateinit var saveDocx: ManagedActivityResultLauncher<String, Uri?>
 
     /** Pozycja wstawiania stron z pliku lub obrazów (ostatnie wywołanie). */
     var insertAt = 0
@@ -96,7 +102,12 @@ private class AndroidPlatformUi(private val context: Context, private val vm: Pd
     override fun pickImageForPlacement() = launch(tr("Brak aplikacji do wyboru obrazu")) { placeLauncher.launch("image/*") }
 
     override fun saveAs(name: String, mime: String) = launch(tr("Brak aplikacji do wyboru miejsca zapisu")) {
-        if (mime == "text/plain") saveText.launch(name) else savePdf.launch(name)
+        when (mime) {
+            "text/plain" -> saveText.launch(name)
+            ZIP_MIME -> saveZip.launch(name)
+            DOCX_MIME -> saveDocx.launch(name)
+            else -> savePdf.launch(name)
+        }
     }
 
     override fun share(file: Path, mime: String) {

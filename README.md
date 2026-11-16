@@ -60,8 +60,13 @@ Oryginał pozostaje nietknięty; po zmianach dokument zapisuje się jako nowy PD
 
 ### Strony i dokument
 - Obracanie, usuwanie, powielanie, zmiana kolejności, wstawianie pustych stron, innych PDF-ów i obrazów, wyodrębnianie do nowego pliku.
-- Nowy dokument, PDF z obrazów, scalanie wielu plików.
-- Formularze (pola tekstowe, wyboru, pola zaznaczenia), spłaszczanie formularza.
+- **Podział dokumentu** na osobne pliki: według zakresów, co N stron (także każda strona osobno), według zakładek (rozdziałów), rozmiaru pliku albo tekstu rozpoczynającego część; na telefonie części trafiają do jednego archiwum ZIP.
+- **Strony na pół** – skan rozkładówki zamienia się w dwie strony (cięcie pionowe lub poziome, także od prawej).
+- **Przycinanie marginesów** – ręcznie albo z automatycznym wykrywaniem białych brzegów, dla bieżącej, wszystkich lub wybranych stron, z podglądem.
+- Nowy dokument, PDF z obrazów, **scalanie** wielu plików – kolejno albo **na przemian** (strona po stronie, np. skan stron przednich i tylnych, z odwróceniem kolejności).
+- Formularze: wypełnianie, **tworzenie pól** (tekstowe i pola wyboru), spłaszczanie formularza.
+- **Eksport do Worda (.docx)** – tekst z akapitami i nagłówkami.
+- Wszystkie narzędzia działają dla każdego obsługiwanego formatu (EPUB, DjVu, DOCX… są najpierw składane w PDF).
 - Wyszukiwanie (bez względu na polskie znaki), spis treści, zakładki, kopiowanie tekstu.
 - Hasło AES-256, właściwości dokumentu, kompresja obrazów, eksport stron do PNG/JPG, wyodrębnianie tekstu, druk, udostępnianie.
 - Cofanie i ponawianie wszystkich zmian – także operacji na stronach.

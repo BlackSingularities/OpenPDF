@@ -11,7 +11,9 @@ import com.blacksingularities.openpdf.pdf.FieldEdit
 import com.blacksingularities.openpdf.pdf.InfoEdit
 import com.blacksingularities.openpdf.pdf.LinkInfo
 import com.blacksingularities.openpdf.pdf.Mark
+import com.blacksingularities.openpdf.pdf.NewField
 import com.blacksingularities.openpdf.pdf.OutlineEntry
+import com.blacksingularities.openpdf.pdf.RectN
 import com.blacksingularities.openpdf.pdf.PageGeo
 import com.blacksingularities.openpdf.pdf.PageText
 import com.blacksingularities.openpdf.pdf.normalizeRotation
@@ -234,6 +236,10 @@ class DesktopPdfEngine : PdfEngine {
     override fun extractPages(file: Path, pages: Collection<Int>, out: Path) = PdfOps.extractPages(file.f, pages, out.f)
     override fun insertImages(file: Path, images: List<Path>, at: Int) = PdfOps.insertImages(file.f, images.map { it.f }, at)
     override fun createBlank(out: Path, pages: Int, widthPt: Float, heightPt: Float) = PdfOps.createBlank(out.f, pages, PDRectangle(widthPt, heightPt))
+    override fun cropPages(file: Path, pages: Collection<Int>, rect: RectN) = PdfOps.cropPages(file.f, pages, rect)
+    override fun reorderPages(file: Path, order: List<Int>) = PdfOps.reorderPages(file.f, order)
+    override fun pageBytes(file: Path): LongArray = PdfOps.pageBytes(file.f)
+    override fun addFormFields(file: Path, fields: List<NewField>) = PdfOps.addFormFields(file.f, fields)
     override fun fillFields(file: Path, edits: List<FieldEdit>): List<String> = PdfOps.fillFields(file.f, edits)
     override fun flattenForm(file: Path) = PdfOps.flattenForm(file.f)
     override fun setInfo(file: Path, e: InfoEdit) = PdfOps.setInfo(file.f, e)

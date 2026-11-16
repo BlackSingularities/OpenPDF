@@ -17,6 +17,7 @@ import com.blacksingularities.openpdf.pdf.LinkInfo
 import com.blacksingularities.openpdf.pdf.Mark
 import com.blacksingularities.openpdf.pdf.MarkupKind
 import com.blacksingularities.openpdf.pdf.MarkupMark
+import com.blacksingularities.openpdf.pdf.NewField
 import com.blacksingularities.openpdf.pdf.NoteMark
 import com.blacksingularities.openpdf.pdf.OutlineEntry
 import com.blacksingularities.openpdf.pdf.PageGeo
@@ -445,6 +446,61 @@ class IosPdfEngine : PdfEngine {
 
     override fun createBlank(out: Path, pages: Int, widthPt: Float, heightPt: Float) {
         write(blankPages(pages, widthPt.toDouble(), heightPt.toDouble()), out)
+    }
+
+    // ------------------------------------------------------------------ przycinanie, kolejność, rozmiar, pola
+
+    override fun cropPages(file: Path, pages: Collection<Int>, rect: RectN) = edit(file) { d ->
+        for (i in pages.distinct()) {
+            val p = d.pageAtIndex(i.toULong()) ?: continue
+            val r = p.geo().rectToPdf(rect)
+            if (r[2] - r[0] < 1f || r[3] - r[1] < 1f) continue
+            p.setBounds(rectOf(r[0], r[1], r[2], r[3]), forBox = kPDFDisplayBoxCropBox)
+        }
+    }
+
+    override fun reorderPages(file: Path, order: List<Int>) = edit(file) { d ->
+        val pages = d.pages()
+        val n = pages.size
+        require(order.size == n && order.toSet().size == n && order.all { it in 0 until n }) { tr("Nieprawidłowa kolejność stron") }
+        for (i in (0 until n).reversed()) d.removePageAtIndex(i.toULong())
+        order.forEachIndexed { k, i -> d.insertPage(pages[i], atIndex = k.toULong()) }
+    }
+
+    override fun pageBytes(file: Path): LongArray {
+        val d = load(file)
+        return LongArray(d.pageCount.toInt()) { i ->
+            val copy = d.pageAtIndex(i.toULong())?.copy() as? PDFPage
+            if (copy == null) {
+                0L
+            } else {
+                val one = PDFDocument()
+                one.insertPage(copy, atIndex = 0u)
+                one.dataRepresentation()?.length?.toLong() ?: 0L
+            }
+        }
+    }
+
+    override fun addFormFields(file: Path, fields: List<NewField>) = edit(file) { d ->
+        for (f in fields) {
+            val page = d.pageAtIndex(f.page.toULong()) ?: continue
+            val r = page.geo().rectToPdf(f.rect)
+            val a = PDFAnnotation(bounds = rectOf(r[0], r[1], max(r[2], r[0] + 4f), max(r[3], r[1] + 4f)), forType = PDFAnnotationSubtypeWidget!!, withProperties = null)
+            a.fieldName = f.name
+            if (f.kind == FieldKind.CHECKBOX) {
+                a.widgetFieldType = PDFAnnotationWidgetSubtypeButton!!
+                a.widgetControlType = kPDFWidgetCheckBoxControl
+                a.buttonWidgetState = kPDFWidgetOffState
+            } else {
+                a.widgetFieldType = PDFAnnotationWidgetSubtypeText!!
+                a.widgetStringValue = ""
+                a.font = UIFont.systemFontOfSize(11.0)
+            }
+            a.backgroundColor = UIColor.colorWithRed(0.94, green = 0.96, blue = 1.0, alpha = 1.0)
+            a.color = UIColor.colorWithRed(0.35, green = 0.38, blue = 0.5, alpha = 1.0)
+            a.border = PDFBorder().apply { lineWidth = 1.0 }
+            page.addAnnotation(a)
+        }
     }
 
     /**

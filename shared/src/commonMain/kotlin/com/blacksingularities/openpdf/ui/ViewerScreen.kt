@@ -167,6 +167,7 @@ fun ViewerScreen(vm: PdfViewModel) {
     // Nowy dokument (lub jego nowa wersja) – nowy stan widoku zachowuje stronę w PdfViewer.
     PlatformBackHandler(enabled = true) {
         when {
+            vm.placingField != null -> vm.placingField = null
             vm.selection != null -> vm.clearSelection()
             vm.searchActive -> vm.closeSearch()
             vm.editing -> vm.changeEditing(false)
@@ -241,6 +242,35 @@ fun ViewerScreen(vm: PdfViewModel) {
         if (vm.searchActive && vm.searchHits.isNotEmpty() && !vm.editing) {
             Box(Modifier.align(Alignment.BottomEnd).windowInsetsPadding(WindowInsets.safeDrawing).padding(end = 12.dp, bottom = 70.dp)) {
                 SearchResultsButton(vm)
+            }
+        }
+        // Wstawianie pola formularza: dotknięcie strony dodaje pole w tym miejscu.
+        vm.placingField?.let { kind ->
+            Row(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(start = 16.dp, end = 16.dp, bottom = if (vm.editing && !landscape) 84.dp else 64.dp)
+                    .widthIn(max = 520.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(Color.Black.copy(alpha = 0.86f))
+                    .padding(start = 18.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    if (kind == com.blacksingularities.openpdf.pdf.FieldKind.CHECKBOX) tr("Dotknij strony, aby wstawić pole wyboru") else tr("Dotknij strony, aby wstawić pole tekstowe"),
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    tr("Gotowe"),
+                    color = Palette.Ink,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    modifier = Modifier.clip(RoundedCornerShape(50)).background(Palette.Amber).clickable { vm.placingField = null }.padding(horizontal = 14.dp, vertical = 8.dp),
+                )
             }
         }
     }

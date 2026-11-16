@@ -7,8 +7,10 @@ import com.blacksingularities.openpdf.pdf.DocIndex
 import com.blacksingularities.openpdf.pdf.FieldEdit
 import com.blacksingularities.openpdf.pdf.InfoEdit
 import com.blacksingularities.openpdf.pdf.Mark
+import com.blacksingularities.openpdf.pdf.NewField
 import com.blacksingularities.openpdf.pdf.PageGeo
 import com.blacksingularities.openpdf.pdf.PageText
+import com.blacksingularities.openpdf.pdf.RectN
 import okio.Path
 
 /** Plik wymaga hasła (albo podane hasło jest błędne). */
@@ -104,6 +106,21 @@ interface PdfEngine {
     fun insertImages(file: Path, images: List<Path>, at: Int)
     fun createFromImages(images: List<Path>, out: Path)
     fun createBlank(out: Path, pages: Int, widthPt: Float, heightPt: Float)
+
+    /**
+     * Przycina strony [pages]: nowym widocznym obszarem (CropBox) jest prostokąt [rect] obecnie
+     * wyświetlanej strony (współrzędne znormalizowane, po obrocie). Treść poza nim zostaje w pliku.
+     */
+    fun cropPages(file: Path, pages: Collection<Int>, rect: RectN)
+
+    /** Ustawia nową kolejność stron: [order] – permutacja wszystkich indeksów stron. */
+    fun reorderPages(file: Path, order: List<Int>)
+
+    /** Szacowany rozmiar (bajty) każdej strony zapisanej jako osobny plik – do podziału według rozmiaru. */
+    fun pageBytes(file: Path): LongArray
+
+    /** Dodaje puste pola formularza (tekstowe i pola wyboru) z wyglądem widocznym w każdym czytniku. */
+    fun addFormFields(file: Path, fields: List<NewField>)
 
     /**
      * Składa dokument tekstowy (EPUB, DOCX, ODT, FB2…) w strony PDF zapisane w [out]: łamanie

@@ -83,6 +83,31 @@ import com.blacksingularities.openpdf.ui.components.Panel
 import com.blacksingularities.openpdf.ui.components.PillButton
 import com.blacksingularities.openpdf.ui.components.TabChip
 import com.blacksingularities.openpdf.ui.theme.Palette
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.material.icons.rounded.CheckBox
+import androidx.compose.material.icons.rounded.Crop
+import androidx.compose.material.icons.rounded.GridView
+import androidx.compose.material.icons.rounded.SwapHoriz
+import androidx.compose.material.icons.rounded.TextFields
+import androidx.compose.material.icons.rounded.VerticalSplit
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.unit.IntSize
+import com.blacksingularities.openpdf.pdf.SplitMode
+import com.blacksingularities.openpdf.pdf.SplitPart
+import com.blacksingularities.openpdf.pdf.SplitPlan
+import com.blacksingularities.openpdf.pdf.describePages
+import com.blacksingularities.openpdf.pdf.parsePageRanges
+import com.blacksingularities.openpdf.pdf.validCrop
+import com.blacksingularities.openpdf.platform.renderPage
+import com.blacksingularities.openpdf.ui.components.SwitchRow
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 import com.blacksingularities.openpdf.platform.formatDate
 import com.blacksingularities.openpdf.platform.formatDecimal
 import com.blacksingularities.openpdf.platform.fileSystem
@@ -102,6 +127,8 @@ fun ViewerSheets(vm: PdfViewModel) {
         Sheet.TEXT -> TextSheet(vm)
         Sheet.SIGNATURES -> SignaturesSheet(vm)
         Sheet.SETTINGS -> SettingsPanel(vm)
+        Sheet.SPLIT -> SplitSheet(vm)
+        Sheet.CROP -> CropSheet(vm)
         null -> Unit
     }
 }
@@ -121,17 +148,27 @@ fun ColumnScope.DocumentMenu(vm: PdfViewModel) {
             ActionRow(Icons.Rounded.Share, tr("Udostępnij")) { close(vm); vm.share() }
             ActionRow(Icons.Rounded.Print, tr("Drukuj")) { close(vm); vm.print() }
         }
-        Group(tr("Treść")) {
-            ActionRow(Icons.Rounded.FactCheck, tr("Formularz"), if (idx.fields.isEmpty()) tr("Dokument nie ma pól formularza") else tr("Pola do wypełnienia: {0}", idx.fields.count { it.kind != FieldKind.BUTTON && it.kind != FieldKind.SIGNATURE }), enabled = idx.fields.isNotEmpty()) { vm.sheet = Sheet.FORM }
+        Group(tr("Edycja i podpis")) {
             ActionRow(Icons.Rounded.Layers, tr("Adnotacje"), tr("W pliku: {0} · niezapisane: {1}", idx.annotCount, vm.marks.size)) { vm.sheet = Sheet.ANNOTATIONS }
-            ActionRow(Icons.Rounded.Notes, tr("Wyodrębnij tekst"), tr("Cały tekst dokumentu do skopiowania lub zapisu")) { close(vm); vm.extractText() }
             ActionRow(Icons.Rounded.Draw, tr("Podpisy"), tr("Zapisane podpisy i nowy podpis")) { vm.sheet = Sheet.SIGNATURES }
+            ActionRow(
+                Icons.Rounded.FactCheck,
+                tr("Formularz"),
+                if (idx.fields.isEmpty()) tr("Brak pól – dodaj pola tekstowe i pola wyboru") else tr("Pola do wypełnienia: {0} · dodawanie pól", idx.fields.count { it.kind != FieldKind.BUTTON && it.kind != FieldKind.SIGNATURE }),
+            ) { vm.sheet = Sheet.FORM }
+        }
+        Group(tr("Strony")) {
+            ActionRow(Icons.Rounded.GridView, tr("Porządkuj strony"), tr("Kolejność, obracanie, usuwanie, wstawianie, wyodrębnianie")) { close(vm); vm.screen = Screen.PAGES }
+            ActionRow(Icons.Rounded.CallSplit, tr("Podziel dokument"), tr("Zakresy, co N stron, zakładki, rozmiar, tekst, strony na pół")) { vm.sheet = Sheet.SPLIT }
+            ActionRow(Icons.Rounded.Crop, tr("Przytnij marginesy"), tr("Ręcznie albo automatycznie, dla wybranych stron")) { vm.sheet = Sheet.CROP }
+        }
+        Group(tr("Konwersja")) {
+            ActionRow(Icons.Rounded.Description, tr("Eksport do Worda (.docx)"), tr("Tekst z akapitami i nagłówkami do dalszej edycji")) { close(vm); vm.exportWord() }
+            ActionRow(Icons.Rounded.Image, tr("Eksport stron jako obrazy"), tr("PNG lub JPG do galerii")) { vm.sheet = Sheet.EXPORT }
+            ActionRow(Icons.Rounded.Notes, tr("Wyodrębnij tekst"), tr("Cały tekst dokumentu do skopiowania lub zapisu")) { close(vm); vm.extractText() }
         }
         Group(tr("Narzędzia")) {
-            ActionRow(Icons.Rounded.Image, tr("Eksport stron jako obrazy"), tr("PNG lub JPG do galerii")) { vm.sheet = Sheet.EXPORT }
             ActionRow(Icons.Rounded.Compress, tr("Zmniejsz rozmiar"), tr("Kompresja obrazów w dokumencie")) { vm.compressResult = null; vm.sheet = Sheet.COMPRESS }
-            ActionRow(Icons.Rounded.MergeType, tr("Wstaw strony z innego PDF"), tr("Na końcu dokumentu – kolejność zmienisz w widoku stron")) { close(vm); vm.screen = Screen.PAGES }
-            ActionRow(Icons.Rounded.CallSplit, tr("Wyodrębnij lub podziel strony"), tr("W widoku stron zaznacz strony i wybierz „Wyodrębnij”")) { close(vm); vm.screen = Screen.PAGES }
             ActionRow(Icons.Rounded.Lock, tr("Hasło i ochrona"), if (vm.protection != null) tr("Dokument będzie zapisany z hasłem") else tr("Bez hasła")) { vm.sheet = Sheet.SECURITY }
             ActionRow(Icons.Rounded.Info, tr("Właściwości"), tr("Tytuł, autor, temat, informacje o pliku")) { vm.sheet = Sheet.INFO }
         }
@@ -283,8 +320,17 @@ private fun AnnotationsSheet(vm: PdfViewModel) {
 private fun FormSheet(vm: PdfViewModel) {
     val fields = vm.index.fields.filter { it.kind != FieldKind.BUTTON }
     Panel(tr("Formularz"), onClose = { close(vm) }) {
-        Text(tr("Pola są podświetlone na stronach – dotknij pola w dokumencie albo na liście."), color = Palette.TextDim, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 6.dp))
-        Group(tr("Pola ({0})", fields.size)) {
+        Group(tr("Utwórz formularz")) {
+            ActionRow(Icons.Rounded.TextFields, tr("Dodaj pole tekstowe"), tr("Potem dotknij miejsca na stronie")) { vm.startPlacingField(FieldKind.TEXT) }
+            ActionRow(Icons.Rounded.CheckBox, tr("Dodaj pole wyboru"), tr("Kwadrat do zaznaczenia – potem dotknij strony")) { vm.startPlacingField(FieldKind.CHECKBOX) }
+        }
+        Text(
+            if (fields.isEmpty()) tr("Dokument nie ma jeszcze pól formularza.") else tr("Pola są podświetlone na stronach – dotknij pola w dokumencie albo na liście."),
+            color = Palette.TextDim,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(horizontal = 6.dp),
+        )
+        if (fields.isNotEmpty()) Group(tr("Pola ({0})", fields.size)) {
             fields.forEach { f ->
                 val value = when (f.kind) {
                     FieldKind.CHECKBOX -> if (f.value == "true") tr("Zaznaczone") else tr("Niezaznaczone")
@@ -302,7 +348,7 @@ private fun FormSheet(vm: PdfViewModel) {
                 }
             }
         }
-        Group(null) {
+        if (fields.isNotEmpty()) Group(null) {
             ActionRow(Icons.Rounded.Layers, tr("Spłaszcz formularz"), tr("Wartości staną się zwykłą treścią stron – pól nie da się już edytować")) { vm.flattenForm(); close(vm) }
         }
     }
@@ -541,6 +587,200 @@ fun SignaturePreview(sig: SavedSignature, modifier: Modifier = Modifier) {
             p.moveTo(ox + s[0].x * w, oy + s[0].y * h)
             for (i in 1 until s.size) p.lineTo(ox + s[i].x * w, oy + s[i].y * h)
             drawPath(p, Color(0xFF0D2A6B), style = Stroke(2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+        }
+    }
+}
+
+// ------------------------------------------------------------------ podział dokumentu
+
+private fun splitModeLabel(m: SplitMode): String = when (m) {
+    SplitMode.RANGES -> tr("Zakresy")
+    SplitMode.EVERY -> tr("Co N stron")
+    SplitMode.BOOKMARKS -> tr("Zakładki")
+    SplitMode.SIZE -> tr("Rozmiar")
+    SplitMode.TEXT -> tr("Tekst")
+}
+
+@Composable
+private fun SplitSheet(vm: PdfViewModel) {
+    val n = vm.index.pageCount
+    val outline = vm.index.outline
+    val levels = SplitPlan.outlineLevels(outline)
+    var mode by remember { mutableStateOf(SplitMode.RANGES) }
+    var ranges by remember { mutableStateOf(if (n > 1) "1-${(n + 1) / 2}, ${(n + 1) / 2 + 1}-$n" else "1") }
+    var every by remember { mutableStateOf("1") }
+    var level by remember { mutableStateOf(0) }
+    var sizeMb by remember { mutableStateOf("10") }
+    var text by remember { mutableStateOf("") }
+    var vertical by remember { mutableStateOf(true) }
+    var swap by remember { mutableStateOf(false) }
+    var allPages by remember { mutableStateOf(true) }
+    Panel(tr("Podziel dokument"), onClose = { close(vm) }) {
+        Text(
+            tr("Części zapisujesz jako osobne pliki PDF – kilka części trafia do jednego archiwum ZIP. Bieżący dokument się nie zmienia."),
+            color = Palette.TextDim, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 6.dp),
+        )
+        Group(tr("Na osobne pliki")) {
+            Chips(Icons.Rounded.CallSplit, tr("Sposób"), SplitMode.entries.toList(), mode, ::splitModeLabel) { mode = it }
+            Column(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+                when (mode) {
+                    SplitMode.RANGES -> DarkField(ranges, { ranges = it }, tr("Zakresy stron, np. 1-3, 4-10, 11-"))
+                    SplitMode.EVERY -> DarkField(every, { v -> every = v.filter(Char::isDigit).take(4) }, tr("Stron w każdej części (1 – każda strona osobno)"), number = true)
+                    SplitMode.BOOKMARKS -> when {
+                        outline.isEmpty() -> Text(tr("Ten dokument nie ma spisu treści – wybierz inny sposób."), color = Palette.TextDim, fontSize = 13.sp)
+                        levels > 1 -> Chips(Icons.Rounded.Toc, tr("Poziom spisu treści"), (0 until levels).toList(), level, { tr("Poziom {0}", it + 1) }) { level = it }
+                        else -> Unit
+                    }
+                    SplitMode.SIZE -> DarkField(sizeMb, { v -> sizeMb = v.filter { it.isDigit() || it == ',' || it == '.' }.take(6) }, tr("Największy rozmiar części (MB)"), number = true)
+                    SplitMode.TEXT -> DarkField(text, { text = it }, tr("Tekst, od którego zaczyna się nowa część"))
+                }
+            }
+            val plan: List<SplitPart>? = when (mode) {
+                SplitMode.RANGES -> SplitPlan.ranges(ranges, n)
+                SplitMode.EVERY -> every.toIntOrNull()?.takeIf { it > 0 }?.let { SplitPlan.every(n, it) } ?: emptyList()
+                SplitMode.BOOKMARKS -> SplitPlan.byOutline(outline, n, level.coerceAtMost(maxOf(0, levels - 1)))
+                SplitMode.SIZE, SplitMode.TEXT -> null
+            }
+            val mb = sizeMb.replace(',', '.').toFloatOrNull()
+            val ready = when (mode) {
+                SplitMode.SIZE -> mb != null && mb > 0f
+                SplitMode.TEXT -> text.isNotBlank()
+                else -> !plan.isNullOrEmpty()
+            }
+            Text(
+                when {
+                    mode == SplitMode.SIZE -> tr("Rozmiar stron zostanie oszacowany – części mogą być nieco mniejsze niż limit.")
+                    mode == SplitMode.TEXT -> tr("Nowa część zaczyna się na każdej stronie, na której występuje ten tekst (bez względu na wielkość liter i polskie znaki).")
+                    plan.isNullOrEmpty() -> tr("Brak części – sprawdź ustawienia.")
+                    else -> {
+                        val p = plan.orEmpty()
+                        tr("Części: {0}", p.size) + " · " + p.take(4).joinToString(" | ") { describePages(it.pages) } + (if (p.size > 4) " …" else "")
+                    }
+                },
+                color = Palette.TextDim, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+            )
+            Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.End) {
+                PillButton(tr("Podziel i zapisz"), enabled = ready) {
+                    close(vm)
+                    when (mode) {
+                        SplitMode.SIZE -> vm.splitBySize(mb ?: 10f)
+                        SplitMode.TEXT -> vm.splitByText(text)
+                        else -> vm.splitInto(plan.orEmpty())
+                    }
+                }
+            }
+        }
+        Group(tr("Strony na pół")) {
+            Text(
+                tr("Skan rozkładówki (dwie strony na jednym arkuszu) zamienia się w dwie osobne strony. Zmienia bieżący dokument – zmianę można cofnąć."),
+                color = Palette.TextDim, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+            )
+            Chips(Icons.Rounded.VerticalSplit, tr("Cięcie"), listOf(true, false), vertical, { if (it) tr("Pionowe: lewa | prawa") else tr("Poziome: góra / dół") }) { vertical = it }
+            Chips(Icons.Rounded.Description, tr("Strony"), listOf(true, false), allPages, { if (it) tr("Wszystkie") else tr("Bieżąca") }) { allPages = it }
+            SwitchRow(Icons.Rounded.SwapHoriz, tr("Najpierw druga połowa"), tr("Prawa (dolna) część jako pierwsza – manga, pismo od prawej"), swap) { swap = it }
+            Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.End) {
+                PillButton(tr("Podziel strony")) {
+                    close(vm)
+                    vm.splitHalves(if (allPages) (0 until n).toList() else listOf(vm.currentPage), vertical, swap)
+                }
+            }
+        }
+    }
+}
+
+// ------------------------------------------------------------------ przycinanie
+
+@Composable
+private fun MarginSlider(label: String, value: Float, onChange: (Float) -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, color = Color.White, fontSize = 13.sp, modifier = Modifier.width(64.dp))
+        Slider(
+            value = value,
+            onValueChange = onChange,
+            valueRange = 0f..40f,
+            modifier = Modifier.weight(1f),
+            colors = SliderDefaults.colors(thumbColor = Palette.Amber, activeTrackColor = Palette.Amber, inactiveTrackColor = Color.White.copy(alpha = 0.2f)),
+        )
+        Text("${value.roundToInt()}%", color = Color.White, fontSize = 12.sp, modifier = Modifier.width(44.dp).padding(start = 8.dp))
+    }
+}
+
+@Composable
+private fun CropSheet(vm: PdfViewModel) {
+    val n = vm.index.pageCount
+    var left by remember { mutableStateOf(0f) }
+    var top by remember { mutableStateOf(0f) }
+    var right by remember { mutableStateOf(0f) }
+    var bottom by remember { mutableStateOf(0f) }
+    var which by remember { mutableStateOf(0) }
+    var range by remember { mutableStateOf("1-$n") }
+    var detecting by remember { mutableStateOf(false) }
+    var thumb by remember { mutableStateOf<ImageBitmap?>(null) }
+    val scope = rememberCoroutineScope()
+    val page = vm.currentPage
+    LaunchedEffect(page, vm.revision) { thumb = vm.render?.renderPage(page, 360) }
+    val margins = floatArrayOf(left / 100f, top / 100f, right / 100f, bottom / 100f)
+    val pages = when (which) {
+        0 -> listOf(page)
+        1 -> (0 until n).toList()
+        else -> parsePageRanges(range, n)
+    }
+    Panel(tr("Przytnij marginesy"), onClose = { close(vm) }) {
+        Text(
+            tr("Widoczny obszar stron zostaje zmniejszony – treść poza nim nie jest wyświetlana ani drukowana. Zmianę można cofnąć."),
+            color = Palette.TextDim, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 6.dp),
+        )
+        thumb?.let { img ->
+            Box(Modifier.fillMaxWidth().padding(8.dp), contentAlignment = Alignment.Center) {
+                Canvas(Modifier.height(220.dp).aspectRatio(img.width.toFloat() / img.height.coerceAtLeast(1))) {
+                    drawImage(img, dstSize = IntSize(size.width.toInt(), size.height.toInt()))
+                    val l = size.width * margins[0]
+                    val t = size.height * margins[1]
+                    val r = size.width * (1f - margins[2])
+                    val b = size.height * (1f - margins[3])
+                    val shade = Color.Black.copy(alpha = 0.55f)
+                    drawRect(shade, Offset.Zero, Size(size.width, t))
+                    drawRect(shade, Offset(0f, b), Size(size.width, size.height - b))
+                    drawRect(shade, Offset(0f, t), Size(l, b - t))
+                    drawRect(shade, Offset(r, t), Size(size.width - r, b - t))
+                    drawRect(Palette.Amber, Offset(l, t), Size(r - l, b - t), style = Stroke(2.dp.toPx()))
+                }
+            }
+        }
+        Group(tr("Marginesy (% strony {0})", page + 1)) {
+            MarginSlider(tr("Lewy"), left) { left = it }
+            MarginSlider(tr("Górny"), top) { top = it }
+            MarginSlider(tr("Prawy"), right) { right = it }
+            MarginSlider(tr("Dolny"), bottom) { bottom = it }
+            Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+                PillButton(tr("Wyzeruj"), primary = false) {
+                    left = 0f; top = 0f; right = 0f; bottom = 0f
+                }
+                PillButton(if (detecting) tr("Wykrywanie…") else tr("Wykryj białe brzegi"), primary = false, enabled = !detecting) {
+                    scope.launch {
+                        detecting = true
+                        val m = vm.autoMargins(page)
+                        detecting = false
+                        if (m == null || m.all { it <= 0.001f }) {
+                            vm.toast(tr("Nie wykryto pustych marginesów na tej stronie"))
+                        } else {
+                            left = m[0] * 100f; top = m[1] * 100f; right = m[2] * 100f; bottom = m[3] * 100f
+                        }
+                    }
+                }
+            }
+        }
+        Group(tr("Strony")) {
+            Chips(Icons.Rounded.Description, tr("Zastosuj do"), listOf(0, 1, 2), which, { listOf(tr("Bieżąca"), tr("Wszystkie"), tr("Zakres"))[it] }) { which = it }
+            if (which == 2) {
+                Box(Modifier.padding(horizontal = 12.dp)) { DarkField(range, { range = it }, tr("Strony, np. 1-3, 5, 8-")) }
+            }
+            Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.End) {
+                PillButton(tr("Przytnij ({0})", pages.size), enabled = pages.isNotEmpty() && margins.any { it > 0f } && validCrop(margins)) {
+                    close(vm)
+                    vm.cropPages(pages, margins)
+                }
+            }
         }
     }
 }

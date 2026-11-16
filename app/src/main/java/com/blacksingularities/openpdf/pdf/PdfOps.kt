@@ -21,6 +21,8 @@ import com.tom_roush.pdfbox.pdmodel.encryption.StandardProtectionPolicy
 import com.tom_roush.pdfbox.pdmodel.font.PDFont
 import com.tom_roush.pdfbox.pdmodel.font.PDType0Font
 import com.tom_roush.pdfbox.pdmodel.font.PDType1Font
+import com.tom_roush.pdfbox.pdmodel.graphics.color.PDColor
+import com.tom_roush.pdfbox.pdmodel.graphics.color.PDDeviceRGB
 import com.tom_roush.pdfbox.pdmodel.graphics.form.PDFormXObject
 import com.tom_roush.pdfbox.pdmodel.graphics.image.JPEGFactory
 import com.tom_roush.pdfbox.pdmodel.graphics.image.LosslessFactory
@@ -30,12 +32,16 @@ import com.tom_roush.pdfbox.pdmodel.interactive.action.PDActionGoTo
 import com.tom_roush.pdfbox.pdmodel.interactive.action.PDActionURI
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotation
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationLink
+import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationWidget
+import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAppearanceCharacteristicsDictionary
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAppearanceDictionary
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAppearanceStream
+import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDBorderStyleDictionary
 import com.tom_roush.pdfbox.pdmodel.interactive.documentnavigation.destination.PDDestination
 import com.tom_roush.pdfbox.pdmodel.interactive.documentnavigation.destination.PDNamedDestination
 import com.tom_roush.pdfbox.pdmodel.interactive.documentnavigation.destination.PDPageDestination
 import com.tom_roush.pdfbox.pdmodel.interactive.documentnavigation.outline.PDOutlineNode
+import com.tom_roush.pdfbox.pdmodel.interactive.form.PDAcroForm
 import com.tom_roush.pdfbox.pdmodel.interactive.form.PDCheckBox
 import com.tom_roush.pdfbox.pdmodel.interactive.form.PDChoice
 import com.tom_roush.pdfbox.pdmodel.interactive.form.PDField
@@ -555,6 +561,154 @@ object PdfOps {
             repeat(pages.coerceAtLeast(1)) { doc.addPage(PDPage(PDRectangle(size.width, size.height))) }
             doc.save(out)
         }
+    }
+
+    // ------------------------------------------------------------------ przycinanie, kolejność, rozmiar, pola
+
+    private fun geoOf(p: PDPage): PageGeo {
+        val c = p.cropBox
+        return PageGeo(c.lowerLeftX, c.lowerLeftY, c.width, c.height, normalizeRotation(p.rotation))
+    }
+
+    /** Nowy widoczny obszar stron: prostokąt [rect] obecnie wyświetlanej strony. */
+    fun cropPages(file: File, pages: Collection<Int>, rect: RectN) = edit(file) { doc ->
+        for (i in pages.distinct()) if (i in 0 until doc.numberOfPages) {
+            val p = doc.getPage(i)
+            val r = geoOf(p).rectToPdf(rect)
+            if (r[2] - r[0] < 1f || r[3] - r[1] < 1f) continue
+            p.cropBox = PDRectangle(r[0], r[1], r[2] - r[0], r[3] - r[1])
+            // Pozostałe ramki nie mogą wychodzić poza nowy widoczny obszar.
+            p.cosObject.removeItem(COSName.TRIM_BOX)
+            p.cosObject.removeItem(COSName.BLEED_BOX)
+            p.cosObject.removeItem(COSName.ART_BOX)
+        }
+    }
+
+    /** Atrybuty dziedziczone z drzewa stron zapisane wprost w stronie (przed przenoszeniem). */
+    private fun materialize(p: PDPage) {
+        p.mediaBox = p.mediaBox
+        p.cropBox = p.cropBox
+        p.resources = p.resources
+        p.rotation = p.rotation
+    }
+
+    fun reorderPages(file: File, order: List<Int>) = edit(file) { doc ->
+        val n = doc.numberOfPages
+        require(order.size == n && order.toSet().size == n && order.all { it in 0 until n }) { tr("Nieprawidłowa kolejność stron") }
+        val pages = (0 until n).map { doc.getPage(it) }
+        pages.forEach(::materialize)
+        for (p in pages) doc.pages.remove(p)
+        for (i in order) doc.pages.add(pages[i])
+    }
+
+    private class CountingStream : java.io.OutputStream() {
+        var count = 0L
+        override fun write(b: Int) {
+            count++
+        }
+
+        override fun write(b: ByteArray, off: Int, len: Int) {
+            count += len
+        }
+    }
+
+    /** Rozmiar każdej strony zapisanej osobno (zasoby wspólne liczone przy każdej stronie – z zapasem). */
+    fun pageBytes(file: File): LongArray = load(file).use { doc ->
+        LongArray(doc.numberOfPages) { i ->
+            runCatching {
+                PDDocument(memory).use { one ->
+                    val src = doc.getPage(i)
+                    val page = one.importPage(src)
+                    page.resources = src.resources
+                    page.mediaBox = src.mediaBox
+                    page.cropBox = src.cropBox
+                    page.rotation = src.rotation
+                    val out = CountingStream()
+                    one.save(out)
+                    out.count
+                }
+            }.getOrDefault(0L)
+        }
+    }
+
+    /** Dodaje puste pola formularza (tekstowe i pola wyboru) z wyglądem. */
+    fun addFormFields(file: File, fields: List<NewField>) = edit(file) { doc ->
+        val catalog = doc.documentCatalog
+        val form = catalog.acroForm ?: PDAcroForm(doc).also { catalog.acroForm = it }
+        val helv = COSName.getPDFName("Helv")
+        val zadb = COSName.getPDFName("ZaDb")
+        val dr = form.defaultResources ?: PDResources().also { form.defaultResources = it }
+        if (runCatching { dr.getFont(helv) }.getOrNull() == null) dr.put(helv, PDType1Font.HELVETICA)
+        if (runCatching { dr.getFont(zadb) }.getOrNull() == null) dr.put(zadb, PDType1Font.ZAPF_DINGBATS)
+        form.defaultResources = dr
+        if (form.defaultAppearance.isNullOrEmpty()) form.defaultAppearance = "/Helv 0 Tf 0 g"
+        val added = ArrayList<PDField>()
+        for (f in fields) {
+            if (f.page !in 0 until doc.numberOfPages) continue
+            val page = doc.getPage(f.page)
+            val geo = geoOf(page)
+            val r = geo.rectToPdf(f.rect)
+            val rect = PDRectangle(r[0], r[1], max(4f, r[2] - r[0]), max(4f, r[3] - r[1]))
+            val field: PDTerminalField = if (f.kind == FieldKind.CHECKBOX) PDCheckBox(form) else PDTextField(form)
+            field.partialName = f.name
+            val widget = field.widgets[0]
+            widget.rectangle = rect
+            widget.page = page
+            widget.isPrinted = true
+            val mk = PDAppearanceCharacteristicsDictionary(COSDictionary())
+            mk.borderColour = PDColor(floatArrayOf(0.35f, 0.38f, 0.5f), PDDeviceRGB.INSTANCE)
+            mk.background = PDColor(floatArrayOf(0.94f, 0.96f, 1f), PDDeviceRGB.INSTANCE)
+            if (geo.rotation != 0) mk.cosObject.setInt(COSName.getPDFName("R"), geo.rotation)
+            if (field is PDCheckBox) mk.normalCaption = "4"
+            widget.appearanceCharacteristics = mk
+            widget.borderStyle = PDBorderStyleDictionary().apply { width = 1f }
+            val annots = page.annotations
+            annots.add(widget)
+            page.annotations = annots
+            added += field
+            if (field is PDTextField) {
+                field.defaultAppearance = "/Helv 0 Tf 0 g"
+                runCatching { field.setValue("") }
+            } else {
+                field.cosObject.setString(COSName.DA, "/ZaDb 0 Tf 0 g")
+                checkBoxAppearance(doc, widget, rect.width, rect.height)
+                field.cosObject.setName(COSName.V, "Off")
+            }
+        }
+        form.fields = form.fields + added
+    }
+
+    /** Wygląd pola wyboru w dwóch stanach („Yes” i „Off”) – widoczny także bez odświeżania formularza. */
+    private fun checkBoxAppearance(doc: PDDocument, widget: PDAnnotationWidget, w: Float, h: Float) {
+        // Pole wyboru jest kwadratowe, więc obrót strony nie zmienia jego wyglądu.
+        fun stream(on: Boolean): PDAppearanceStream {
+            val ap = newAppearance(doc, PDRectangle(w, h))
+            PDPageContentStream(doc, ap).use { cs ->
+                cs.setNonStrokingColor(0.94f, 0.96f, 1f)
+                cs.addRect(0f, 0f, w, h)
+                cs.fill()
+                cs.setStrokingColor(0.35f, 0.38f, 0.5f)
+                cs.setLineWidth(1f)
+                cs.addRect(0.5f, 0.5f, w - 1f, h - 1f)
+                cs.stroke()
+                if (on) {
+                    cs.setStrokingColor(0.08f, 0.08f, 0.1f)
+                    cs.setLineWidth(max(1.2f, min(w, h) * 0.13f))
+                    cs.moveTo(w * 0.22f, h * 0.52f)
+                    cs.lineTo(w * 0.42f, h * 0.28f)
+                    cs.lineTo(w * 0.8f, h * 0.76f)
+                    cs.stroke()
+                }
+            }
+            return ap
+        }
+        val states = COSDictionary()
+        states.setItem(COSName.getPDFName("Yes"), stream(true))
+        states.setItem(COSName.getPDFName("Off"), stream(false))
+        val apd = PDAppearanceDictionary()
+        apd.cosObject.setItem(COSName.N, states)
+        widget.appearance = apd
+        widget.cosObject.setName(COSName.AS, "Off")
     }
 
     private fun imagePage(doc: PDDocument, f: File): PDPage? {

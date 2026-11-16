@@ -63,7 +63,19 @@ import com.blacksingularities.openpdf.desktop.UpdateStatus
 import com.blacksingularities.openpdf.desktop.humanBytes
 import com.blacksingularities.openpdf.i18n.AppLanguage
 import com.blacksingularities.openpdf.pdf.InfoEdit
+import com.blacksingularities.openpdf.pdf.SplitMode
+import com.blacksingularities.openpdf.pdf.SplitPart
+import com.blacksingularities.openpdf.pdf.SplitPlan
+import com.blacksingularities.openpdf.pdf.describePages
+import com.blacksingularities.openpdf.pdf.parsePageRanges
+import com.blacksingularities.openpdf.pdf.validCrop
 import com.blacksingularities.openpdf.platform.formatDate
+import com.blacksingularities.openpdf.platform.renderPage
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import java.awt.Desktop
 import java.net.URI
@@ -87,6 +99,261 @@ fun Dialogs(app: AppState) {
         Dialog.NEW_DOC -> Modal(close, 420.dp) { NewDocDialog(app, close) }
         Dialog.UNSAVED -> Modal({ app.resolveClosing(null) }, 460.dp) { UnsavedDialog(app) }
         Dialog.INPUT -> Modal({ app.input = null; close() }, 460.dp) { InputDialog(app, close) }
+        Dialog.MERGE -> Modal(close, 480.dp) { MergeDialog(app, close) }
+        Dialog.SPLIT -> Modal(close, 540.dp) { SplitDialog(app, close) }
+        Dialog.CROP -> Modal(close, 560.dp) { CropDialog(app, close) }
+    }
+}
+
+// ------------------------------------------------------------------ scalanie, podział, przycinanie
+
+@Composable
+private fun ChoiceRow(on: Boolean, title: String, hint: String, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(10.dp)
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 3.dp).clip(shape)
+            .background(if (on) P.accentSoft else P.surface, shape)
+            .border(1.dp, if (on) P.accent.copy(alpha = 0.6f) else P.line, shape)
+            .pointerHoverIcon(PointerIcon.Hand).clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(14.dp).clip(CircleShape).border(2.dp, if (on) P.accent else P.line2, CircleShape).padding(3.dp).clip(CircleShape).background(if (on) P.accent else Color.Transparent))
+        Column(Modifier.padding(start = 12.dp)) {
+            Txt(title, weight = FontWeight.SemiBold)
+            Txt(hint, style = Type.small, color = P.text3, maxLines = 2)
+        }
+    }
+}
+
+@Composable
+private fun MergeDialog(app: AppState, close: () -> Unit) {
+    val files = app.mergeFiles
+    if (files.size < 2) return close()
+    var alternate by remember { mutableStateOf(false) }
+    var reverse by remember { mutableStateOf(false) }
+    DialogTitle(L("Scal pliki ({0})", "Merge files ({0})").replace("{0}", files.size.toString()), close)
+    ChoiceRow(!alternate, L("Kolejno", "One after another"), L("Wszystkie strony pierwszego pliku, potem drugiego…", "All pages of the first file, then the second…")) { alternate = false }
+    ChoiceRow(alternate, L("Na przemian", "Alternate"), L("Strona 1 z każdego pliku, potem strona 2… – np. skan stron przednich i tylnych", "Page 1 of every file, then page 2… – e.g. front and back scans")) { alternate = true }
+    if (alternate) {
+        SettingRow(L("Kolejne pliki od końca", "Later files in reverse"), L("Gdy tylne strony zeskanowano w odwrotnej kolejności", "When the back pages were scanned in reverse order")) {
+            Switch(reverse) { reverse = it }
+        }
+    }
+    Spacer(Modifier.height(6.dp))
+    for (f in files.take(6)) Txt("• " + f.name, style = Type.small, color = P.text3)
+    if (files.size > 6) Txt("…", style = Type.small, color = P.text3)
+    Buttons {
+        Btn(L("Anuluj", "Cancel"), null, close, kind = BtnKind.GHOST)
+        Btn(if (alternate) L("Przeplataj…", "Interleave…") else L("Scal…", "Merge…"), null, {
+            close()
+            app.merge(files, alternate, reverse)
+        }, kind = BtnKind.PRIMARY, enabled = app.work == null)
+    }
+}
+
+@Composable
+private fun SplitDialog(app: AppState, close: () -> Unit) {
+    val t = app.active ?: return close()
+    val n = t.pageCount
+    val outline = t.index.outline
+    val levels = SplitPlan.outlineLevels(outline)
+    var mode by remember { mutableStateOf(SplitMode.RANGES) }
+    var ranges by remember { mutableStateOf(if (n > 1) "1-${(n + 1) / 2}, ${(n + 1) / 2 + 1}-$n" else "1") }
+    var every by remember { mutableStateOf("1") }
+    var level by remember { mutableStateOf(0) }
+    var sizeMb by remember { mutableStateOf("10") }
+    var text by remember { mutableStateOf("") }
+    var vertical by remember { mutableStateOf(true) }
+    var swap by remember { mutableStateOf(false) }
+    var allPages by remember { mutableStateOf(true) }
+    DialogTitle(L("Podziel dokument", "Split document"), close)
+    Column(Modifier.verticalScroll(rememberScrollState())) {
+        SectionLabel(L("Na osobne pliki", "Into separate files"))
+        Txt(L("Części zapisują się jako osobne pliki PDF w wybranym folderze. Dokument się nie zmienia.", "Parts are saved as separate PDF files in a folder you choose. The document stays unchanged."), color = P.text2, maxLines = 2)
+        Spacer(Modifier.height(8.dp))
+        Seg(
+            listOf(
+                SegItem(SplitMode.RANGES, L("Zakresy", "Ranges")),
+                SegItem(SplitMode.EVERY, L("Co N stron", "Every N pages")),
+                SegItem(SplitMode.BOOKMARKS, L("Zakładki", "Bookmarks")),
+                SegItem(SplitMode.SIZE, L("Rozmiar", "Size")),
+                SegItem(SplitMode.TEXT, L("Tekst", "Text")),
+            ),
+            mode, { mode = it }, Modifier.fillMaxWidth(), fill = true,
+        )
+        Spacer(Modifier.height(8.dp))
+        when (mode) {
+            SplitMode.RANGES -> SettingRow(L("Zakresy stron", "Page ranges"), L("Każdy zakres to osobny plik", "Each range becomes a file")) {
+                Input(ranges, { ranges = it }, Modifier.width(220.dp), placeholder = "1-3, 4-10, 11-", onFocus = { app.typing = it })
+            }
+            SplitMode.EVERY -> SettingRow(L("Stron w każdej części", "Pages per part"), L("1 – każda strona osobno", "1 – every page separately")) {
+                Input(every, { v -> every = v.filter(Char::isDigit).take(4) }, Modifier.width(90.dp), onFocus = { app.typing = it })
+            }
+            SplitMode.BOOKMARKS -> if (outline.isEmpty()) {
+                Txt(L("Ten dokument nie ma spisu treści – wybierz inny sposób.", "This document has no outline – choose another method."), color = P.text3)
+            } else {
+                SettingRow(L("Poziom spisu treści", "Outline level"), L("Każdy rozdział tego poziomu to osobny plik", "Each chapter at this level becomes a file")) {
+                    Seg((0 until maxOf(1, levels)).map { SegItem(it, (it + 1).toString()) }, level, { level = it })
+                }
+            }
+            SplitMode.SIZE -> SettingRow(L("Największy rozmiar części (MB)", "Maximum part size (MB)"), L("Rozmiar stron jest szacowany z zapasem", "Page sizes are estimated with a margin")) {
+                Input(sizeMb, { v -> sizeMb = v.filter { it.isDigit() || it == ',' || it == '.' }.take(6) }, Modifier.width(90.dp), onFocus = { app.typing = it })
+            }
+            SplitMode.TEXT -> SettingRow(L("Tekst początku części", "Text that starts a part"), L("Nowy plik na każdej stronie z tym tekstem", "A new file at every page containing it")) {
+                Input(text, { text = it }, Modifier.width(220.dp), onFocus = { app.typing = it })
+            }
+        }
+        val plan: List<SplitPart>? = when (mode) {
+            SplitMode.RANGES -> SplitPlan.ranges(ranges, n)
+            SplitMode.EVERY -> every.toIntOrNull()?.takeIf { it > 0 }?.let { SplitPlan.every(n, it) } ?: emptyList()
+            SplitMode.BOOKMARKS -> SplitPlan.byOutline(outline, n, level.coerceAtMost(maxOf(0, levels - 1)))
+            SplitMode.SIZE, SplitMode.TEXT -> null
+        }
+        val mb = sizeMb.replace(',', '.').toFloatOrNull()
+        val ready = when (mode) {
+            SplitMode.SIZE -> mb != null && mb > 0f
+            SplitMode.TEXT -> text.isNotBlank()
+            else -> !plan.isNullOrEmpty()
+        }
+        if (plan != null) {
+            Txt(
+                if (plan.isEmpty()) L("Brak części – sprawdź ustawienia.", "No parts – check the settings.")
+                else L("Części: {0}", "Parts: {0}").replace("{0}", plan.size.toString()) + " · " + plan.take(5).joinToString(" | ") { describePages(it.pages) } + (if (plan.size > 5) " …" else ""),
+                style = Type.small, color = P.text3, maxLines = 2,
+            )
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.End) {
+            Btn(L("Podziel i zapisz…", "Split and save…"), null, {
+                close()
+                when (mode) {
+                    SplitMode.SIZE -> app.splitBySize(t, mb ?: 10f)
+                    SplitMode.TEXT -> app.splitByText(t, text)
+                    else -> app.splitInto(t, plan.orEmpty())
+                }
+            }, kind = BtnKind.PRIMARY, enabled = ready && app.work == null)
+        }
+        HDivider(Modifier.padding(vertical = 12.dp))
+        SectionLabel(L("Strony na pół", "Pages in half"))
+        Txt(
+            L("Skan rozkładówki (dwie strony na jednym arkuszu) zamienia się w dwie osobne strony. Zmienia bieżący dokument – można cofnąć (Ctrl+Z).",
+                "A scanned spread (two pages on one sheet) becomes two separate pages. Changes the current document – you can undo it (Ctrl+Z)."),
+            color = P.text2, maxLines = 3,
+        )
+        SettingRow(L("Cięcie", "Cut")) {
+            Seg(listOf(SegItem(true, L("Pionowe: lewa | prawa", "Vertical: left | right")), SegItem(false, L("Poziome: góra / dół", "Horizontal: top / bottom"))), vertical, { vertical = it })
+        }
+        SettingRow(L("Strony", "Pages")) {
+            Seg(listOf(SegItem(true, L("Wszystkie", "All")), SegItem(false, L("Bieżąca", "Current"))), allPages, { allPages = it })
+        }
+        SettingRow(L("Najpierw druga połowa", "Second half first"), L("Prawa (dolna) część jako pierwsza – manga, pismo od prawej", "Right (bottom) half first – manga, right-to-left scripts")) {
+            Switch(swap) { swap = it }
+        }
+    }
+    Buttons {
+        Btn(L("Zamknij", "Close"), null, close, kind = BtnKind.GHOST)
+        Btn(L("Podziel strony na pół", "Split pages in half"), null, {
+            close()
+            t.splitHalves(if (allPages) (0 until n).toList() else listOf(t.page), vertical, swap)
+        }, enabled = t.editable)
+    }
+}
+
+@Composable
+private fun MarginRow(label: String, value: Float, onChange: (Float) -> Unit) {
+    Row(Modifier.fillMaxWidth().height(30.dp), verticalAlignment = Alignment.CenterVertically) {
+        Txt(label, Modifier.width(70.dp), color = P.text2)
+        androidx.compose.material3.Slider(
+            value = value,
+            onValueChange = onChange,
+            valueRange = 0f..40f,
+            modifier = Modifier.weight(1f),
+            colors = androidx.compose.material3.SliderDefaults.colors(thumbColor = P.accent, activeTrackColor = P.accent, inactiveTrackColor = P.raised2),
+        )
+        Txt("${value.roundToInt()}%", Modifier.width(44.dp).padding(start = 8.dp), color = P.text2)
+    }
+}
+
+@Composable
+private fun CropDialog(app: AppState, close: () -> Unit) {
+    val t = app.active ?: return close()
+    val n = t.pageCount
+    val page = t.page
+    var left by remember { mutableStateOf(0f) }
+    var top by remember { mutableStateOf(0f) }
+    var right by remember { mutableStateOf(0f) }
+    var bottom by remember { mutableStateOf(0f) }
+    var which by remember { mutableStateOf(0) }
+    var range by remember { mutableStateOf("1-$n") }
+    var detecting by remember { mutableStateOf(false) }
+    var thumb by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    LaunchedEffect(t.id, page, t.revision) { thumb = t.renderer?.renderPage(page, 360) }
+    val m = floatArrayOf(left / 100f, top / 100f, right / 100f, bottom / 100f)
+    val pages = when (which) {
+        0 -> listOf(page)
+        1 -> (0 until n).toList()
+        else -> parseRange(range, n)
+    }
+    DialogTitle(L("Przytnij marginesy", "Crop margins"), close)
+    Txt(
+        L("Widoczny obszar stron zostaje zmniejszony – treść poza nim nie jest wyświetlana ani drukowana. Można cofnąć (Ctrl+Z).",
+            "The visible area of the pages is reduced – content outside it is neither shown nor printed. You can undo it (Ctrl+Z)."),
+        color = P.text2, maxLines = 3,
+    )
+    Spacer(Modifier.height(10.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Box(Modifier.width(170.dp).height(220.dp), contentAlignment = Alignment.Center) {
+            thumb?.let { img ->
+                androidx.compose.foundation.Canvas(Modifier.fillMaxHeight().aspectRatio(img.width.toFloat() / img.height.coerceAtLeast(1), matchHeightConstraintsFirst = true)) {
+                    drawImage(img, dstSize = androidx.compose.ui.unit.IntSize(size.width.toInt(), size.height.toInt()))
+                    val l = size.width * m[0]
+                    val tp = size.height * m[1]
+                    val r = size.width * (1f - m[2])
+                    val b = size.height * (1f - m[3])
+                    val shade = Color.Black.copy(alpha = 0.55f)
+                    drawRect(shade, Offset.Zero, Size(size.width, tp))
+                    drawRect(shade, Offset(0f, b), Size(size.width, size.height - b))
+                    drawRect(shade, Offset(0f, tp), Size(l, b - tp))
+                    drawRect(shade, Offset(r, tp), Size(size.width - r, b - tp))
+                    drawRect(P.accent, Offset(l, tp), Size(r - l, b - tp), style = Stroke(2.dp.toPx()))
+                }
+            }
+        }
+        Column(Modifier.weight(1f)) {
+            SectionLabel(L("Marginesy (% strony {0})", "Margins (% of page {0})").replace("{0}", (page + 1).toString()))
+            MarginRow(L("Lewy", "Left"), left) { left = it }
+            MarginRow(L("Górny", "Top"), top) { top = it }
+            MarginRow(L("Prawy", "Right"), right) { right = it }
+            MarginRow(L("Dolny", "Bottom"), bottom) { bottom = it }
+            Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Btn(if (detecting) L("Wykrywanie…", "Detecting…") else L("Wykryj białe brzegi", "Detect white borders"), null, {
+                    scope.launch {
+                        detecting = true
+                        val d = t.autoMargins(page)
+                        detecting = false
+                        if (d == null || d.all { it <= 0.001f }) {
+                            app.showToast(L("Nie wykryto pustych marginesów na tej stronie", "No blank margins were found on this page"))
+                        } else {
+                            left = d[0] * 100f; top = d[1] * 100f; right = d[2] * 100f; bottom = d[3] * 100f
+                        }
+                    }
+                }, enabled = !detecting)
+                Btn(L("Wyzeruj", "Reset"), null, { left = 0f; top = 0f; right = 0f; bottom = 0f }, kind = BtnKind.GHOST)
+            }
+        }
+    }
+    SettingRow(L("Zastosuj do", "Apply to")) {
+        Seg(listOf(SegItem(0, L("Bieżąca", "Current")), SegItem(1, L("Wszystkie", "All")), SegItem(2, L("Zakres", "Range"))), which, { which = it })
+    }
+    if (which == 2) Input(range, { range = it }, Modifier.fillMaxWidth(), placeholder = "1-3, 5, 8-", onFocus = { app.typing = it })
+    Buttons {
+        Txt(L("Stron: {0}", "Pages: {0}").replace("{0}", pages.size.toString()), Modifier.weight(1f), color = P.text3, style = Type.small)
+        Btn(L("Anuluj", "Cancel"), null, close, kind = BtnKind.GHOST)
+        Btn(L("Przytnij", "Crop"), null, {
+            close()
+            t.cropPages(pages, m)
+        }, kind = BtnKind.PRIMARY, enabled = pages.isNotEmpty() && m.any { it > 0f } && validCrop(m) && t.editable)
     }
 }
 
@@ -419,17 +686,8 @@ private fun UpdateDialog(app: AppState, close: () -> Unit) {
     }
 }
 
-/** Zakres stron w postaci „1-3, 5, 8-10” → indeksy (od zera). */
-fun parseRange(s: String, count: Int): List<Int> {
-    val out = sortedSetOf<Int>()
-    for (part in s.split(',', ';', ' ').map { it.trim() }.filter { it.isNotEmpty() }) {
-        val ab = part.split('-', '–').map { it.trim().toIntOrNull() }
-        val a = ab.getOrNull(0) ?: continue
-        val b = if (ab.size > 1) ab[1] ?: count else a
-        for (i in minOf(a, b)..maxOf(a, b)) if (i in 1..count) out += i - 1
-    }
-    return out.toList()
-}
+/** Zakres stron w postaci „1-3, 5, 8-10” → indeksy (od zera) – wspólna funkcja wszystkich platform. */
+fun parseRange(s: String, count: Int): List<Int> = parsePageRanges(s, count)
 
 @Composable
 private fun ExportImagesDialog(app: AppState, close: () -> Unit) {

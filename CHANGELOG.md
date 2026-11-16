@@ -1,3 +1,15 @@
+## 2.3.0
+
+Nowe narzędzia PDF – na Androidzie, iOS i Windows, dla wszystkich obsługiwanych formatów:
+
+- **Podziel dokument**: zakresy stron, co N stron (także każda strona osobno), według zakładek, według rozmiaru pliku albo tekstu rozpoczynającego nową część. Na telefonie kilka części zapisuje się jako jedno archiwum ZIP, na Windows – w wybranym folderze.
+- **Strony na pół**: skan rozkładówki zamienia się w dwie osobne strony (cięcie pionowe lub poziome, opcjonalnie najpierw prawa połowa).
+- **Przytnij marginesy**: suwaki z podglądem, automatyczne wykrywanie białych brzegów, dla bieżącej, wszystkich albo wybranych stron.
+- **Scalanie na przemian**: po wybraniu plików do scalenia można je połączyć kolejno albo strona po stronie (np. skan stron przednich i tylnych), z odwróceniem kolejności kolejnych plików.
+- **Tworzenie formularzy**: w panelu formularza dodajesz pola tekstowe i pola wyboru, a potem wskazujesz miejsce na stronie.
+- **Eksport do Worda (.docx)**: tekst dokumentu z akapitami, nagłówkami i podziałem na strony.
+- Uporządkowane menu dokumentu: Edycja i podpis, Strony, Konwersja, Narzędzia – bez powielonych pozycji.
+
 ## 2.2.2
 
 - Ikona aplikacji bez tła: na ekranie głównym widać sam kolorowy emblemat, spójnie z trybem „Bez tła” w OpenDesktop.

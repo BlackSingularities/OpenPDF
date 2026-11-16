@@ -69,6 +69,14 @@ class AndroidPdfEngine : PdfEngine {
 
     override fun createBlank(out: Path, pages: Int, widthPt: Float, heightPt: Float) = PdfOps.createBlank(out.f, pages, PDRectangle(widthPt, heightPt))
 
+    override fun cropPages(file: Path, pages: Collection<Int>, rect: RectN) = PdfOps.cropPages(file.f, pages, rect)
+
+    override fun reorderPages(file: Path, order: List<Int>) = PdfOps.reorderPages(file.f, order)
+
+    override fun pageBytes(file: Path): LongArray = PdfOps.pageBytes(file.f)
+
+    override fun addFormFields(file: Path, fields: List<NewField>) = PdfOps.addFormFields(file.f, fields)
+
     override suspend fun createFromDocument(doc: TextDocument, out: Path) = withContext(Dispatchers.IO) {
         DocPdfWriter(doc).write(out.f)
     }

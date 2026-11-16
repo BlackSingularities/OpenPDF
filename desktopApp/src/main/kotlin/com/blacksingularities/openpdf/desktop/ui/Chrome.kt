@@ -43,7 +43,9 @@ import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Coffee
+import androidx.compose.material.icons.rounded.CallSplit
 import androidx.compose.material.icons.rounded.Compress
+import androidx.compose.material.icons.rounded.Crop
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Download
@@ -569,15 +571,22 @@ private fun DocDrop(app: AppState, tab: DocTab, wide: Boolean) {
         MenuHeader(L("Treść", "Content"))
         MenuItem(L("Adnotacje ({0})", "Annotations ({0})").replace("{0}", (idx.annotCount + tab.marks.size).toString()), Icons.Rounded.Layers) { panel(SideTab.ANNOTATIONS) }
         MenuItem(
-            if (idx.fields.isEmpty()) L("Formularz (brak pól)", "Form (no fields)") else L("Formularz ({0} pól)", "Form ({0} fields)").replace("{0}", idx.fields.size.toString()),
-            Icons.Rounded.FactCheck, enabled = idx.fields.isNotEmpty(),
+            if (idx.fields.isEmpty()) L("Formularz – utwórz pola", "Form – create fields") else L("Formularz ({0} pól)", "Form ({0} fields)").replace("{0}", idx.fields.size.toString()),
+            Icons.Rounded.FactCheck,
         ) { panel(SideTab.FORM) }
         MenuItem(L("Zakładki ({0})", "Bookmarks ({0})").replace("{0}", tab.bookmarks.size.toString()), Icons.Rounded.Bookmark) { panel(SideTab.BOOKMARKS) }
+        MenuSeparator()
+        MenuHeader(L("Strony", "Pages"))
+        MenuItem(L("Porządkuj strony", "Organize pages"), Icons.Rounded.GridView, "Ctrl+Shift+O") { close(); tab.organize = true }
+        MenuItem(L("Podziel dokument…", "Split document…"), Icons.Rounded.CallSplit) { close(); app.dialog = Dialog.SPLIT }
+        MenuItem(L("Przytnij marginesy…", "Crop margins…"), Icons.Rounded.Crop) { close(); app.dialog = Dialog.CROP }
+        MenuSeparator()
+        MenuHeader(L("Konwersja", "Convert"))
+        MenuItem(L("Eksport do Worda (.docx)…", "Export to Word (.docx)…"), Icons.Rounded.Description) { close(); app.exportWord(tab) }
+        MenuItem(L("Eksport stron jako obrazy…", "Export pages as images…"), Icons.Rounded.Image) { close(); app.dialog = Dialog.EXPORT_IMAGES }
         MenuItem(L("Wyodrębnij tekst…", "Extract text…"), Icons.Rounded.Notes) { close(); app.extractText(tab) }
         MenuSeparator()
         MenuHeader(L("Plik", "File"))
-        MenuItem(L("Porządkuj strony", "Organize pages"), Icons.Rounded.GridView, "Ctrl+Shift+O") { close(); tab.organize = true }
-        MenuItem(L("Eksport stron jako obrazy…", "Export pages as images…"), Icons.Rounded.Image) { close(); app.dialog = Dialog.EXPORT_IMAGES }
         MenuItem(L("Zmniejsz rozmiar…", "Reduce size…"), Icons.Rounded.Compress) { close(); app.dialog = Dialog.COMPRESS }
         MenuItem(
             if (tab.protection != null) L("Hasło i ochrona (włączone)", "Password and protection (on)") else L("Hasło i ochrona…", "Password and protection…"),

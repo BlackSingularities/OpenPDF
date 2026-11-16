@@ -15,7 +15,17 @@ import com.blacksingularities.openpdf.doc.DocFormat
 import com.blacksingularities.openpdf.pdf.AnnotInfo
 import com.blacksingularities.openpdf.pdf.DocIndex
 import com.blacksingularities.openpdf.pdf.FieldEdit
+import com.blacksingularities.openpdf.pdf.FieldKind
 import com.blacksingularities.openpdf.pdf.InfoEdit
+import com.blacksingularities.openpdf.pdf.NewField
+import com.blacksingularities.openpdf.pdf.PointN
+import com.blacksingularities.openpdf.pdf.cropRect
+import com.blacksingularities.openpdf.pdf.detectMargins
+import com.blacksingularities.openpdf.pdf.halfMargins
+import com.blacksingularities.openpdf.pdf.halvesPlan
+import com.blacksingularities.openpdf.pdf.newFieldName
+import com.blacksingularities.openpdf.pdf.newFieldRect
+import com.blacksingularities.openpdf.pdf.validCrop
 import com.blacksingularities.openpdf.pdf.Mark
 import com.blacksingularities.openpdf.pdf.PageText
 import com.blacksingularities.openpdf.pdf.SearchHit
@@ -611,6 +621,47 @@ class DocTab(file0: File, private val app: AppState) {
                         .replace("{0}", count.toString()).replace("{1}", humanBytes(before)).replace("{2}", humanBytes(after)),
                 )
             }
+        }
+    }
+
+    /** Przycina strony [pages] o marginesy (lewy, górny, prawy, dolny – ułamki strony). */
+    fun cropPages(pages: Collection<Int>, margins: FloatArray) {
+        if (pages.isEmpty() || margins.all { it <= 0f }) return
+        if (!validCrop(margins)) {
+            app.showToast(L("Marginesy są za duże – ze strony nic by nie zostało", "The margins are too large – nothing of the page would remain"), error = true)
+            return
+        }
+        launchMutate(L("Przycinanie stron", "Cropping pages")) { PdfOps.cropPages(it, pages, cropRect(margins)) }
+    }
+
+    /** Dzieli strony [pages] na połowy (skany rozkładówek); [swap] – najpierw prawa (dolna) połowa. */
+    fun splitHalves(pages: Collection<Int>, vertical: Boolean, swap: Boolean) {
+        if (pages.isEmpty()) return
+        launchMutate(L("Dzielenie stron na pół", "Splitting pages in half"), after = { picked.clear() }) { f ->
+            PdfOps.duplicatePages(f, pages)
+            val (first, second) = halvesPlan(pages, swap)
+            PdfOps.cropPages(f, first, cropRect(halfMargins(vertical, second = false)))
+            PdfOps.cropPages(f, second, cropRect(halfMargins(vertical, second = true)))
+        }
+    }
+
+    /** Dodaje puste pole formularza w miejscu [at] strony [page]. */
+    fun addField(kind: FieldKind, page: Int, at: PointN) {
+        if (busy != null) return
+        val rect = newFieldRect(kind, at, pageWidthPt(page), pageHeightPt(page))
+        val name = newFieldName(kind, index.fields.map { it.name }, L("Pole", "Field"), L("Pole wyboru", "Checkbox"))
+        launchMutate(L("Dodawanie pola formularza", "Adding a form field")) { PdfOps.addFormFields(it, listOf(NewField(page, rect, kind, name))) }
+    }
+
+    /** Jasne marginesy wykryte na obrazie strony [page] albo null. */
+    suspend fun autoMargins(page: Int): FloatArray? {
+        val r = renderer ?: return null
+        val s = r.sizes.getOrNull(page) ?: return null
+        val w = 480
+        val h = (w / s.aspect).toInt().coerceAtLeast(1)
+        val img = r.renderAwt(page, w, h) ?: return null
+        return withContext(Dispatchers.Default) {
+            detectMargins(img.getRGB(0, 0, img.width, img.height, null, 0, img.width), img.width, img.height)
         }
     }
 

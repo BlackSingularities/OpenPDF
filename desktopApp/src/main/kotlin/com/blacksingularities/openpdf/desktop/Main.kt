@@ -277,6 +277,10 @@ private fun handleKey(app: AppState, handles: Map<Int, ViewerHandle>, e: KeyEven
                 tab.organize = false
                 return true
             }
+            if (app.placingField != null) {
+                app.placingField = null
+                return true
+            }
             if (tab?.selection != null) {
                 tab.selection = null
                 return true

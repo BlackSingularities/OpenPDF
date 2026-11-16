@@ -31,6 +31,8 @@ import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.Save
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Toc
+import androidx.compose.material.icons.rounded.CheckBox
+import androidx.compose.material.icons.rounded.TextFields
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -253,8 +255,22 @@ fun AnnotationsPanel(app: AppState, tab: DocTab) {
 @Composable
 fun FormPanel(app: AppState, tab: DocTab) {
     val fields = tab.index.fields.filter { it.kind != FieldKind.BUTTON }
+    // Tworzenie formularza: nowe pole wstawia się kliknięciem strony.
+    val addFields: @Composable () -> Unit = {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Btn(L("Pole tekstowe", "Text field"), Icons.Rounded.TextFields, { app.placingField = FieldKind.TEXT }, Modifier.weight(1f),
+                kind = if (app.placingField == FieldKind.TEXT) BtnKind.SOFT else BtnKind.NORMAL, enabled = tab.editable,
+                tip = L("Dodaj pole tekstowe – kliknij potem miejsce na stronie", "Add a text field – then click a spot on the page"))
+            Btn(L("Pole wyboru", "Checkbox"), Icons.Rounded.CheckBox, { app.placingField = FieldKind.CHECKBOX }, Modifier.weight(1f),
+                kind = if (app.placingField == FieldKind.CHECKBOX) BtnKind.SOFT else BtnKind.NORMAL, enabled = tab.editable,
+                tip = L("Dodaj pole wyboru – kliknij potem miejsce na stronie", "Add a checkbox – then click a spot on the page"))
+        }
+    }
     if (fields.isEmpty()) {
-        Empty(L("Ten dokument nie ma pól formularza.", "This document has no form fields."))
+        Column(Modifier.fillMaxSize()) {
+            addFields()
+            Empty(L("Ten dokument nie ma jeszcze pól formularza. Dodaj je przyciskami powyżej.", "This document has no form fields yet. Add them with the buttons above."))
+        }
         return
     }
     // Wartości zmienione w panelu (nazwa pola → wartość), do zastosowania jednym przyciskiem.
@@ -265,6 +281,7 @@ fun FormPanel(app: AppState, tab: DocTab) {
         if (i >= 0) state.animateScrollToItem(i)
     }
     Column(Modifier.fillMaxSize()) {
+        addFields()
         Txt(
             L("Pola są podświetlone na stronach – kliknij pole w dokumencie, aby przejść do niego.", "Fields are highlighted on the pages – click one in the document to jump to it."),
             Modifier.padding(horizontal = 12.dp, vertical = 2.dp), style = Type.tiny, color = P.text3, maxLines = 3,

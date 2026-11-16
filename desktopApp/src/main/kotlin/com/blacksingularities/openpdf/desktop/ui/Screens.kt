@@ -52,6 +52,9 @@ import androidx.compose.material.icons.rounded.MergeType
 import androidx.compose.material.icons.rounded.NoteAdd
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
+import androidx.compose.material.icons.rounded.CheckBox
+import androidx.compose.material.icons.rounded.TextFields
+import com.blacksingularities.openpdf.pdf.FieldKind
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -141,7 +144,7 @@ fun AppContent(
                                 } else {
                                     Viewer(app, tab, handle, app.presentation)
                                     if (!chrome) FullscreenHud(app, tab)
-                                    if (chrome && app.tool.annotates) ToolHint(app, Modifier.align(Alignment.BottomCenter))
+                                    if (chrome && (app.tool.annotates || app.placingField != null)) ToolHint(app, Modifier.align(Alignment.BottomCenter))
                                 }
                             }
                         }
@@ -253,6 +256,26 @@ private fun ActionTile(icon: ImageVector, label: String, shortcut: String?, modi
 @Composable
 private fun ToolHint(app: AppState, modifier: Modifier) {
     val t = app.tool
+    val placing = app.placingField
+    if (placing != null) {
+        Row(
+            modifier.padding(bottom = 16.dp).shadow(10.dp, Pill).background(P.raised, Pill).border(1.dp, P.line2, Pill)
+                .padding(start = 6.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Box(Modifier.size(26.dp).background(P.accentSoft, CircleShape), contentAlignment = Alignment.Center) {
+                Icon(if (placing == FieldKind.CHECKBOX) Icons.Rounded.CheckBox else Icons.Rounded.TextFields, null, Modifier.size(15.dp), tint = P.accent)
+            }
+            Txt(
+                if (placing == FieldKind.CHECKBOX) L("Kliknij stronę, aby wstawić pole wyboru", "Click the page to insert a checkbox")
+                else L("Kliknij stronę, aby wstawić pole tekstowe", "Click the page to insert a text field"),
+                style = Type.small, color = P.text2,
+            )
+            Btn(L("Zakończ", "Done"), null, { app.placingField = null }, kind = BtnKind.GHOST, height = 24.dp, shortcut = "Esc")
+        }
+        return
+    }
     val hint = when (t) {
         Tool.MARKUP -> L("Zaznacz tekst myszą, aby go wyróżnić", "Select text with the mouse to mark it up")
         Tool.PEN, Tool.MARKER -> L("Rysuj, przytrzymując lewy przycisk myszy", "Draw while holding the left mouse button")

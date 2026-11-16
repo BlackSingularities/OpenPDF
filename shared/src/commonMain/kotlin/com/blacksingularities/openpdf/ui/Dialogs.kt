@@ -95,6 +95,49 @@ fun ViewModelDialogs(vm: PdfViewModel) {
     if (vm.signaturePad) {
         SignaturePadDialog(onDismiss = { vm.signaturePad = false }, onSave = vm::saveSignature)
     }
+    vm.mergeRequest?.let { uris -> MergeDialog(vm, uris) }
+}
+
+/** Sposób scalania wybranych plików: kolejno albo na przemian, strona po stronie. */
+@Composable
+private fun MergeDialog(vm: PdfViewModel, uris: List<String>) {
+    var alternate by remember { mutableStateOf(false) }
+    var reverse by remember { mutableStateOf(false) }
+    DarkDialog(
+        title = tr("Scal pliki ({0})", uris.size),
+        onDismiss = { vm.mergeRequest = null },
+        buttons = {
+            PillButton(tr("Anuluj"), primary = false) { vm.mergeRequest = null }
+            PillButton(if (alternate) tr("Przeplataj") else tr("Scal")) { vm.merge(uris, alternate, reverse) }
+        },
+    ) {
+        MergeOption(!alternate, tr("Kolejno"), tr("Wszystkie strony pierwszego pliku, potem drugiego…")) { alternate = false }
+        MergeOption(alternate, tr("Na przemian"), tr("Strona 1 z każdego pliku, potem strona 2… – np. skan stron przednich i tylnych")) { alternate = true }
+        if (alternate) {
+            MergeOption(reverse, tr("Kolejne pliki od końca"), tr("Gdy tylne strony zeskanowano w odwrotnej kolejności"), check = true) { reverse = !reverse }
+        }
+        Text(tr("Kolejność plików jest taka, jak przy wyborze."), color = Palette.TextFaint, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
+    }
+}
+
+@Composable
+private fun MergeOption(on: Boolean, title: String, hint: String, check: Boolean = false, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(vertical = 8.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val icon = when {
+            check && on -> Icons.Rounded.CheckBox
+            check -> Icons.Rounded.CheckBoxOutlineBlank
+            on -> Icons.Rounded.RadioButtonChecked
+            else -> Icons.Rounded.RadioButtonUnchecked
+        }
+        Icon(icon, null, tint = if (on) Palette.Amber else Palette.TextDim)
+        Column(Modifier.padding(start = 12.dp)) {
+            Text(title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text(hint, color = Palette.TextDim, fontSize = 12.sp)
+        }
+    }
 }
 
 @Composable

@@ -159,6 +159,39 @@ class TextIndex(private val engine: PdfEngine, private val file: Path, private v
         return sb.toString()
     }
 
+    /** Tekst wszystkich stron z położeniem znaków (null – strona bez tekstu) – np. do eksportu do Worda. */
+    suspend fun allPages(onProgress: (Float) -> Unit): List<PageText?> {
+        val out = ArrayList<PageText?>(geos.size)
+        for (p in geos.indices) {
+            coroutineContext.ensureActive()
+            out += page(p)
+            onProgress((p + 1f) / geos.size)
+        }
+        return out
+    }
+
+    /**
+     * Strony, na których występuje [query] (bez względu na wielkość liter i znaki diakrytyczne),
+     * z wierszem zawierającym trafienie – początki części przy podziale dokumentu według tekstu.
+     */
+    suspend fun pagesContaining(query: String, onProgress: (Float) -> Unit): List<Pair<Int, String?>> {
+        val q = PageText.fold(query.trim())
+        if (q.isEmpty()) return emptyList()
+        val out = ArrayList<Pair<Int, String?>>()
+        for (p in geos.indices) {
+            coroutineContext.ensureActive()
+            val t = page(p)
+            val i = t?.folded?.indexOf(q) ?: -1
+            if (t != null && i >= 0) {
+                val ls = t.text.lastIndexOf('\n', i).let { if (it < 0) 0 else it + 1 }
+                val le = t.text.indexOf('\n', i).let { if (it < 0) t.text.length else it }
+                out += p to t.text.substring(ls, le).trim().take(60)
+            }
+            onProgress((p + 1f) / geos.size)
+        }
+        return out
+    }
+
     suspend fun close() {
         lock.withLock {
             runCatching { source?.close() }

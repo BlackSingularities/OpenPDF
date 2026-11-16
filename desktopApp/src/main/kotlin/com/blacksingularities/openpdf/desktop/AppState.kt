@@ -9,8 +9,15 @@ import com.blacksingularities.openpdf.desktop.engine.PdfOps
 import com.blacksingularities.openpdf.desktop.ui.L
 import com.blacksingularities.openpdf.i18n.AppLanguage
 import com.blacksingularities.openpdf.i18n.I18n
+import com.blacksingularities.openpdf.pdf.DocxWriter
+import com.blacksingularities.openpdf.pdf.FieldKind
 import com.blacksingularities.openpdf.pdf.MarkupKind
 import com.blacksingularities.openpdf.pdf.ShapeKind
+import com.blacksingularities.openpdf.pdf.SplitPart
+import com.blacksingularities.openpdf.pdf.SplitPlan
+import com.blacksingularities.openpdf.pdf.mixOrder
+import com.blacksingularities.openpdf.pdf.safeFileName
+import com.blacksingularities.openpdf.pdf.splitPartName
 import com.blacksingularities.openpdf.ui.baseName
 import com.blacksingularities.openpdf.update.ReleaseInfo
 import com.blacksingularities.openpdf.update.UPDATE_API
@@ -36,7 +43,7 @@ import java.time.Duration
 import java.util.Locale
 import javax.imageio.ImageIO
 
-enum class Dialog { NONE, SETTINGS, SHORTCUTS, ABOUT, PROPERTIES, UPDATE, EXPORT_IMAGES, COMPRESS, SECURITY, TEXT, NEW_DOC, UNSAVED, INPUT }
+enum class Dialog { NONE, SETTINGS, SHORTCUTS, ABOUT, PROPERTIES, UPDATE, EXPORT_IMAGES, COMPRESS, SECURITY, TEXT, NEW_DOC, UNSAVED, INPUT, MERGE, SPLIT, CROP }
 
 /** Narzędzie w widoku dokumentu. */
 enum class Tool {
@@ -154,6 +161,8 @@ class AppState {
 
     var tool by mutableStateOf(Tool.SELECT)
     val styles = ToolStyles()
+    /** Rodzaj pola formularza wstawianego kliknięciem strony (null – zwykła praca). */
+    var placingField by mutableStateOf<FieldKind?>(null)
     /** Pole formularza kliknięte na stronie – panel formularza przewija się do niego. */
     var focusField by mutableStateOf<String?>(null)
     var input by mutableStateOf<InputRequest?>(null)
@@ -490,25 +499,113 @@ class AppState {
         }
     }
 
-    /** Scala wybrane pliki PDF w jeden nowy plik i otwiera go. */
+    /** Pliki wybrane do scalenia – okno wyboru sposobu (kolejno albo na przemian). */
+    var mergeFiles by mutableStateOf<List<File>>(emptyList())
+
+    /** Wybór plików PDF do scalenia; sposób (kolejno / na przemian) w następnym oknie. */
     fun mergePdfs() {
         chooseFiles(L("Wybierz pliki PDF do scalenia (w kolejności)", "Choose PDF files to merge (in order)"), pdfFilter) { files ->
             if (files.size < 2) {
                 showToast(L("Wybierz co najmniej dwa pliki", "Choose at least two files"), error = true)
                 return@chooseFiles
             }
-            chooseSave(L("Zapisz scalony dokument", "Save the merged document"), L("Scalony.pdf", "Merged.pdf"), "pdf", pdfFilter) { out ->
-                runWork(L("Scalanie dokumentów…", "Merging documents…")) {
-                    withContext(Dispatchers.IO) {
-                        val tmp = File(out.parentFile, out.name + ".part")
-                        files.first().copyTo(tmp, overwrite = true)
-                        files.drop(1).forEachIndexed { i, f ->
-                            PdfOps.insertPdf(tmp, f, null, null)
-                            withContext(Dispatchers.Main) { workProgress = (i + 2f) / files.size }
-                        }
-                        PdfOps.replace(tmp, out)
+            mergeFiles = files
+            dialog = Dialog.MERGE
+        }
+    }
+
+    /**
+     * Scala pliki w jeden nowy plik i otwiera go: kolejno albo – gdy [alternate] – na przemian, strona
+     * po stronie (skan stron przednich i tylnych). [reverseOthers] – pliki po pierwszym brane od końca.
+     */
+    fun merge(files: List<File>, alternate: Boolean, reverseOthers: Boolean) {
+        val name = if (alternate) L("Przeplecione.pdf", "Interleaved.pdf") else L("Scalony.pdf", "Merged.pdf")
+        chooseSave(L("Zapisz scalony dokument", "Save the merged document"), name, "pdf", pdfFilter) { out ->
+            runWork(if (alternate) L("Przeplatanie stron…", "Interleaving pages…") else L("Scalanie dokumentów…", "Merging documents…")) {
+                withContext(Dispatchers.IO) {
+                    val tmp = File(out.parentFile, out.name + ".part")
+                    files.first().copyTo(tmp, overwrite = true)
+                    val counts = ArrayList<Int>()
+                    if (alternate) counts += DesktopPdfEngine.load(files.first()).use { it.numberOfPages }
+                    files.drop(1).forEachIndexed { i, f ->
+                        if (alternate) counts += DesktopPdfEngine.load(f).use { it.numberOfPages }
+                        PdfOps.insertPdf(tmp, f, null, null)
+                        withContext(Dispatchers.Main) { workProgress = (i + 2f) / files.size }
                     }
-                    open(listOf(out))
+                    if (alternate) PdfOps.reorderPages(tmp, mixOrder(counts, listOf(false) + List(counts.size - 1) { reverseOthers }))
+                    PdfOps.replace(tmp, out)
+                }
+                open(listOf(out))
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------ podział, Word
+
+    /** Zapisuje części dokumentu jako osobne pliki PDF w wybranym folderze. */
+    fun splitInto(tab: DocTab, parts: List<SplitPart>) {
+        if (parts.isEmpty()) {
+            showToast(L("Brak stron do podziału – sprawdź ustawienia", "No pages to split – check the settings"), error = true)
+            return
+        }
+        chooseFolder(L("Folder na części dokumentu", "Folder for the document parts")) { dir ->
+            runWork(L("Dzielenie dokumentu…", "Splitting the document…")) {
+                val src = tab.currentFile()
+                val base = safeFileName(baseName(tab.name)).take(80).ifBlank { L("Dokument", "Document") }
+                withContext(Dispatchers.IO) {
+                    parts.forEachIndexed { i, part ->
+                        val out = File(dir, splitPartName(base, i, parts.size, part, L("część", "part"), L("s.", "p.")))
+                        PdfOps.extractPages(src, part.pages, out)
+                        withContext(Dispatchers.Main) { workProgress = (i + 1f) / parts.size }
+                    }
+                }
+                showToast(L("Zapisano {0} plików w {1}", "Saved {0} files to {1}").replace("{0}", parts.size.toString()).replace("{1}", dir.name))
+                runCatching { java.awt.Desktop.getDesktop().open(dir) }
+            }
+        }
+    }
+
+    /** Podział na części nie większe niż [maxMb] MB (rozmiar stron szacowany z zapasem). */
+    fun splitBySize(tab: DocTab, maxMb: Float) {
+        runWork(L("Szacowanie rozmiaru stron…", "Estimating page sizes…")) {
+            val src = tab.currentFile()
+            val bytes = withContext(Dispatchers.IO) { PdfOps.pageBytes(src) }
+            val parts = SplitPlan.bySize(bytes, (maxMb * 1024f * 1024f).toLong().coerceAtLeast(10_000L))
+            scope.launch { splitInto(tab, parts) }
+        }
+    }
+
+    /** Podział według tekstu: nowy plik zaczyna się na każdej stronie, na której występuje [query]. */
+    fun splitByText(tab: DocTab, query: String) {
+        val ti = tab.text ?: return
+        if (query.isBlank()) return
+        runWork(L("Szukanie tekstu…", "Searching text…")) {
+            val starts = ti.pagesContaining(query) { workProgress = it }
+            if (starts.isEmpty()) {
+                showToast(L("Nie znaleziono „{0}” w dokumencie", "„{0}” was not found in the document").replace("{0}", query.trim()), error = true)
+            } else {
+                val parts = SplitPlan.byStarts(starts, tab.pageCount)
+                scope.launch { splitInto(tab, parts) }
+            }
+        }
+    }
+
+    /** Eksport tekstu dokumentu do pliku Word (.docx): akapity, nagłówki, podział na strony. */
+    fun exportWord(tab: DocTab) {
+        val ti = tab.text ?: return
+        val filter = listOf(NativeFileDialog.Filter(L("Dokument Word", "Word document"), listOf("*.docx")))
+        chooseSave(L("Eksport do Worda", "Export to Word"), baseName(tab.name) + ".docx", "docx", filter) { out ->
+            runWork(L("Eksport do Worda…", "Exporting to Word…")) {
+                val pages = ti.allPages { workProgress = it }
+                val g = tab.index.geos.firstOrNull()
+                val count = withContext(Dispatchers.IO) {
+                    DocxWriter.write(okio.FileSystem.SYSTEM, out.toOkioPath(), pages, g?.displayWidth ?: 595f, g?.displayHeight ?: 842f, baseName(tab.name))
+                }
+                if (count == 0) {
+                    out.delete()
+                    showToast(L("Dokument nie zawiera tekstu (to prawdopodobnie skan) – nie ma czego przenieść do Worda", "The document has no text (probably a scan) – nothing to export to Word"), error = true)
+                } else {
+                    showToast(L("Zapisano {0}", "Saved {0}").replace("{0}", out.name))
                 }
             }
         }
