@@ -1,4 +1,4 @@
-## 2.3.0
+## 2.3.1
 
 Nowe narzędzia PDF – na Androidzie, iOS i Windows, dla wszystkich obsługiwanych formatów:
 

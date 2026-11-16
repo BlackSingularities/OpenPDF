@@ -290,6 +290,7 @@ private fun CropDialog(app: AppState, close: () -> Unit) {
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     LaunchedEffect(t.id, page, t.revision) { thumb = t.renderer?.renderPage(page, 360) }
     val m = floatArrayOf(left / 100f, top / 100f, right / 100f, bottom / 100f)
+    val accent = P.accent
     val pages = when (which) {
         0 -> listOf(page)
         1 -> (0 until n).toList()
@@ -316,7 +317,7 @@ private fun CropDialog(app: AppState, close: () -> Unit) {
                     drawRect(shade, Offset(0f, b), Size(size.width, size.height - b))
                     drawRect(shade, Offset(0f, tp), Size(l, b - tp))
                     drawRect(shade, Offset(r, tp), Size(size.width - r, b - tp))
-                    drawRect(P.accent, Offset(l, tp), Size(r - l, b - tp), style = Stroke(2.dp.toPx()))
+                    drawRect(accent, Offset(l, tp), Size(r - l, b - tp), style = Stroke(2.dp.toPx()))
                 }
             }
         }
